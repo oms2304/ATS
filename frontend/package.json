@@ -6,8 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
-  },
+    "lint": "eslint app components lib",
+    "lint:fix": "eslint app components lib --fix",
+    "format": "prettier --write app components lib",
+    "format:check": "prettier --check app components lib"
+},
   "dependencies": {
     "axios": "^1.17.0",
     "class-variance-authority": "^0.7.1",
@@ -28,6 +31,8 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.7",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.8.3",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
