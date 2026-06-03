@@ -34,8 +34,8 @@ Should show v22.
 ### 1. Clone the repo
 
 ```bash
-git clone https://github.com/JacobTalaat/ats-for-job-seekers.git
-cd ats-for-job-seekers
+git clone https://github.com/oms2304/ATS.git
+cd ATS
 ```
 
 ### 2. Set up the backend
@@ -46,7 +46,7 @@ npm install
 cp .env.example .env
 ```
 
-Open the `.env` file and fill in the values. Ask Jacob for the values on Discord.
+Open the `.env` file and fill in the values. Ask your team lead for the values on Discord.
 
 Run the backend:
 
@@ -55,12 +55,6 @@ npm run dev
 ```
 
 Should run on http://localhost:4000
-
-Open your browser and go to http://localhost:4000. You should see:
-
-```json
-{ "success": true, "message": "ATS for Job Seekers API is running" }
-```
 
 ### 3. Set up the frontend
 
@@ -72,12 +66,6 @@ npm install
 cp .env.example .env.local
 ```
 
-Open `.env.local` and add:
-
-```
-NEXT_PUBLIC_API_URL=http://localhost:4000
-```
-
 Run the frontend:
 
 ```bash
@@ -85,6 +73,31 @@ npm run dev
 ```
 
 Should run on http://localhost:3000
+
+---
+
+## Environment Variables
+
+### Backend (`backend/.env`)
+| Variable | Description | Example |
+|---|---|---|
+| PORT | Port the backend runs on | 4000 |
+| DATABASE_URL | PostgreSQL connection string | postgresql://user:password@localhost:5432/ats_db |
+| REDIS_URL | Redis connection string | redis://localhost:6379 |
+| JWT_SECRET | Secret key for signing JWT tokens | any long random string |
+| RESEND_API_KEY | API key from resend.com for emails | re_xxxxxxxxxxxx |
+| OPENAI_API_KEY | API key from OpenAI for AI features | sk-xxxxxxxxxxxx |
+| FRONTEND_URL | Frontend URL for CORS | http://localhost:3000 |
+
+### Frontend (`frontend/.env.local`)
+| Variable | Description | Example |
+|---|---|---|
+| NEXT_PUBLIC_API_URL | Backend API base URL | http://localhost:4000 |
+
+### Rules
+- Never commit `.env` or `.env.local` to the repo
+- `.env.example` files are safe to commit and show required variables
+- For production values ask the team lead on Discord
 
 ---
 
@@ -128,11 +141,9 @@ Should run on http://localhost:3000
 ## Project structure
 
 ```
-ats-for-job-seekers/
+ATS/
 ├── frontend/     Next.js app
 ├── backend/      Express app
 ├── shared/       shared TypeScript types
 └── .github/      GitHub Actions CI
 ```
-
----
