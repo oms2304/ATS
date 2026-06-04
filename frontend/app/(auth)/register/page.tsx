@@ -1,9 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { apiFetch } from '@/lib/api'
+
+function fieldBorderClass(hasError: boolean) {
+  return hasError ? 'border-error' : 'border-outline-variant'
+}
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -16,10 +20,14 @@ export default function RegisterPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [generalError, setGeneralError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
-    setFieldErrors(prev => ({ ...prev, [e.target.name]: '' }))
+    const { name, value } = e.target
+    setForm(prev => ({ ...prev, [name]: value }))
+    setFieldErrors(prev => ({ ...prev, [name]: '' }))
+    setGeneralError('')
   }
 
   function validate() {
@@ -73,151 +81,187 @@ export default function RegisterPage() {
     }
   }
 
-  const inputBase: React.CSSProperties = {
-    width: '100%',
-    backgroundColor: '#0d1117',
-    borderRadius: '0.375rem',
-    padding: '0.5rem 0.75rem',
-    color: '#e6edf3',
-    fontSize: '0.875rem',
-    outline: 'none',
-    boxSizing: 'border-box'
-  }
-
-  const fields: { key: keyof typeof form; label: string; type: string }[] = [
-    { key: 'name', label: 'Name', type: 'text' },
-    { key: 'email', label: 'Email', type: 'email' },
-    { key: 'password', label: 'Password', type: 'password' },
-    { key: 'confirmPassword', label: 'Confirm Password', type: 'password' }
-  ]
-
   return (
-    <div
-      style={{
-        backgroundColor: '#0d1117',
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '1rem'
-      }}
-    >
-      <div
-        style={{
-          backgroundColor: '#161b22',
-          border: '1px solid #30363d',
-          borderRadius: '0.75rem',
-          padding: '2rem',
-          width: '100%',
-          maxWidth: '420px'
-        }}
-      >
-        <h1
-          style={{
-            color: '#e6edf3',
-            fontSize: '1.5rem',
-            fontWeight: 700,
-            textAlign: 'center',
-            marginBottom: '1.5rem'
-          }}
-        >
-          ATS for Job Seekers
-        </h1>
+    <div className="ats-auth dark bg-background text-on-background flex items-center justify-center p-md h-screen">
+      <div className="fixed inset-0 pointer-events-none overflow-hidden opacity-20">
+        <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-primary-container rounded-full blur-[120px]" />
+        <div className="absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] bg-secondary-container rounded-full blur-[120px]" />
+      </div>
+
+      <main className="relative z-10 w-full max-w-[440px] bg-surface-container border border-outline-variant rounded-xl p-xl shadow-2xl">
+        <header className="flex flex-col items-center text-center mb-xl">
+          <h1 className="text-on-surface font-headline-lg text-headline-lg mb-xs">
+            ATS for Job Seekers
+          </h1>
+          <p className="text-on-surface-variant font-body-md text-body-md">
+            Track your job search like a pro
+          </p>
+        </header>
+
+        <div className="w-full h-px bg-outline-variant mb-xl" />
 
         {generalError && (
-          <p
-            style={{
-              color: '#f85149',
-              fontSize: '0.875rem',
-              marginBottom: '1rem',
-              textAlign: 'center'
-            }}
-          >
-            {generalError}
-          </p>
+          <p className="text-error text-[12px] text-center mb-md">{generalError}</p>
         )}
 
-        <form
-          onSubmit={handleSubmit}
-          style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
-        >
-          {fields.map(({ key, label, type }) => (
-            <div key={key}>
-              <label
-                style={{
-                  display: 'block',
-                  color: '#e6edf3',
-                  fontSize: '0.875rem',
-                  marginBottom: '0.375rem'
-                }}
-              >
-                {label}
-              </label>
+        <form className="space-y-md" onSubmit={handleSubmit} noValidate>
+          <div className="flex flex-col gap-xs">
+            <label
+              className="text-on-surface font-label-md text-label-md ml-1"
+              htmlFor="fullName"
+            >
+              Full Name
+            </label>
+            <div className="relative group input-focus-glow rounded-lg">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors">
+                person
+              </span>
               <input
-                name={key}
-                type={type}
-                value={form[key]}
+                className={`w-full bg-background border rounded-lg py-2.5 pl-10 pr-4 text-on-surface text-body-md placeholder:text-outline focus:border-primary focus:ring-0 transition-all outline-none ${fieldBorderClass(!!fieldErrors.name)}`}
+                id="fullName"
+                name="name"
+                placeholder="John Doe"
+                type="text"
+                value={form.name}
                 onChange={handleChange}
-                style={{
-                  ...inputBase,
-                  border: `1px solid ${fieldErrors[key] ? '#f85149' : '#30363d'}`
-                }}
-                onFocus={e => (e.currentTarget.style.borderColor = '#2f81f4')}
-                onBlur={e =>
-                  (e.currentTarget.style.borderColor = fieldErrors[key]
-                    ? '#f85149'
-                    : '#30363d')
-                }
               />
-              {fieldErrors[key] && (
-                <p
-                  style={{
-                    color: '#f85149',
-                    fontSize: '0.75rem',
-                    marginTop: '0.25rem'
-                  }}
-                >
-                  {fieldErrors[key]}
-                </p>
-              )}
             </div>
-          ))}
+            {fieldErrors.name && (
+              <p className="text-error text-[12px] mt-1">{fieldErrors.name}</p>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-xs">
+            <label
+              className="text-on-surface font-label-md text-label-md ml-1"
+              htmlFor="email"
+            >
+              Email
+            </label>
+            <div className="relative group input-focus-glow rounded-lg">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors">
+                mail
+              </span>
+              <input
+                className={`w-full bg-background border rounded-lg py-2.5 pl-10 pr-4 text-on-surface text-body-md placeholder:text-outline focus:border-primary focus:ring-0 transition-all outline-none ${fieldBorderClass(!!fieldErrors.email)}`}
+                id="email"
+                name="email"
+                placeholder="john@example.com"
+                type="email"
+                value={form.email}
+                onChange={handleChange}
+              />
+            </div>
+            {fieldErrors.email && (
+              <p className="text-error text-[12px] mt-1">{fieldErrors.email}</p>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-xs">
+            <label
+              className="text-on-surface font-label-md text-label-md ml-1"
+              htmlFor="password"
+            >
+              Password
+            </label>
+            <div className="relative group input-focus-glow rounded-lg">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors">
+                lock
+              </span>
+              <input
+                className={`w-full bg-background border rounded-lg py-2.5 pl-10 pr-10 text-on-surface text-body-md placeholder:text-outline focus:border-primary focus:ring-0 transition-all outline-none ${fieldBorderClass(!!fieldErrors.password)}`}
+                id="password"
+                name="password"
+                placeholder="••••••••"
+                type={showPassword ? 'text' : 'password'}
+                value={form.password}
+                onChange={handleChange}
+              />
+              <button
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
+                type="button"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                onClick={() => setShowPassword(prev => !prev)}
+              >
+                <span className="material-symbols-outlined">
+                  {showPassword ? 'visibility_off' : 'visibility'}
+                </span>
+              </button>
+            </div>
+            {fieldErrors.password && (
+              <p className="text-error text-[12px] mt-1">{fieldErrors.password}</p>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-xs">
+            <label
+              className="text-on-surface font-label-md text-label-md ml-1"
+              htmlFor="confirmPassword"
+            >
+              Confirm Password
+            </label>
+            <div className="relative group input-focus-glow rounded-lg">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors">
+                lock
+              </span>
+              <input
+                className={`w-full bg-background border rounded-lg py-2.5 pl-10 pr-10 text-on-surface text-body-md placeholder:text-outline focus:border-primary focus:ring-0 transition-all outline-none ${fieldBorderClass(!!fieldErrors.confirmPassword)}`}
+                id="confirmPassword"
+                name="confirmPassword"
+                placeholder="••••••••"
+                type={showConfirmPassword ? 'text' : 'password'}
+                value={form.confirmPassword}
+                onChange={handleChange}
+              />
+              <button
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
+                type="button"
+                aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                onClick={() => setShowConfirmPassword(prev => !prev)}
+              >
+                <span className="material-symbols-outlined">
+                  {showConfirmPassword ? 'visibility_off' : 'visibility'}
+                </span>
+              </button>
+            </div>
+            {fieldErrors.confirmPassword && (
+              <p className="text-error text-[12px] mt-1">{fieldErrors.confirmPassword}</p>
+            )}
+          </div>
 
           <button
+            className="w-full bg-primary-container hover:bg-primary-container/90 active:scale-[0.98] text-white font-label-md text-body-lg py-3 rounded-lg flex items-center justify-center gap-2 transition-all mt-xl shadow-lg shadow-primary-container/10 disabled:opacity-70 disabled:cursor-not-allowed disabled:active:scale-100"
             type="submit"
             disabled={loading}
-            style={{
-              backgroundColor: '#2f81f4',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: '0.375rem',
-              padding: '0.625rem',
-              fontSize: '0.875rem',
-              fontWeight: 600,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.7 : 1,
-              width: '100%',
-              marginTop: '0.5rem'
-            }}
           >
-            {loading ? 'Creating account...' : 'Register'}
+            {loading ? (
+              <>
+                <span className="material-symbols-outlined text-[18px] animate-spin">
+                  progress_activity
+                </span>
+                Creating...
+              </>
+            ) : (
+              <>
+                Create Account
+                <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+              </>
+            )}
           </button>
         </form>
 
-        <p
-          style={{
-            color: '#8b949e',
-            fontSize: '0.875rem',
-            textAlign: 'center',
-            marginTop: '1.25rem'
-          }}
-        >
-          Already have an account?{' '}
-          <Link href="/login" style={{ color: '#2f81f4', textDecoration: 'none' }}>
-            Login
-          </Link>
-        </p>
-      </div>
+        <footer className="mt-xl text-center">
+          <p className="text-on-surface-variant font-body-sm text-body-sm">
+            Already have an account?{' '}
+            <Link
+              className="text-primary-container hover:text-primary-container/80 font-medium hover:underline transition-all"
+              href="/login"
+            >
+              Login
+            </Link>
+          </p>
+        </footer>
+      </main>
     </div>
   )
 }
