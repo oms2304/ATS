@@ -53,7 +53,7 @@ export const getJobById = async (req: Request, res: Response) => {
     }
 
     const job = await prisma.job.findFirst({
-      where: { id: req.params.id, userId },
+      where: { id: req.params.id as string, userId },
     });
 
     if (!job) {
@@ -74,7 +74,7 @@ export const updateJob = async (req: Request, res: Response) => {
     }
 
     const existing = await prisma.job.findFirst({
-      where: { id: req.params.id, userId },
+      where: { id: req.params.id as string, userId },
     });
 
     if (!existing) {
@@ -87,7 +87,7 @@ export const updateJob = async (req: Request, res: Response) => {
     }
 
     const job = await prisma.job.update({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       data: {
         ...parsed.data,
         lastActivity: new Date(),
@@ -108,14 +108,14 @@ export const deleteJob = async (req: Request, res: Response) => {
     }
 
     const existing = await prisma.job.findFirst({
-      where: { id: req.params.id, userId },
+      where: { id: req.params.id as string, userId },
     });
 
     if (!existing) {
       return res.status(404).json({ error: 'Job not found' });
     }
 
-    await prisma.job.delete({ where: { id: req.params.id } });
+    await prisma.job.delete({ where: { id: req.params.id as string } });
 
     return res.status(204).send();
   } catch {

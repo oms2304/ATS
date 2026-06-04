@@ -30,7 +30,7 @@ const mockReq = (overrides = {}) =>
     body: {},
     params: {},
     ...overrides,
-  }) as unknown as Request;
+  }) as any as Request;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -43,7 +43,7 @@ describe('createJob', () => {
     });
     const res = mockRes();
     const fakeJob = { id: 'job-1', title: 'Engineer', company: 'Acme', stage: 'APPLIED', userId: 'user-123' };
-    vi.mocked(prisma.job.create).mockResolvedValue(fakeJob as unknown);
+    vi.mocked(prisma.job.create).mockResolvedValue(fakeJob as any);
 
     await createJob(req, res);
 
@@ -75,7 +75,7 @@ describe('getJobs', () => {
     const req = mockReq();
     const res = mockRes();
     const fakeJobs = [{ id: 'job-1', title: 'Engineer', userId: 'user-123' }];
-    vi.mocked(prisma.job.findMany).mockResolvedValue(fakeJobs as unknown);
+    vi.mocked(prisma.job.findMany).mockResolvedValue(fakeJobs as any);
 
     await getJobs(req, res);
 
@@ -98,7 +98,7 @@ describe('getJobById', () => {
     const req = mockReq({ params: { id: 'job-1' } });
     const res = mockRes();
     const fakeJob = { id: 'job-1', userId: 'user-123' };
-    vi.mocked(prisma.job.findFirst).mockResolvedValue(fakeJob as unknown);
+    vi.mocked(prisma.job.findFirst).mockResolvedValue(fakeJob as any);
 
     await getJobById(req, res);
 
@@ -130,8 +130,8 @@ describe('updateJob', () => {
     const req = mockReq({ params: { id: 'job-1' }, body: { title: 'Senior Engineer' } });
     const res = mockRes();
     const fakeJob = { id: 'job-1', userId: 'user-123', title: 'Senior Engineer' };
-    vi.mocked(prisma.job.findFirst).mockResolvedValue(fakeJob as unknown);
-    vi.mocked(prisma.job.update).mockResolvedValue(fakeJob as unknown);
+    vi.mocked(prisma.job.findFirst).mockResolvedValue(fakeJob as any);
+    vi.mocked(prisma.job.update).mockResolvedValue(fakeJob as any);
 
     await updateJob(req, res);
 
@@ -154,8 +154,8 @@ describe('deleteJob', () => {
     const req = mockReq({ params: { id: 'job-1' } });
     const res = mockRes();
     const fakeJob = { id: 'job-1', userId: 'user-123' };
-    vi.mocked(prisma.job.findFirst).mockResolvedValue(fakeJob as unknown);
-    vi.mocked(prisma.job.delete).mockResolvedValue(fakeJob as unknown);
+    vi.mocked(prisma.job.findFirst).mockResolvedValue(fakeJob as any);
+    vi.mocked(prisma.job.delete).mockResolvedValue(fakeJob as any);
 
     await deleteJob(req, res);
 
