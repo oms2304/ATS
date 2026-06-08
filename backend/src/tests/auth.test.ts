@@ -163,11 +163,33 @@ describe('POST /api/auth/register', () => {
     expect(res.body.fields.email).toBeDefined()
   })
 
-  it('rejects password shorter than 6 characters', async () => {
+  it('rejects password shorter than 8 characters', async () => {
     const res = await request(app).post('/api/auth/register').send({
       name: 'Jacob',
       email: 'jacob@example.com',
-      password: 'abc'
+      password: 'abc123'
+    })
+
+    expect(res.status).toBe(400)
+    expect(res.body.fields.password).toBeDefined()
+  })
+
+  it('rejects password without a number', async () => {
+    const res = await request(app).post('/api/auth/register').send({
+      name: 'Jacob',
+      email: 'jacob@example.com',
+      password: 'passwordonly'
+    })
+
+    expect(res.status).toBe(400)
+    expect(res.body.fields.password).toBeDefined()
+  })
+
+  it('rejects password without a letter', async () => {
+    const res = await request(app).post('/api/auth/register').send({
+      name: 'Jacob',
+      email: 'jacob@example.com',
+      password: '12345678'
     })
 
     expect(res.status).toBe(400)

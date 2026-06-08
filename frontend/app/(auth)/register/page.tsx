@@ -35,8 +35,12 @@ export default function RegisterPage() {
     if (!form.name.trim()) errors.name = 'Name is required'
     if (!form.email.trim()) errors.email = 'Email is required'
     if (!form.password) errors.password = 'Password is required'
-    if (form.password && form.password.length < 6)
-      errors.password = 'Password must be at least 6 characters'
+    else if (form.password.length < 8)
+      errors.password = 'Password must be at least 8 characters'
+    else if (!/[A-Za-z]/.test(form.password))
+      errors.password = 'Password must contain at least one letter'
+    else if (!/[0-9]/.test(form.password))
+      errors.password = 'Password must contain at least one number'
     if (form.password !== form.confirmPassword)
       errors.confirmPassword = 'Passwords do not match'
     return errors
