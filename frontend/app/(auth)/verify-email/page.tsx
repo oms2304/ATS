@@ -10,19 +10,15 @@ type Status = 'verifying' | 'success' | 'error'
 function VerifyEmailContent() {
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
-  const [status, setStatus] = useState<Status>('verifying')
-  const [message, setMessage] = useState('Verifying your email...')
+  const [status, setStatus] = useState<Status>(token ? 'verifying' : 'error')
+  const [message, setMessage] = useState(
+    token ? 'Verifying your email...' : 'This verification link is missing its token.'
+  )
   const hasRun = useRef(false)
 
   useEffect(() => {
-    if (hasRun.current) return
+    if (!token || hasRun.current) return
     hasRun.current = true
-
-    if (!token) {
-      setStatus('error')
-      setMessage('This verification link is missing its token.')
-      return
-    }
 
     async function verify() {
       try {
