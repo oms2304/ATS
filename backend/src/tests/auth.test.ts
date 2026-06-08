@@ -26,6 +26,7 @@ vi.mock('../lib/jwt', () => ({
   signToken: vi.fn().mockReturnValue('mock-token')
 }))
 
+import type { User } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { sendVerificationEmail } from '../lib/email'
 import { signToken } from '../lib/jwt'
@@ -45,7 +46,7 @@ const mockUser = {
   reset_token_expire: null,
   createdAt: new Date(),
   updatedAt: new Date()
-}
+} as unknown as User
 
 describe('POST /api/auth/register', () => {
   beforeEach(() => {
@@ -99,7 +100,8 @@ describe('POST /api/auth/register', () => {
     })
 
     const createCall = vi.mocked(prisma.user.create).mock.calls[0][0]
-    expect(createCall.data.profile).toEqual({
+    const createData = createCall.data as { profile?: unknown }
+    expect(createData.profile).toEqual({
       create: {
         first_name: '',
         last_name: '',
