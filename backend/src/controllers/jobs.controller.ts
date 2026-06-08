@@ -14,10 +14,15 @@ export const createJob = async (req: Request, res: Response) => {
       return res.status(400).json({ errors: parsed.error.flatten().fieldErrors });
     }
 
+    const { title, company, stage, notes } = parsed.data;
+
     const job = await prisma.job.create({
       data: {
-        ...parsed.data,
-        userId,
+        title,
+        company,
+        stage,
+        job_posting_body: notes ?? '',
+        user_id: userId,
       },
     });
 
@@ -35,8 +40,8 @@ export const getJobs = async (req: Request, res: Response) => {
     }
 
     const jobs = await prisma.job.findMany({
-      where: { userId },
-      orderBy: { lastActivity: 'desc' },
+      where: { user_id: userId },
+      orderBy: { updatedAt: 'desc' },
     });
 
     return res.status(200).json(jobs);
@@ -53,7 +58,7 @@ export const getJobById = async (req: Request, res: Response) => {
     }
 
     const job = await prisma.job.findFirst({
-      where: { id: req.params.id as string, userId },
+      where: { id: req.params.id as string, user_id: userId },
     });
 
     if (!job) {
@@ -74,7 +79,7 @@ export const updateJob = async (req: Request, res: Response) => {
     }
 
     const existing = await prisma.job.findFirst({
-      where: { id: req.params.id as string, userId },
+      where: { id: req.params.id as string, user_id: userId },
     });
 
     if (!existing) {
@@ -86,11 +91,16 @@ export const updateJob = async (req: Request, res: Response) => {
       return res.status(400).json({ errors: parsed.error.flatten().fieldErrors });
     }
 
+    const { title, company, stage, notes } = parsed.data;
+
     const job = await prisma.job.update({
       where: { id: req.params.id as string },
       data: {
-        ...parsed.data,
-        lastActivity: new Date(),
+        ...(title !== undefined && { title }),
+        ...(company !== undefined && { company }),
+        ...(stage !== undefined && { stage }),
+        ...(notes !== undefined && { job_posting_body: notes }),
+        updatedAt: new Date(),
       },
     });
 
@@ -108,7 +118,7 @@ export const deleteJob = async (req: Request, res: Response) => {
     }
 
     const existing = await prisma.job.findFirst({
-      where: { id: req.params.id as string, userId },
+      where: { id: req.params.id as string, user_id: userId },
     });
 
     if (!existing) {
