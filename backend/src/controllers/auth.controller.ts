@@ -1,6 +1,7 @@
 import { Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
+import { Prisma } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { signToken } from '../lib/jwt'
 import { sendVerificationEmail } from '../lib/email'
@@ -61,6 +62,14 @@ export async function register(req: Request, res: Response) {
     })
   } catch (error) {
     console.error('register error:', error)
+
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      return res.status(400).json({ success: false, error: 'Email already in use' })
+    }
+
     return res.status(500).json({ success: false, error: 'Registration failed' })
   }
 }

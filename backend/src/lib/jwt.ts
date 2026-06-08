@@ -1,8 +1,17 @@
 import jwt from 'jsonwebtoken'
-const SECRET = process.env.JWT_SECRET as string
-export function signToken(payload: { userId: string; email?: string }): string {
-  return jwt.sign(payload, SECRET, { expiresIn: '7d' })
+
+function getSecret(): string {
+  const secret = process.env.JWT_SECRET
+  if (!secret) {
+    throw new Error('JWT_SECRET is not set in environment variables')
+  }
+  return secret
 }
+
+export function signToken(payload: { userId: string; email?: string }): string {
+  return jwt.sign(payload, getSecret(), { expiresIn: '7d' })
+}
+
 export function verifyToken(token: string): { userId: string } {
-  return jwt.verify(token, SECRET) as { userId: string }
+  return jwt.verify(token, getSecret()) as { userId: string }
 }
