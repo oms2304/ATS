@@ -1,0 +1,103 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+model User {
+    id                 String    @id @default(cuid())
+    name               String
+    email              String    @unique
+    password           String
+    is_verified        Boolean   @default(false)
+    ver_token          String?
+    reset_token        String?
+    reset_token_expire DateTime?
+    createdAt          DateTime  @default(now())
+    updatedAt          DateTime  @updatedAt
+
+    profile   Profile?
+    jobs      Job[]
+    documents Document[]
+}
+
+model Profile {
+    id         String  @id @default(cuid())
+    user_id    String  @unique
+    user       User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+    first_name String
+    last_name  String
+    phone      String?
+    linkedIn   String?
+    summary    String?
+
+    completion_score Int      @default(0)
+    createdAt        DateTime @default(now())
+    updatedAt        DateTime @updatedAt
+}
+
+model Job {
+    id               String   @id @default(cuid())
+    user_id          String
+    user             User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+    title            String
+    company          String
+    job_posting_body String
+    stage            String   @default("interested")
+    createdAt        DateTime @default(now())
+    updatedAt        DateTime @updatedAt
+
+    activities JobActivity[]
+    documents  JobDocumentLink[]
+}
+
+model JobActivity {
+    id        String   @id @default(cuid())
+    job_id    String
+    job       Job      @relation(fields: [job_id], references: [id], onDelete: Cascade)
+    type      String
+    note      String?
+    createdAt DateTime @default(now())
+}
+
+model Document {
+    id        String   @id @default(cuid())
+    user_id   String
+    user      User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+    type      String
+    title     String
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    versions DocumentVersion[]
+    jobs     JobDocumentLink[]
+}
+
+model DocumentVersion {
+    id             String   @id @default(cuid())
+    document_id    String
+    document       Document @relation(fields: [document_id], references: [id], onDelete: Cascade)
+    version_number Int
+    fileUrl        String
+    is_archived    Boolean  @default(false)
+    createdAt      DateTime @default(now())
+
+    job_links JobDocumentLink[]
+}
+
+model JobDocumentLink {
+    id                  String          @id @default(cuid())
+    job_id              String
+    job                 Job             @relation(fields: [job_id], references: [id], onDelete: Cascade)
+    document_id         String
+    document            Document        @relation(fields: [document_id], references: [id], onDelete: Cascade)
+    document_version_id String
+    document_version    DocumentVersion @relation(fields: [document_version_id], references: [id], onDelete: Cascade)
+    type                String
+    createdAt           DateTime        @default(now())
+
+    @@unique([job_id, type])
+}
