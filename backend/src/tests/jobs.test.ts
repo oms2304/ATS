@@ -39,7 +39,7 @@ beforeEach(() => {
 describe('createJob', () => {
   it('should create a job and return 201', async () => {
     const req = mockReq({
-      body: { title: 'Engineer', company: 'Acme', stage: 'APPLIED' },
+      body: { title: 'Engineer', company: 'Acme', stage: 'interested', job_posting_body: 'We are hiring' },
     });
     const res = mockRes();
     const fakeJob = { id: 'job-1', title: 'Engineer', company: 'Acme', stage: 'APPLIED', userId: 'user-123' };
