@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import jobsRouter from './routes/jobs.routes';
+import profileRouter from './routes/profile.routes';
 
 dotenv.config();
 
@@ -16,6 +17,7 @@ app.get('/', (req, res) => {
 });
 
 app.use('/api/jobs', jobsRouter);
+app.use('/api/profile', profileRouter);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
