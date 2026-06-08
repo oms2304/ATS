@@ -47,8 +47,9 @@ export async function register(req: Request, res: Response) {
 
     try {
       await sendVerificationEmail(email, ver_token)
-    } catch {
+    } catch (emailError) {
       // email failure should not block registration
+      console.error('sendVerificationEmail error:', emailError)
     }
 
     const token = signToken({ userId: user.id, email: user.email })
@@ -71,5 +72,37 @@ export async function register(req: Request, res: Response) {
     }
 
     return res.status(500).json({ success: false, error: 'Registration failed' })
+  }
+}
+
+export async function verifyEmail(req: Request, res: Response) {
+  try {
+    const { token } = req.query
+
+    if (!token || typeof token !== 'string') {
+      return res.status(400).json({ success: false, error: 'Missing verification token' })
+    }
+
+    const user = await prisma.user.findFirst({ where: { ver_token: token } })
+
+    if (!user) {
+      return res
+        .status(400)
+        .json({ success: false, error: 'Invalid or expired verification token' })
+    }
+
+    if (user.is_verified) {
+      return res.json({ success: true, message: 'Email already verified' })
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { is_verified: true, ver_token: null }
+    })
+
+    return res.json({ success: true, message: 'Email verified successfully' })
+  } catch (error) {
+    console.error('verifyEmail error:', error)
+    return res.status(500).json({ success: false, error: 'Verification failed' })
   }
 }

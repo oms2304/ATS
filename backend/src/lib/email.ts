@@ -1,10 +1,15 @@
 import { Resend } from 'resend'
 
+// To deliver to arbitrary recipients, verify a domain in Resend and set
+// EMAIL_FROM to an address on that domain. The onboarding@resend.dev fallback
+// only delivers to your own Resend account email.
+const DEFAULT_FROM = 'ATS for Job Seekers <onboarding@resend.dev>'
+
 export async function sendVerificationEmail(email: string, token: string): Promise<void> {
   const resend = new Resend(process.env.RESEND_API_KEY)
   const url = `${process.env.FRONTEND_URL}/verify-email?token=${token}`
   await resend.emails.send({
-    from: 'ATS for Job Seekers <onboarding@resend.dev>',
+    from: process.env.EMAIL_FROM || DEFAULT_FROM,
     to: email,
     subject: 'Verify your email',
     html: `
