@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken'
 const SECRET = process.env.JWT_SECRET as string
-export function signToken(payload: { userId: string }): string {
+export function signToken(payload: { userId: string; email?: string }): string {
   return jwt.sign(payload, SECRET, { expiresIn: '7d' })
 }
 export function verifyToken(token: string): { userId: string } {
