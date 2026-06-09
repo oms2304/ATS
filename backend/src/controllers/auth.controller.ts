@@ -5,7 +5,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { signToken } from '../lib/jwt'
 import { sendVerificationEmail } from '../lib/email'
-import { registerSchema } from '../schemas/auth.schema'
+import { registerSchema, loginSchema } from '../schemas/auth.schema'
 
 export async function register(req: Request, res: Response) {
   try {
@@ -72,6 +72,45 @@ export async function register(req: Request, res: Response) {
     }
 
     return res.status(500).json({ success: false, error: 'Registration failed' })
+  }
+}
+
+export async function login(req: Request, res: Response) {
+  try {
+    const result = loginSchema.safeParse(req.body)
+
+    if (!result.success) {
+      const fields: Record<string, string> = {}
+      for (const issue of result.error.issues) {
+        fields[issue.path[0] as string] = issue.message
+      }
+      return res.status(400).json({ success: false, error: 'Validation failed', fields })
+    }
+
+    const { email, password } = result.data
+
+    const user = await prisma.user.findUnique({ where: { email } })
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Invalid email or password' })
+    }
+
+    const passwordMatch = await bcrypt.compare(password, user.password)
+    if (!passwordMatch) {
+      return res.status(401).json({ success: false, error: 'Invalid email or password' })
+    }
+
+    const token = signToken({ userId: user.id, email: user.email })
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        token,
+        user: { id: user.id, name: user.name, email: user.email }
+      }
+    })
+  } catch (error) {
+    console.error('login error:', error)
+    return res.status(500).json({ success: false, error: 'Login failed' })
   }
 }
 
