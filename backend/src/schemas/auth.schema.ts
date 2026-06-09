@@ -15,3 +15,8 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Password is required')
 })
 export type LoginInput = z.infer<typeof loginSchema>
+
+export const resendVerificationSchema = z.object({
+  email: z.string().email('Invalid email address')
+})
+export type ResendVerificationInput = z.infer<typeof resendVerificationSchema>

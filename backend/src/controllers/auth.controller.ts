@@ -99,6 +99,15 @@ export async function login(req: Request, res: Response) {
       return res.status(401).json({ success: false, error: 'Invalid email or password' })
     }
 
+    if (!user.is_verified) {
+      return res.status(403).json({
+        success: false,
+        error: 'Please verify your email before logging in',
+        needsVerification: true,
+        email: user.email
+      })
+    }
+
     const token = signToken({ userId: user.id, email: user.email })
 
     return res.status(200).json({
