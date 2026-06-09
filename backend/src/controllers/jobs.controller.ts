@@ -4,7 +4,7 @@ import { createJobSchema, updateJobSchema } from '../schemas/job.schema';
 
 export const createJob = async (req: Request, res: Response) => {
   try {
-    const user_id = req.user?.id;
+    const user_id = req.user?.userId;
     if (!user_id) return res.status(401).json({ error: 'Unauthorized' });
     const parsed = createJobSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ errors: parsed.error.flatten().fieldErrors });
@@ -19,7 +19,7 @@ export const createJob = async (req: Request, res: Response) => {
 
 export const getJobs = async (req: Request, res: Response) => {
   try {
-    const user_id = req.user?.id;
+    const user_id = req.user?.userId;
     if (!user_id) return res.status(401).json({ error: 'Unauthorized' });
     const jobs = await prisma.job.findMany({
       where: { user_id },
@@ -33,7 +33,7 @@ export const getJobs = async (req: Request, res: Response) => {
 
 export const getJobById = async (req: Request, res: Response) => {
   try {
-    const user_id = req.user?.id;
+    const user_id = req.user?.userId;
     if (!user_id) return res.status(401).json({ error: 'Unauthorized' });
     const job = await prisma.job.findFirst({
       where: { id: req.params.id as string, user_id },
@@ -47,7 +47,7 @@ export const getJobById = async (req: Request, res: Response) => {
 
 export const updateJob = async (req: Request, res: Response) => {
   try {
-    const user_id = req.user?.id;
+    const user_id = req.user?.userId;
     if (!user_id) return res.status(401).json({ error: 'Unauthorized' });
     const existing = await prisma.job.findFirst({
       where: { id: req.params.id as string, user_id },
@@ -67,7 +67,7 @@ export const updateJob = async (req: Request, res: Response) => {
 
 export const deleteJob = async (req: Request, res: Response) => {
   try {
-    const user_id = req.user?.id;
+    const user_id = req.user?.userId;
     if (!user_id) return res.status(401).json({ error: 'Unauthorized' });
     const existing = await prisma.job.findFirst({
       where: { id: req.params.id as string, user_id },

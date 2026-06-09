@@ -4,7 +4,7 @@ import { createProfileSchema, updateProfileSchema, calculateCompletionScore } fr
 
 export const getProfile = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const userId = req.user?.userId;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
     const profile = await prisma.profile.findUnique({ where: { user_id: userId } });
     if (!profile) return res.status(404).json({ error: 'Profile not found' });
@@ -16,7 +16,7 @@ export const getProfile = async (req: Request, res: Response) => {
 
 export const createProfile = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const userId = req.user?.userId;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
     const existing = await prisma.profile.findUnique({ where: { user_id: userId } });
     if (existing) return res.status(409).json({ error: 'Profile already exists' });
@@ -34,7 +34,7 @@ export const createProfile = async (req: Request, res: Response) => {
 
 export const updateProfile = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const userId = req.user?.userId;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
     const existing = await prisma.profile.findUnique({ where: { user_id: userId } });
     if (!existing) return res.status(404).json({ error: 'Profile not found' });
@@ -54,7 +54,7 @@ export const updateProfile = async (req: Request, res: Response) => {
 
 export const getCompletionScore = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const userId = req.user?.userId;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
     const profile = await prisma.profile.findUnique({ where: { user_id: userId } });
     if (!profile) return res.status(200).json({ completion_score: 0, completed_fields: 0, total_fields: 5 });
