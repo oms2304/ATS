@@ -9,3 +9,14 @@ export const registerSchema = z.object({
     .regex(/[0-9]/, 'Password must contain at least one number')
 })
 export type RegisterInput = z.infer<typeof registerSchema>
+
+export const loginSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(1, 'Password is required')
+})
+export type LoginInput = z.infer<typeof loginSchema>
+
+export const resendVerificationSchema = z.object({
+  email: z.string().email('Invalid email address')
+})
+export type ResendVerificationInput = z.infer<typeof resendVerificationSchema>
