@@ -16,12 +16,18 @@ export default function LoginPage() {
   const [generalError, setGeneralError] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [needsVerification, setNeedsVerification] = useState(false)
+  const [unverifiedEmail, setUnverifiedEmail] = useState('')
+  const [resendLoading, setResendLoading] = useState(false)
+  const [resendMessage, setResendMessage] = useState('')
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const { name, value } = e.target
     setForm(prev => ({ ...prev, [name]: value }))
     setFieldErrors(prev => ({ ...prev, [name]: '' }))
     setGeneralError('')
+    setNeedsVerification(false)
+    setResendMessage('')
   }
 
   function validate() {
@@ -34,6 +40,8 @@ export default function LoginPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setGeneralError('')
+    setNeedsVerification(false)
+    setResendMessage('')
 
     const errors = validate()
     if (Object.keys(errors).length > 0) {
@@ -52,7 +60,11 @@ export default function LoginPage() {
       })
 
       if (!data.success) {
-        if (data.fields) {
+        if (data.needsVerification) {
+          setNeedsVerification(true)
+          setUnverifiedEmail(data.email ?? form.email)
+          setGeneralError(data.error ?? 'Please verify your email before logging in')
+        } else if (data.fields) {
           setFieldErrors(data.fields)
         } else {
           setGeneralError(data.error ?? 'Login failed')
@@ -67,6 +79,24 @@ export default function LoginPage() {
       setGeneralError('Something went wrong. Please try again.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleResend() {
+    setResendLoading(true)
+    setResendMessage('')
+    try {
+      const data = await apiFetch('/api/auth/resend-verification', {
+        method: 'POST',
+        body: JSON.stringify({ email: unverifiedEmail })
+      })
+      setResendMessage(
+        data.message ?? 'If an unverified account exists for that email, a link has been sent.'
+      )
+    } catch {
+      setResendMessage('Could not resend the email. Please try again.')
+    } finally {
+      setResendLoading(false)
     }
   }
 
@@ -89,8 +119,38 @@ export default function LoginPage() {
 
         <div className="w-full h-px bg-outline-variant mb-xl" />
 
-        {generalError && (
+        {generalError && !needsVerification && (
           <p className="text-error text-[12px] text-center mb-md">{generalError}</p>
+        )}
+
+        {needsVerification && (
+          <div className="mb-md rounded-lg border border-outline-variant bg-background p-md text-center">
+            <span className="material-symbols-outlined text-[28px] text-primary">
+              mark_email_unread
+            </span>
+            <p className="text-on-surface text-body-sm font-body-sm mt-xs">{generalError}</p>
+            {resendMessage ? (
+              <p className="text-on-surface-variant text-[12px] mt-xs">{resendMessage}</p>
+            ) : (
+              <button
+                className="mt-md text-primary-container hover:text-primary-container/80 font-medium text-body-sm hover:underline transition-all disabled:opacity-70 disabled:cursor-not-allowed inline-flex items-center gap-1"
+                type="button"
+                onClick={handleResend}
+                disabled={resendLoading}
+              >
+                {resendLoading ? (
+                  <>
+                    <span className="material-symbols-outlined text-[16px] animate-spin">
+                      progress_activity
+                    </span>
+                    Sending...
+                  </>
+                ) : (
+                  'Resend verification email'
+                )}
+              </button>
+            )}
+          </div>
         )}
 
         <form className="space-y-md" onSubmit={handleSubmit} noValidate>

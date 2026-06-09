@@ -3,19 +3,21 @@ import request from 'supertest'
 import express from 'express'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import { register, login } from '../controllers/auth.controller'
+import { register, login, resendVerification } from '../controllers/auth.controller'
 
 vi.mock('../lib/prisma', () => ({
   prisma: {
     user: {
       findUnique: vi.fn(),
-      create: vi.fn()
+      create: vi.fn(),
+      update: vi.fn()
     }
   },
   default: {
     user: {
       findUnique: vi.fn(),
-      create: vi.fn()
+      create: vi.fn(),
+      update: vi.fn()
     }
   }
 }))
@@ -226,7 +228,16 @@ loginApp.post('/api/auth/login', login)
 const TEST_SECRET = 'test-secret'
 const loginPassword = 'password123'
 const loginPasswordHash = bcrypt.hashSync(loginPassword, 10)
-const loginUser = { ...mockUser, password: loginPasswordHash } as unknown as User
+const loginUser = {
+  ...mockUser,
+  password: loginPasswordHash,
+  is_verified: true
+} as unknown as User
+const unverifiedUser = {
+  ...mockUser,
+  password: loginPasswordHash,
+  is_verified: false
+} as unknown as User
 
 describe('POST /api/auth/login', () => {
   beforeEach(() => {
@@ -359,5 +370,78 @@ describe('POST /api/auth/login', () => {
     expect(res.status).toBe(400)
     expect(res.body.success).toBe(false)
     expect(res.body.fields).toBeDefined()
+  })
+
+  it('returns 403 with needsVerification when email is not verified', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(unverifiedUser)
+
+    const res = await request(loginApp).post('/api/auth/login').send({
+      email: 'jacob@example.com',
+      password: loginPassword
+    })
+
+    expect(res.status).toBe(403)
+    expect(res.body.success).toBe(false)
+    expect(res.body.needsVerification).toBe(true)
+    expect(res.body.error).toBe('Please verify your email before logging in')
+    expect(signToken).not.toHaveBeenCalled()
+  })
+})
+
+const resendApp = express()
+resendApp.use(express.json())
+resendApp.post('/api/auth/resend-verification', resendVerification)
+
+describe('POST /api/auth/resend-verification', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('regenerates token and sends email for an unverified account', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(unverifiedUser)
+    vi.mocked(prisma.user.update).mockResolvedValue(unverifiedUser)
+
+    const res = await request(resendApp).post('/api/auth/resend-verification').send({
+      email: 'jacob@example.com'
+    })
+
+    expect(res.status).toBe(200)
+    expect(res.body.success).toBe(true)
+    expect(prisma.user.update).toHaveBeenCalledTimes(1)
+    expect(sendVerificationEmail).toHaveBeenCalledWith('jacob@example.com', expect.any(String))
+  })
+
+  it('returns generic success without sending email when account does not exist', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null)
+
+    const res = await request(resendApp).post('/api/auth/resend-verification').send({
+      email: 'nobody@example.com'
+    })
+
+    expect(res.status).toBe(200)
+    expect(res.body.success).toBe(true)
+    expect(sendVerificationEmail).not.toHaveBeenCalled()
+    expect(prisma.user.update).not.toHaveBeenCalled()
+  })
+
+  it('does not send email when account is already verified', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(loginUser)
+
+    const res = await request(resendApp).post('/api/auth/resend-verification').send({
+      email: 'jacob@example.com'
+    })
+
+    expect(res.status).toBe(200)
+    expect(res.body.success).toBe(true)
+    expect(sendVerificationEmail).not.toHaveBeenCalled()
+  })
+
+  it('returns 400 with field error on invalid email format', async () => {
+    const res = await request(resendApp).post('/api/auth/resend-verification').send({
+      email: 'not-an-email'
+    })
+
+    expect(res.status).toBe(400)
+    expect(res.body.fields.email).toBeDefined()
   })
 })
