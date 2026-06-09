@@ -27,7 +27,7 @@ const mockRes = () => {
 
 const mockReq = (overrides = {}) =>
   ({
-    user: { id: 'user-123', email: 'test@test.com' },
+    user: { userId: 'user-123', email: 'test@test.com' },
     body: {},
     params: {},
     ...overrides,
