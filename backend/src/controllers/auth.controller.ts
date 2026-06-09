@@ -5,7 +5,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { signToken } from '../lib/jwt'
 import { sendVerificationEmail } from '../lib/email'
-import { registerSchema, loginSchema } from '../schemas/auth.schema'
+import { registerSchema, loginSchema, resendVerificationSchema } from '../schemas/auth.schema'
 
 export async function register(req: Request, res: Response) {
   try {
@@ -120,6 +120,44 @@ export async function login(req: Request, res: Response) {
   } catch (error) {
     console.error('login error:', error)
     return res.status(500).json({ success: false, error: 'Login failed' })
+  }
+}
+
+export async function resendVerification(req: Request, res: Response) {
+  try {
+    const result = resendVerificationSchema.safeParse(req.body)
+
+    if (!result.success) {
+      const fields: Record<string, string> = {}
+      for (const issue of result.error.issues) {
+        fields[issue.path[0] as string] = issue.message
+      }
+      return res.status(400).json({ success: false, error: 'Validation failed', fields })
+    }
+
+    const { email } = result.data
+    const user = await prisma.user.findUnique({ where: { email } })
+
+    if (user && !user.is_verified) {
+      const ver_token = crypto.randomBytes(32).toString('hex')
+      await prisma.user.update({ where: { id: user.id }, data: { ver_token } })
+      try {
+        await sendVerificationEmail(email, ver_token)
+      } catch (emailError) {
+        console.error('sendVerificationEmail error:', emailError)
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message:
+        'If an unverified account exists for that email, a verification link has been sent.'
+    })
+  } catch (error) {
+    console.error('resendVerification error:', error)
+    return res
+      .status(500)
+      .json({ success: false, error: 'Could not resend verification email' })
   }
 }
 
