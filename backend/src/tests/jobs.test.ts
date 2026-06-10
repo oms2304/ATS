@@ -7,7 +7,7 @@ vi.mock('../lib/prisma', () => ({
     job: {
       create: vi.fn(),
       findMany: vi.fn(),
-      findFirst: vi.fn(),
+      findUnique: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
     },
@@ -98,7 +98,7 @@ describe('getJobById', () => {
     const req = mockReq({ params: { id: 'job-1' } });
     const res = mockRes();
     const fakeJob = { id: 'job-1', userId: 'user-123' };
-    vi.mocked(prisma.job.findFirst).mockResolvedValue(fakeJob as any);
+    vi.mocked(prisma.job.findUnique).mockResolvedValue(fakeJob as any);
 
     await getJobById(req, res);
 
@@ -108,7 +108,7 @@ describe('getJobById', () => {
   it('should return 404 if job not found', async () => {
     const req = mockReq({ params: { id: 'job-999' } });
     const res = mockRes();
-    vi.mocked(prisma.job.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.job.findUnique).mockResolvedValue(null);
 
     await getJobById(req, res);
 
@@ -130,7 +130,7 @@ describe('updateJob', () => {
     const req = mockReq({ params: { id: 'job-1' }, body: { title: 'Senior Engineer' } });
     const res = mockRes();
     const fakeJob = { id: 'job-1', userId: 'user-123', title: 'Senior Engineer' };
-    vi.mocked(prisma.job.findFirst).mockResolvedValue(fakeJob as any);
+    vi.mocked(prisma.job.findUnique).mockResolvedValue(fakeJob as any);
     vi.mocked(prisma.job.update).mockResolvedValue(fakeJob as any);
 
     await updateJob(req, res);
@@ -141,7 +141,7 @@ describe('updateJob', () => {
   it('should return 404 if job not found', async () => {
     const req = mockReq({ params: { id: 'job-999' }, body: { title: 'X' } });
     const res = mockRes();
-    vi.mocked(prisma.job.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.job.findUnique).mockResolvedValue(null);
 
     await updateJob(req, res);
 
@@ -154,7 +154,7 @@ describe('deleteJob', () => {
     const req = mockReq({ params: { id: 'job-1' } });
     const res = mockRes();
     const fakeJob = { id: 'job-1', userId: 'user-123' };
-    vi.mocked(prisma.job.findFirst).mockResolvedValue(fakeJob as any);
+    vi.mocked(prisma.job.findUnique).mockResolvedValue(fakeJob as any);
     vi.mocked(prisma.job.delete).mockResolvedValue(fakeJob as any);
 
     await deleteJob(req, res);
@@ -165,7 +165,7 @@ describe('deleteJob', () => {
   it('should return 404 if job not found', async () => {
     const req = mockReq({ params: { id: 'job-999' } });
     const res = mockRes();
-    vi.mocked(prisma.job.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.job.findUnique).mockResolvedValue(null);
 
     await deleteJob(req, res);
 

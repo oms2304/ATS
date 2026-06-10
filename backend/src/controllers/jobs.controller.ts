@@ -35,8 +35,8 @@ export const getJobById = async (req: Request, res: Response) => {
   try {
     const user_id = req.user?.userId;
     if (!user_id) return res.status(401).json({ error: 'Unauthorized' });
-    const job = await prisma.job.findFirst({
-      where: { id: req.params.id as string, user_id },
+    const job = await prisma.job.findUnique({
+      where: { id: req.params.id as string },
     });
     if (!job) return res.status(404).json({ error: 'Job not found' });
     return res.status(200).json(job);
@@ -49,8 +49,8 @@ export const updateJob = async (req: Request, res: Response) => {
   try {
     const user_id = req.user?.userId;
     if (!user_id) return res.status(401).json({ error: 'Unauthorized' });
-    const existing = await prisma.job.findFirst({
-      where: { id: req.params.id as string, user_id },
+    const existing = await prisma.job.findUnique({
+      where: { id: req.params.id as string },
     });
     if (!existing) return res.status(404).json({ error: 'Job not found' });
     const parsed = updateJobSchema.safeParse(req.body);
@@ -69,8 +69,8 @@ export const deleteJob = async (req: Request, res: Response) => {
   try {
     const user_id = req.user?.userId;
     if (!user_id) return res.status(401).json({ error: 'Unauthorized' });
-    const existing = await prisma.job.findFirst({
-      where: { id: req.params.id as string, user_id },
+    const existing = await prisma.job.findUnique({
+      where: { id: req.params.id as string },
     });
     if (!existing) return res.status(404).json({ error: 'Job not found' });
     await prisma.job.delete({ where: { id: req.params.id as string } });
