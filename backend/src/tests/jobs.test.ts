@@ -39,16 +39,16 @@ beforeEach(() => {
 describe('createJob', () => {
   it('should create a job and return 201', async () => {
     const req = mockReq({
-      body: { title: 'Engineer', company: 'Acme', stage: 'interested', job_posting_body: 'We are hiring' },
+      body: { title: 'Engineer', company: 'Acme', stage: 'Interested', jobPostingBody: 'We are hiring' },
     });
     const res = mockRes();
-    const fakeJob = { id: 'job-1', title: 'Engineer', company: 'Acme', stage: 'APPLIED', userId: 'user-123' };
+    const fakeJob = { id: 'job-1', title: 'Engineer', company: 'Acme', stage: 'Interested', user_id: 'user-123' };
     vi.mocked(prisma.job.create).mockResolvedValue(fakeJob as any);
 
     await createJob(req, res);
 
     expect(res.status).toHaveBeenCalledWith(201);
-    expect(res.json).toHaveBeenCalledWith(fakeJob);
+    expect(res.json).toHaveBeenCalledWith({ success: true, data: fakeJob });
   });
 
   it('should return 400 if title is missing', async () => {
@@ -74,13 +74,13 @@ describe('getJobs', () => {
   it('should return jobs for authenticated user', async () => {
     const req = mockReq();
     const res = mockRes();
-    const fakeJobs = [{ id: 'job-1', title: 'Engineer', userId: 'user-123' }];
+    const fakeJobs = [{ id: 'job-1', title: 'Engineer', user_id: 'user-123' }];
     vi.mocked(prisma.job.findMany).mockResolvedValue(fakeJobs as any);
 
     await getJobs(req, res);
 
     expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith(fakeJobs);
+    expect(res.json).toHaveBeenCalledWith({ success: true, data: fakeJobs });
   });
 
   it('should return 401 if user is not authenticated', async () => {
