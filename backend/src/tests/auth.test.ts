@@ -3,12 +3,18 @@ import request from 'supertest'
 import express from 'express'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import { register, login, resendVerification } from '../controllers/auth.controller'
+import {
+  register,
+  login,
+  resendVerification,
+  verifyEmail
+} from '../controllers/auth.controller'
 
 vi.mock('../lib/prisma', () => ({
   prisma: {
     user: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
       create: vi.fn(),
       update: vi.fn()
     }
@@ -16,6 +22,7 @@ vi.mock('../lib/prisma', () => ({
   default: {
     user: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
       create: vi.fn(),
       update: vi.fn()
     }
@@ -440,5 +447,55 @@ describe('POST /api/auth/resend-verification', () => {
 
     expect(res.status).toBe(400)
     expect(res.body.fields.email).toBeDefined()
+  })
+})
+
+const verifyApp = express()
+verifyApp.use(express.json())
+verifyApp.get('/api/auth/verify-email', verifyEmail)
+
+describe('GET /api/auth/verify-email', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('verifies the user and clears the token on a valid token', async () => {
+    vi.mocked(prisma.user.findFirst).mockResolvedValue(unverifiedUser)
+    vi.mocked(prisma.user.update).mockResolvedValue({
+      ...unverifiedUser,
+      is_verified: true,
+      ver_token: null
+    } as unknown as User)
+
+    const res = await request(verifyApp)
+      .get('/api/auth/verify-email')
+      .query({ token: 'tok' })
+
+    expect(res.status).toBe(200)
+    expect(res.body.success).toBe(true)
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { id: 'clx123' },
+      data: { is_verified: true, ver_token: null }
+    })
+  })
+
+  it('returns 400 on an invalid token', async () => {
+    vi.mocked(prisma.user.findFirst).mockResolvedValue(null)
+
+    const res = await request(verifyApp)
+      .get('/api/auth/verify-email')
+      .query({ token: 'invalidtoken' })
+
+    expect(res.status).toBe(400)
+    expect(res.body.success).toBe(false)
+    expect(prisma.user.update).not.toHaveBeenCalled()
+  })
+
+  it('returns 400 when no token is provided', async () => {
+    const res = await request(verifyApp).get('/api/auth/verify-email')
+
+    expect(res.status).toBe(400)
+    expect(res.body.success).toBe(false)
+    expect(prisma.user.findFirst).not.toHaveBeenCalled()
   })
 })
