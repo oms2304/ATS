@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { apiFetch } from '@/lib/api'
 
 function fieldBorderClass(hasError: boolean) {
@@ -10,7 +9,6 @@ function fieldBorderClass(hasError: boolean) {
 }
 
 export default function RegisterPage() {
-  const router = useRouter()
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -19,6 +17,7 @@ export default function RegisterPage() {
   })
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [generalError, setGeneralError] = useState('')
+  const [successMessage, setSuccessMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -76,8 +75,9 @@ export default function RegisterPage() {
         return
       }
 
-      localStorage.setItem('token', data.data.token)
-      router.push('/dashboard')
+      setSuccessMessage(
+        data.data?.message ?? 'Account created! Check your email to verify your account.'
+      )
     } catch {
       setGeneralError('Something went wrong. Please try again.')
     } finally {
@@ -104,11 +104,30 @@ export default function RegisterPage() {
 
         <div className="w-full h-px bg-outline-variant mb-xl" />
 
-        {generalError && (
-          <p className="text-error text-[12px] text-center mb-md">{generalError}</p>
-        )}
+        {successMessage ? (
+          <div className="flex flex-col items-center text-center gap-md py-md">
+            <span className="material-symbols-outlined text-[56px] text-primary">
+              mark_email_unread
+            </span>
+            <p className="text-on-surface font-label-md text-body-lg">Check your email</p>
+            <p className="text-on-surface-variant font-body-md text-body-md">
+              {successMessage}
+            </p>
+            <Link
+              className="w-full bg-primary-container hover:bg-primary-container/90 active:scale-[0.98] text-white font-label-md text-body-lg py-3 rounded-lg flex items-center justify-center gap-2 transition-all mt-md shadow-lg shadow-primary-container/10"
+              href="/login"
+            >
+              Go to Login
+              <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+            </Link>
+          </div>
+        ) : (
+          <>
+            {generalError && (
+              <p className="text-error text-[12px] text-center mb-md">{generalError}</p>
+            )}
 
-        <form className="space-y-md" onSubmit={handleSubmit} noValidate>
+            <form className="space-y-md" onSubmit={handleSubmit} noValidate>
           <div className="flex flex-col gap-xs">
             <label
               className="text-on-surface font-label-md text-label-md ml-1"
@@ -252,7 +271,9 @@ export default function RegisterPage() {
               </>
             )}
           </button>
-        </form>
+            </form>
+          </>
+        )}
 
         <footer className="mt-xl text-center">
           <p className="text-on-surface-variant font-body-sm text-body-sm">
