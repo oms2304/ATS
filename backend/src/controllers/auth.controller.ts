@@ -52,13 +52,11 @@ export async function register(req: Request, res: Response) {
       console.error('sendVerificationEmail error:', emailError)
     }
 
-    const token = signToken({ userId: user.id, email: user.email })
-
     return res.status(201).json({
       success: true,
       data: {
-        token,
-        user: { id: user.id, name: user.name, email: user.email }
+        message:
+          'Account created. Check your email to verify your account before logging in.'
       }
     })
   } catch (error) {
