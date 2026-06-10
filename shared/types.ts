@@ -1,4 +1,15 @@
-export type User = {
+export const STAGES = [
+    'Interested',
+    'Applied',
+    'Interview',
+    'Offer',
+    'Rejected',
+    'Archived',
+  ] as const
+
+  export type Stage = (typeof STAGES)[number]
+
+  export type User = {
     id: string
     name: string
     email: string
@@ -11,7 +22,7 @@ export type User = {
     title: string
     company: string
     jobPostingBody: string
-    stage: string
+    stage: Stage
     createdAt: string
     updatedAt: string
   }

@@ -45,8 +45,8 @@ model Job {
     user             User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
     title            String
     company          String
-    job_posting_body String
-    stage            String   @default("interested")
+    jobPostingBody   String   @map("job_posting_body")
+    stage            String   @default("Interested")
     createdAt        DateTime @default(now())
     updatedAt        DateTime @updatedAt
 
