@@ -57,7 +57,7 @@ describe('POST /api/auth/register', () => {
     vi.clearAllMocks()
   })
 
-  it('creates a user and returns 201 with token on valid input', async () => {
+  it('creates a user and returns 201 with a verification message (no auto-login)', async () => {
     vi.mocked(prisma.user.findUnique).mockResolvedValue(null)
     vi.mocked(prisma.user.create).mockResolvedValue(mockUser)
 
@@ -69,12 +69,9 @@ describe('POST /api/auth/register', () => {
 
     expect(res.status).toBe(201)
     expect(res.body.success).toBe(true)
-    expect(res.body.data.token).toBe('mock-token')
-    expect(res.body.data.user.email).toBe('jacob@example.com')
-    expect(signToken).toHaveBeenCalledWith({
-      userId: 'clx123',
-      email: 'jacob@example.com'
-    })
+    expect(res.body.data.token).toBeUndefined()
+    expect(res.body.data.message).toBeTruthy()
+    expect(signToken).not.toHaveBeenCalled()
     expect(sendVerificationEmail).toHaveBeenCalledWith('jacob@example.com', expect.any(String))
   })
 
