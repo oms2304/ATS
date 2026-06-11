@@ -58,7 +58,15 @@ export default function ProfilePage() {
     async function fetchProfile() {
       const res = await apiFetch('/api/profile')
       if (res.success && res.data) {
-        setProfile(res.data)
+        setProfile({
+          firstName: res.data.firstName ?? '',
+          lastName: res.data.lastName ?? '',
+          phone: res.data.phone ?? '',
+          location: res.data.location ?? '',
+          linkedIn: res.data.linkedIn ?? '',
+          summary: res.data.summary ?? '',
+          completionScore: res.data.completionScore ?? 0,
+        })
       }
       setLoading(false)
     }
@@ -127,7 +135,15 @@ export default function ProfilePage() {
       body: JSON.stringify(profile)
     })
     if (res.success && res.data) {
-      setProfile(res.data)
+      setProfile({
+        firstName: res.data.firstName ?? '',
+        lastName: res.data.lastName ?? '',
+        phone: res.data.phone ?? '',
+        location: res.data.location ?? '',
+        linkedIn: res.data.linkedIn ?? '',
+        summary: res.data.summary ?? '',
+        completionScore: res.data.completionScore ?? 0,
+      })
       setEditingIdentity(false)
       showSaved('Identity saved')
     }
@@ -147,7 +163,15 @@ export default function ProfilePage() {
       body: JSON.stringify(profile)
     })
     if (res.success && res.data) {
-      setProfile(res.data)
+      setProfile({
+        firstName: res.data.firstName ?? '',
+        lastName: res.data.lastName ?? '',
+        phone: res.data.phone ?? '',
+        location: res.data.location ?? '',
+        linkedIn: res.data.linkedIn ?? '',
+        summary: res.data.summary ?? '',
+        completionScore: res.data.completionScore ?? 0,
+      })
       setEditingSummary(false)
       showSaved('Summary saved')
     }
