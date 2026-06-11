@@ -1,7 +1,216 @@
-﻿export default function ProfilePage() {
+﻿'use client'
+
+import { useState, useEffect } from 'react'
+import { apiFetch } from '@/lib/api'
+
+type Profile = {
+  firstName: string
+  lastName: string
+  phone: string
+  location: string
+  linkedIn: string
+  summary: string
+  completionScore: number
+}
+
+const REQUIRED_FIELDS: (keyof Profile)[] = [
+  'firstName',
+  'lastName',
+  'phone',
+  'location',
+  'summary'
+]
+
+const IDENTITY_FIELDS = [
+  { label: 'First Name', name: 'firstName' },
+  { label: 'Last Name', name: 'lastName' },
+  { label: 'Phone', name: 'phone' },
+  { label: 'Location', name: 'location' },
+  { label: 'LinkedIn URL', name: 'linkedIn' },
+]
+
+export default function ProfilePage() {
+  const [profile, setProfile] = useState<Profile>({
+    firstName: '',
+    lastName: '',
+    phone: '',
+    location: '',
+    linkedIn: '',
+    summary: '',
+    completionScore: 0
+  })
+  const [loading, setLoading] = useState(true)
+  const [savingIdentity, setSavingIdentity] = useState(false)
+  const [savingSummary, setSavingSummary] = useState(false)
+  const [editingIdentity, setEditingIdentity] = useState(false)
+  const [editingSummary, setEditingSummary] = useState(false)
+  const [savedMessage, setSavedMessage] = useState('')
+
+  useEffect(() => {
+    async function fetchProfile() {
+      const res = await apiFetch('/api/profile')
+      if (res.success && res.data) {
+        setProfile(res.data)
+      }
+      setLoading(false)
+    }
+    fetchProfile()
+  }, [])
+
+  function calcCompletion(p: Profile) {
+    const filled = REQUIRED_FIELDS.filter(
+      f => p[f] && String(p[f]).trim() !== ''
+    ).length
+    return Math.round((filled / REQUIRED_FIELDS.length) * 100)
+  }
+
+  function handleChange(
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) {
+    setProfile(prev => ({ ...prev, [e.target.name]: e.target.value }))
+  }
+
+  function showSaved(message: string) {
+    setSavedMessage(message)
+    setTimeout(() => setSavedMessage(''), 2500)
+  }
+
+  async function saveIdentity() {
+    setSavingIdentity(true)
+    const res = await apiFetch('/api/profile', {
+      method: 'PUT',
+      body: JSON.stringify(profile)
+    })
+    if (res.success && res.data) {
+      setProfile(res.data)
+      setEditingIdentity(false)
+      showSaved('Identity saved')
+    }
+    setSavingIdentity(false)
+  }
+
+  async function saveSummary() {
+    setSavingSummary(true)
+    const res = await apiFetch('/api/profile', {
+      method: 'PUT',
+      body: JSON.stringify(profile)
+    })
+    if (res.success && res.data) {
+      setProfile(res.data)
+      setEditingSummary(false)
+      showSaved('Summary saved')
+    }
+    setSavingSummary(false)
+  }
+
+  const completion = calcCompletion(profile)
+
+  if (loading) {
+    return (
+      <div className="p-6 text-[#8b949e] text-sm">Loading...</div>
+    )
+  }
+
   return (
-    <div>
-      <h1>Profile</h1>
+    <div className="max-w-3xl mx-auto py-8 px-4 flex flex-col gap-6">
+
+      <div>
+        <h1 className="text-2xl font-semibold text-white mb-4">My Profile</h1>
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-1.5 bg-[#21262d] rounded-full overflow-hidden">
+            <div
+              className="h-full bg-[#2f81f4] rounded-full transition-all duration-500"
+              style={{ width: `${completion}%` }}
+            />
+          </div>
+          <span className="text-sm text-[#8b949e] whitespace-nowrap">
+            {completion}% complete
+          </span>
+        </div>
+      </div>
+
+      {savedMessage && (
+        <div className="bg-[#1a3d2b] border border-[#3fb950] text-[#3fb950] text-sm px-4 py-2 rounded-lg">
+          {savedMessage}
+        </div>
+      )}
+
+      <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-6">
+        <div className="flex justify-between items-center mb-5">
+          <h2 className="text-base font-medium text-white">Identity & Contact</h2>
+          {editingIdentity ? (
+            <button
+              onClick={saveIdentity}
+              disabled={savingIdentity}
+              className="text-sm px-4 py-1.5 bg-[#2f81f4] text-white rounded hover:bg-blue-600 transition-colors disabled:opacity-50"
+            >
+              {savingIdentity ? 'Saving...' : 'Save'}
+            </button>
+          ) : (
+            <button
+              onClick={() => setEditingIdentity(true)}
+              className="text-sm px-4 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors"
+            >
+              Edit
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {IDENTITY_FIELDS.map(field => (
+            <div key={field.name} className="flex flex-col gap-1">
+              <label className="text-xs text-[#8b949e]">{field.label}</label>
+              <input
+                name={field.name}
+                value={String(profile[field.name as keyof Profile] ?? '')}
+                onChange={handleChange}
+                readOnly={!editingIdentity}
+                placeholder={
+                  editingIdentity
+                    ? `Enter ${field.label.toLowerCase()}`
+                    : 'Not filled in yet'
+                }
+                className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white placeholder-[#484f58] focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all read-only:opacity-60 read-only:cursor-default"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-6">
+        <div className="flex justify-between items-center mb-5">
+          <h2 className="text-base font-medium text-white">Professional Summary</h2>
+          {editingSummary ? (
+            <button
+              onClick={saveSummary}
+              disabled={savingSummary}
+              className="text-sm px-4 py-1.5 bg-[#2f81f4] text-white rounded hover:bg-blue-600 transition-colors disabled:opacity-50"
+            >
+              {savingSummary ? 'Saving...' : 'Save'}
+            </button>
+          ) : (
+            <button
+              onClick={() => setEditingSummary(true)}
+              className="text-sm px-4 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors"
+            >
+              Edit
+            </button>
+          )}
+        </div>
+        <textarea
+          name="summary"
+          value={profile.summary}
+          onChange={handleChange}
+          readOnly={!editingSummary}
+          placeholder={
+            editingSummary
+              ? 'Write your professional summary...'
+              : 'Not filled in yet'
+          }
+          rows={5}
+          className="w-full bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white placeholder-[#484f58] focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all resize-y read-only:opacity-60 read-only:cursor-default"
+        />
+      </div>
+
     </div>
-  );
+  )
 }
