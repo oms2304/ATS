@@ -190,3 +190,17 @@ export async function verifyEmail(req: Request, res: Response) {
     return res.status(500).json({ success: false, error: 'Verification failed' })
   }
 }
+
+
+
+export async function logout(req: Request, res: Response) {
+  try {
+    return res.status(200).json({
+      success: true,
+      data: { message: 'Logged out successfully' }
+    })
+  } catch (error) {
+    console.error('logout error:', error)
+    return res.status(500).json({ success: false, error: 'Logout failed' })
+  }
+}
