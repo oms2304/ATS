@@ -74,14 +74,12 @@ export default function LoginPage() {
         return
       }
 
-      login(
-        {
-          userId: data.data.user.id,
-          name: data.data.user.name,
-          email: data.data.user.email
-        },
-        data.data.token
-      )
+      const user = {
+        userId: data.data.user.id,
+        name: data.data.user.name,
+        email: data.data.user.email
+      }
+      login(user, data.data.token)
       router.push('/dashboard')
     } catch {
       setGeneralError('Something went wrong. Please try again.')
