@@ -37,9 +37,9 @@ export async function register(req: Request, res: Response) {
         ver_token,
         profile: {
           create: {
-            first_name: '',
-            last_name: '',
-            completion_score: 0
+            firstName: '',
+            lastName: '',
+            completionScore: 0
           }
         }
       }

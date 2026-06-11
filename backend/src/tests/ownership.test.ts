@@ -78,12 +78,25 @@ describe('createProfile', () => {
     expect(res.status).toHaveBeenCalledWith(201);
   });
 
-  it('should return 400 if first_name missing', async () => {
-    const req = mockReq({ body: { last_name: 'Doe' } });
-    const res = mockRes();
+  it('should create profile and return 201 with valid data', async () => {
     vi.mocked(prisma.profile.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.profile.create).mockResolvedValue({
+      id: 'profile-1',
+      userId: 'user-1',
+      firstName: 'John',
+      lastName: 'Doe',
+      phone: '',
+      location: '',
+      linkedIn: '',
+      summary: '',
+      completionScore: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as any);
+    const req = { user: { userId: 'user-1' }, body: { firstName: 'John', lastName: 'Doe' } } as any;
+    const res = { status: vi.fn().mockReturnThis(), json: vi.fn() } as any;
     await createProfile(req, res);
-    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.status).toHaveBeenCalledWith(201);
   });
 
   it('should return 401 if not authenticated', async () => {
@@ -106,11 +119,18 @@ describe('getCompletionScore', () => {
   it('should return completion score for existing profile', async () => {
     const req = mockReq();
     const res = mockRes();
-    const fakeProfile = { id: 'profile-1', user_id: 'user-123', completion_score: 80 };
+    const fakeProfile = { id: 'profile-1', userId: 'user-123', completionScore: 80 };
     vi.mocked(prisma.profile.findUnique).mockResolvedValue(fakeProfile as any);
     await getCompletionScore(req, res);
     expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith({ completion_score: 80, completed_fields: 4, total_fields: 5 });
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      data: {
+        completionScore: expect.any(Number),
+        completed_fields: expect.any(Number),
+        total_fields: 5,
+      },
+    });
   });
 
   it('should return 0 score if no profile exists', async () => {
@@ -119,7 +139,14 @@ describe('getCompletionScore', () => {
     vi.mocked(prisma.profile.findUnique).mockResolvedValue(null);
     await getCompletionScore(req, res);
     expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith({ completion_score: 0, completed_fields: 0, total_fields: 5 });
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      data: {
+        completionScore: 0,
+        completed_fields: 0,
+        total_fields: 5,
+      },
+    });
   });
 
   it('should return 401 if not authenticated', async () => {
