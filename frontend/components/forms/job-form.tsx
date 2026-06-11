@@ -105,18 +105,47 @@ export function JobForm({ jobId, initialData, onSuccess, onCancel }: JobFormProp
 
       <div className="flex flex-col gap-1">
         <label className="text-xs text-[#8b949e]">Stage</label>
-        <select
-          name="stage"
-          value={form.stage}
-          onChange={handleChange}
-          className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all appearance-none"
-        >
-          {STAGES.map((stage) => (
-            <option key={stage} value={stage}>
-              {stage}
-            </option>
-          ))}
-        </select>
+        <div style={{ position: 'relative' }}>
+          <select
+            name="stage"
+            value={form.stage}
+            onChange={handleChange}
+            style={{
+              width: '100%',
+              appearance: 'none',
+              WebkitAppearance: 'none',
+              background: '#0d1117',
+              border: '1px solid #30363d',
+              borderRadius: '6px',
+              padding: '8px 32px 8px 12px',
+              fontSize: '13px',
+              color: '#e6edf3',
+              outline: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            {STAGES.map(stage => (
+              <option key={stage} value={stage}>{stage}</option>
+            ))}
+          </select>
+          <span
+            style={{
+              position: 'absolute',
+              right: '10px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: '#8b949e',
+              pointerEvents: 'none',
+              fontSize: '12px',
+              lineHeight: 1
+            }}
+          >
+            ▾
+          </span>
+        </div>
+        {errors.stage && errors.stage[0] && (
+          <p className="text-xs text-red-400">{errors.stage[0]}</p>
+        )}
       </div>
 
       <div className="flex flex-col gap-1">
