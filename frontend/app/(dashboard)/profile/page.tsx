@@ -78,7 +78,7 @@ export default function ProfilePage() {
   async function saveIdentity() {
     setSavingIdentity(true)
     const res = await apiFetch('/api/profile', {
-      method: 'PUT',
+      method: 'PATCH',
       body: JSON.stringify(profile)
     })
     if (res.success && res.data) {
@@ -92,7 +92,7 @@ export default function ProfilePage() {
   async function saveSummary() {
     setSavingSummary(true)
     const res = await apiFetch('/api/profile', {
-      method: 'PUT',
+      method: 'PATCH',
       body: JSON.stringify(profile)
     })
     if (res.success && res.data) {
