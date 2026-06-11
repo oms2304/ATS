@@ -22,12 +22,18 @@ const REQUIRED_FIELDS: (keyof Profile)[] = [
 ]
 
 const IDENTITY_FIELDS = [
-  { label: 'First Name', name: 'firstName' },
-  { label: 'Last Name', name: 'lastName' },
-  { label: 'Phone', name: 'phone' },
-  { label: 'Location', name: 'location' },
-  { label: 'LinkedIn URL', name: 'linkedIn' },
+  { label: 'First Name', name: 'firstName', required: true },
+  { label: 'Last Name', name: 'lastName', required: true },
+  { label: 'Phone', name: 'phone', required: true },
+  { label: 'Location', name: 'location', required: true },
+  { label: 'LinkedIn URL', name: 'linkedIn', required: false },
 ]
+
+const PHONE_REGEX = /^[0-9+\-\s]+$/
+
+function countWords(text: string) {
+  return text.trim() === '' ? 0 : text.trim().split(/\s+/).length
+}
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile>({
@@ -45,6 +51,8 @@ export default function ProfilePage() {
   const [editingIdentity, setEditingIdentity] = useState(false)
   const [editingSummary, setEditingSummary] = useState(false)
   const [savedMessage, setSavedMessage] = useState('')
+  const [identityErrors, setIdentityErrors] = useState<Record<string, string>>({})
+  const [summaryError, setSummaryError] = useState('')
 
   useEffect(() => {
     async function fetchProfile() {
@@ -75,7 +83,44 @@ export default function ProfilePage() {
     setTimeout(() => setSavedMessage(''), 2500)
   }
 
+  function validateIdentity() {
+    const errors: Record<string, string> = {}
+    if (profile.firstName.trim() === '') {
+      errors.firstName = 'First name is required'
+    }
+    if (profile.lastName.trim() === '') {
+      errors.lastName = 'Last name is required'
+    }
+    if (profile.phone.trim() === '') {
+      errors.phone = 'Phone is required'
+    } else if (!PHONE_REGEX.test(profile.phone)) {
+      errors.phone =
+        'Phone can only contain numbers, dashes, plus signs, and spaces. Valid formats are 1234567890 or 123-456-7890 or +1-555-123-4567'
+    }
+    if (profile.location.trim() === '') {
+      errors.location = 'Location is required'
+    }
+    return errors
+  }
+
+  function validateSummary() {
+    if (profile.summary.trim() === '') {
+      return 'Summary is required'
+    }
+    const count = countWords(profile.summary)
+    if (count > 200) {
+      return `${count} / 200 words over the limit`
+    }
+    return ''
+  }
+
   async function saveIdentity() {
+    const errors = validateIdentity()
+    if (Object.keys(errors).length > 0) {
+      setIdentityErrors(errors)
+      return
+    }
+    setIdentityErrors({})
     setSavingIdentity(true)
     const res = await apiFetch('/api/profile', {
       method: 'PATCH',
@@ -90,6 +135,12 @@ export default function ProfilePage() {
   }
 
   async function saveSummary() {
+    const error = validateSummary()
+    if (error) {
+      setSummaryError(error)
+      return
+    }
+    setSummaryError('')
     setSavingSummary(true)
     const res = await apiFetch('/api/profile', {
       method: 'PATCH',
@@ -104,6 +155,7 @@ export default function ProfilePage() {
   }
 
   const completion = calcCompletion(profile)
+  const summaryWordCount = countWords(profile.summary)
 
   if (loading) {
     return (
@@ -148,7 +200,10 @@ export default function ProfilePage() {
             </button>
           ) : (
             <button
-              onClick={() => setEditingIdentity(true)}
+              onClick={() => {
+                setIdentityErrors({})
+                setEditingIdentity(true)
+              }}
               className="text-sm px-4 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors"
             >
               Edit
@@ -158,7 +213,10 @@ export default function ProfilePage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {IDENTITY_FIELDS.map(field => (
             <div key={field.name} className="flex flex-col gap-1">
-              <label className="text-xs text-[#8b949e]">{field.label}</label>
+              <label className="text-xs text-[#8b949e]">
+                {field.label}
+                {field.required && <span className="text-red-500"> *</span>}
+              </label>
               <input
                 name={field.name}
                 value={String(profile[field.name as keyof Profile] ?? '')}
@@ -171,6 +229,9 @@ export default function ProfilePage() {
                 }
                 className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white placeholder-[#484f58] focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all read-only:opacity-60 read-only:cursor-default"
               />
+              {identityErrors[field.name] && (
+                <p className="text-red-500 text-xs">{identityErrors[field.name]}</p>
+              )}
             </div>
           ))}
         </div>
@@ -178,18 +239,24 @@ export default function ProfilePage() {
 
       <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-6">
         <div className="flex justify-between items-center mb-5">
-          <h2 className="text-base font-medium text-white">Professional Summary</h2>
+          <h2 className="text-base font-medium text-white">
+            Professional Summary
+            <span className="text-red-500"> *</span>
+          </h2>
           {editingSummary ? (
             <button
               onClick={saveSummary}
-              disabled={savingSummary}
+              disabled={savingSummary || summaryWordCount > 200}
               className="text-sm px-4 py-1.5 bg-[#2f81f4] text-white rounded hover:bg-blue-600 transition-colors disabled:opacity-50"
             >
               {savingSummary ? 'Saving...' : 'Save'}
             </button>
           ) : (
             <button
-              onClick={() => setEditingSummary(true)}
+              onClick={() => {
+                setSummaryError('')
+                setEditingSummary(true)
+              }}
               className="text-sm px-4 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors"
             >
               Edit
@@ -209,6 +276,18 @@ export default function ProfilePage() {
           rows={5}
           className="w-full bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white placeholder-[#484f58] focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all resize-y read-only:opacity-60 read-only:cursor-default"
         />
+        {editingSummary && (
+          <p
+            className={`text-xs mt-1 ${
+              summaryWordCount > 200 ? 'text-red-500' : 'text-[#8b949e]'
+            }`}
+          >
+            {summaryWordCount} / 200 words
+          </p>
+        )}
+        {summaryError && (
+          <p className="text-red-500 text-xs mt-1">{summaryError}</p>
+        )}
       </div>
 
     </div>
