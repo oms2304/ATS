@@ -8,7 +8,11 @@ jest.mock('next/navigation', () => ({
   useRouter: jest.fn(() => ({ replace: jest.fn() })),
 }));
 
-jest.mock('../AppShell', () => ({ children }: any) => <div>{children}</div>);
+jest.mock('../AppShell', () => {
+  const MockAppShell = ({ children }: { children: React.ReactNode }) => <div>{children}</div>;
+  MockAppShell.displayName = 'MockAppShell';
+  return MockAppShell;
+});
 
 const mockUser = { userId: '1', name: 'Jane', email: 'jane@example.com' };
 

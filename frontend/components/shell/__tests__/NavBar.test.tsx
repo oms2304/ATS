@@ -10,16 +10,19 @@ jest.mock('next/navigation', () => ({
 }));
 
 jest.mock('next/link', () => {
-  return ({ href, children, className, 'aria-current': ariaCurrent }: any) => (
-    <a href={href} className={className} aria-current={ariaCurrent}>
-      {children}
-    </a>
-  );
+  const MockLink = (props: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => {
+    const { href, children, ...rest } = props;
+    return <a href={href} {...rest}>{children}</a>;
+  };
+  MockLink.displayName = 'MockLink';
+  return MockLink;
 });
 
 const mockUser = { userId: '1', name: 'Jane Doe', email: 'jane@example.com' };
 
-const renderWithAuth = (user = mockUser, path = '/dashboard') => {
+type MockUser = { userId: string; name: string; email: string };
+
+const renderWithAuth = (user: MockUser | null = mockUser, path = '/dashboard') => {
   (usePathname as jest.Mock).mockReturnValue(path);
   return render(
     <AuthContext.Provider value={{ user, isLoading: false, login: jest.fn(), logout: jest.fn() }}>
@@ -54,7 +57,7 @@ describe('NavBar', () => {
   });
 
   it('does not render user avatar when no user', () => {
-    renderWithAuth(null as any);
+    renderWithAuth(null);
     expect(screen.queryByText('J')).not.toBeInTheDocument();
   });
 });
