@@ -87,7 +87,7 @@ Should run on http://localhost:3000
 | JWT_SECRET | Secret key for signing JWT tokens | any long random string |
 | RESEND_API_KEY | API key from resend.com for emails | re_xxxxxxxxxxxx |
 | OPENAI_API_KEY | API key from OpenAI for AI features | sk-xxxxxxxxxxxx |
-| FRONTEND_URL | Frontend URL for CORS | http://localhost:3000 |
+| FRONTEND_URL | Frontend URL for CORS and email links (must be set for verification/reset emails to work) | http://localhost:3000 |
 
 ### Frontend (`frontend/.env.local`)
 | Variable | Description | Example |
