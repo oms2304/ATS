@@ -187,3 +187,137 @@
 .ats-auth .input-focus-glow:focus-within {
   box-shadow: 0 0 0 2px rgba(47, 129, 244, 0.2);
 }
+
+
+/* ── App Shell ──────────────────────────────────────── */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-shell__content {
+  flex: 1;
+  padding: 2rem;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* ── NavBar ─────────────────────────────────────────── */
+.navbar {
+  height: 60px;
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  padding: 0 2rem;
+  gap: 2rem;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.navbar-brand a {
+  font-weight: 700;
+  font-size: 1.2rem;
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.navbar-links {
+  display: flex;
+  list-style: none;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.nav-link {
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  text-decoration: none;
+  color: #6b7280;
+  font-size: 0.95rem;
+  transition: background 0.15s, color 0.15s;
+}
+
+.nav-link:hover {
+  background: #f9fafb;
+  color: #111827;
+}
+
+.nav-link--active {
+  color: #2563eb;
+  font-weight: 600;
+  background: #eff6ff;
+}
+
+/* ── User Menu ──────────────────────────────────────── */
+.user-menu { position: relative; }
+
+.user-menu__trigger {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.user-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: white;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.user-menu__dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  min-width: 200px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  padding: 0.5rem 0;
+  z-index: 200;
+}
+
+.user-menu__info { padding: 0.75rem 1rem; }
+.user-menu__name { font-weight: 600; font-size: 0.95rem; }
+.user-menu__email { font-size: 0.8rem; color: #6b7280; margin-top: 2px; }
+
+.user-menu__logout {
+  width: 100%;
+  text-align: left;
+  padding: 0.6rem 1rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: #dc2626;
+}
+
+.user-menu__logout:hover { background: #fef2f2; }
+
+/* ── Loading Screen ─────────────────────────────────── */
+.loading-screen {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+}
+
+/* ── Responsive ─────────────────────────────────────── */
+@media (max-width: 768px) {
+  .navbar { padding: 0 1rem; gap: 1rem; }
+  .app-shell__content { padding: 1rem; }
+  .navbar-links { gap: 0; }
+  .nav-link { padding: 0.4rem 0.5rem; font-size: 0.85rem; }
+}
