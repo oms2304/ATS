@@ -111,9 +111,9 @@ describe('POST /api/auth/register', () => {
     const createData = createCall.data as { profile?: unknown }
     expect(createData.profile).toEqual({
       create: {
-        first_name: '',
-        last_name: '',
-        completion_score: 0
+        firstName: '',
+        lastName: '',
+        completionScore: 0,
       }
     })
   })
