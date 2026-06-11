@@ -7,7 +7,8 @@ import {
   register,
   login,
   resendVerification,
-  verifyEmail
+  verifyEmail,
+  logout
 } from '../controllers/auth.controller'
 
 vi.mock('../lib/prisma', () => ({
@@ -497,5 +498,27 @@ describe('GET /api/auth/verify-email', () => {
     expect(res.status).toBe(400)
     expect(res.body.success).toBe(false)
     expect(prisma.user.findFirst).not.toHaveBeenCalled()
+  })
+})
+
+
+const logoutApp = express()
+logoutApp.use(express.json())
+logoutApp.post('/api/auth/logout', logout)
+
+describe('POST /api/auth/logout', () => {
+  // HAPPY PATH: logout returns 200
+  it('returns 200 with success message', async () => {
+    const res = await request(logoutApp).post('/api/auth/logout').send()
+    expect(res.status).toBe(200)
+    expect(res.body.success).toBe(true)
+    expect(res.body.data.message).toBe('Logged out successfully')
+  })
+
+  // HAPPY PATH: logout works without any body
+  it('returns 200 even with no request body', async () => {
+    const res = await request(logoutApp).post('/api/auth/logout')
+    expect(res.status).toBe(200)
+    expect(res.body.success).toBe(true)
   })
 })
