@@ -37,19 +37,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = (user: User, token: string) => {
-    localStorage.setItem('auth_user', JSON.stringify(user));
-    localStorage.setItem('auth_token', token);
-    localStorage.setItem('token', token);
-    document.cookie = `token=${token}; path=/`;
     setUser(user);
+    localStorage.setItem('token', token);
+    localStorage.setItem('auth_token', token);
+    localStorage.setItem('auth_user', JSON.stringify(user));
+    document.cookie = `token=${token}; path=/; max-age=${7 * 24 * 60 * 60}`;
   };
 
   const logout = () => {
-    localStorage.removeItem('auth_user');
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('token');
-    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
     setUser(null);
+    localStorage.removeItem('token');
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_user');
+    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
   };
 
   return (
