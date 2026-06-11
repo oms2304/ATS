@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { apiFetch } from '@/lib/api'
+import { useAuth } from '@/context/AuthContext'
 
 function fieldBorderClass(hasError: boolean) {
   return hasError ? 'border-error' : 'border-outline-variant'
@@ -11,6 +12,7 @@ function fieldBorderClass(hasError: boolean) {
 
 export default function LoginPage() {
   const router = useRouter()
+  const { login } = useAuth()
   const [form, setForm] = useState({ email: '', password: '' })
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [generalError, setGeneralError] = useState('')
@@ -72,8 +74,14 @@ export default function LoginPage() {
         return
       }
 
-      localStorage.setItem('token', data.data.token)
-      document.cookie = `token=${data.data.token}; path=/`
+      login(
+        {
+          userId: data.data.user.id,
+          name: data.data.user.name,
+          email: data.data.user.email
+        },
+        data.data.token
+      )
       router.push('/dashboard')
     } catch {
       setGeneralError('Something went wrong. Please try again.')
