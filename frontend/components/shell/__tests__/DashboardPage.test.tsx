@@ -61,12 +61,11 @@ describe('DashboardPage', () => {
     jest.clearAllMocks();
   });
 
-  // HAPPY PATH: renders dashboard with jobs
-  it('renders dashboard heading', async () => {
-    (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: mockJobs });
-    renderWithAuth();
-    expect(await screen.findByText('Dashboard')).toBeInTheDocument();
-  });
+  it('renders dashboard search input', async () => {
+  (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: mockJobs });
+  renderWithAuth();
+  expect(await screen.findByPlaceholderText('Search jobs...')).toBeInTheDocument();
+});
 
   // HAPPY PATH: shows job cards after loading
   it('displays job cards after data loads', async () => {
@@ -87,8 +86,8 @@ describe('DashboardPage', () => {
   it('opens job modal when Add Job button is clicked', async () => {
     (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: mockJobs });
     renderWithAuth();
-    await screen.findByText('Dashboard');
-    fireEvent.click(screen.getByText('+ Add Job'));
+    await screen.findByPlaceholderText('Search jobs...');  
+    fireEvent.click(screen.getByText('Add Job'));
     expect(screen.getByTestId('job-modal')).toBeInTheDocument();
   });
 
