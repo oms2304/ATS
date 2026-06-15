@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { ArrowRight, Eye, EyeOff, Loader, Lock, Mail, MailPlus } from 'lucide-react'
 import { apiFetch } from '@/lib/api'
 import { useAuth } from '@/context/AuthContext'
 
@@ -133,9 +134,7 @@ export default function LoginPage() {
 
         {needsVerification && (
           <div className="mb-md rounded-lg border border-outline-variant bg-background p-md text-center">
-            <span className="material-symbols-outlined text-[28px] text-primary">
-              mark_email_unread
-            </span>
+            <MailPlus className="w-7 h-7 mx-auto text-primary" />
             <p className="text-on-surface text-body-sm font-body-sm mt-xs">{generalError}</p>
             {resendMessage ? (
               <p className="text-on-surface-variant text-[12px] mt-xs">{resendMessage}</p>
@@ -148,9 +147,7 @@ export default function LoginPage() {
               >
                 {resendLoading ? (
                   <>
-                    <span className="material-symbols-outlined text-[16px] animate-spin">
-                      progress_activity
-                    </span>
+                    <Loader className="w-4 h-4 animate-spin" />
                     Sending...
                   </>
                 ) : (
@@ -170,9 +167,7 @@ export default function LoginPage() {
               Email
             </label>
             <div className="relative group input-focus-glow rounded-lg">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors">
-                mail
-              </span>
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-on-surface-variant group-focus-within:text-primary transition-colors" />
               <input
                 className={`w-full bg-background border rounded-lg py-2.5 pl-10 pr-4 text-on-surface text-body-md placeholder:text-outline focus:border-primary focus:ring-0 transition-all outline-none ${fieldBorderClass(!!fieldErrors.email)}`}
                 id="email"
@@ -196,9 +191,7 @@ export default function LoginPage() {
               Password
             </label>
             <div className="relative group input-focus-glow rounded-lg">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors">
-                lock
-              </span>
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-on-surface-variant group-focus-within:text-primary transition-colors" />
               <input
                 className={`w-full bg-background border rounded-lg py-2.5 pl-10 pr-10 text-on-surface text-body-md placeholder:text-outline focus:border-primary focus:ring-0 transition-all outline-none ${fieldBorderClass(!!fieldErrors.password)}`}
                 id="password"
@@ -214,9 +207,11 @@ export default function LoginPage() {
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
                 onClick={() => setShowPassword(prev => !prev)}
               >
-                <span className="material-symbols-outlined">
-                  {showPassword ? 'visibility_off' : 'visibility'}
-                </span>
+                {showPassword ? (
+                  <EyeOff className="w-5 h-5" />
+                ) : (
+                  <Eye className="w-5 h-5" />
+                )}
               </button>
             </div>
             {fieldErrors.password && (
@@ -240,15 +235,13 @@ export default function LoginPage() {
           >
             {loading ? (
               <>
-                <span className="material-symbols-outlined text-[18px] animate-spin">
-                  progress_activity
-                </span>
+                <Loader className="w-[18px] h-[18px] animate-spin" />
                 Signing in...
               </>
             ) : (
               <>
                 Login
-                <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                <ArrowRight className="w-[18px] h-[18px]" />
               </>
             )}
           </button>

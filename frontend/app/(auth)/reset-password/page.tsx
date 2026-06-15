@@ -3,6 +3,7 @@
 import { useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
+import { ArrowRight, CircleCheck, Eye, EyeOff, Loader, Lock } from 'lucide-react'
 import { apiFetch } from '@/lib/api'
 
 function fieldBorderClass(hasError: boolean) {
@@ -104,9 +105,7 @@ function ResetPasswordInner() {
 
         {done ? (
           <div className="rounded-lg border border-outline-variant bg-background p-md text-center">
-            <span className="material-symbols-outlined text-[28px] text-primary">
-              check_circle
-            </span>
+            <CircleCheck className="w-7 h-7 mx-auto text-primary" />
             <p className="text-on-surface text-body-sm font-body-sm mt-xs">
               Your password has been updated. Redirecting to login...
             </p>
@@ -123,9 +122,7 @@ function ResetPasswordInner() {
                   New password
                 </label>
                 <div className="relative group input-focus-glow rounded-lg">
-                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors">
-                    lock
-                  </span>
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-on-surface-variant group-focus-within:text-primary transition-colors" />
                   <input
                     className={`w-full bg-background border rounded-lg py-2.5 pl-10 pr-10 text-on-surface text-body-md placeholder:text-outline focus:border-primary focus:ring-0 transition-all outline-none ${fieldBorderClass(!!fieldErrors.password)}`}
                     id="password"
@@ -141,9 +138,11 @@ function ResetPasswordInner() {
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                     onClick={() => setShowPassword(prev => !prev)}
                   >
-                    <span className="material-symbols-outlined">
-                      {showPassword ? 'visibility_off' : 'visibility'}
-                    </span>
+                    {showPassword ? (
+                      <EyeOff className="w-5 h-5" />
+                    ) : (
+                      <Eye className="w-5 h-5" />
+                    )}
                   </button>
                 </div>
                 {fieldErrors.password && (
@@ -156,9 +155,7 @@ function ResetPasswordInner() {
                   Confirm new password
                 </label>
                 <div className="relative group input-focus-glow rounded-lg">
-                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors">
-                    lock
-                  </span>
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-on-surface-variant group-focus-within:text-primary transition-colors" />
                   <input
                     className={`w-full bg-background border rounded-lg py-2.5 pl-10 pr-4 text-on-surface text-body-md placeholder:text-outline focus:border-primary focus:ring-0 transition-all outline-none ${fieldBorderClass(!!fieldErrors.confirm)}`}
                     id="confirm"
@@ -181,15 +178,13 @@ function ResetPasswordInner() {
               >
                 {loading ? (
                   <>
-                    <span className="material-symbols-outlined text-[18px] animate-spin">
-                      progress_activity
-                    </span>
+                    <Loader className="w-[18px] h-[18px] animate-spin" />
                     Resetting...
                   </>
                 ) : (
                   <>
                     Set new password
-                    <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                    <ArrowRight className="w-[18px] h-[18px]" />
                   </>
                 )}
               </button>

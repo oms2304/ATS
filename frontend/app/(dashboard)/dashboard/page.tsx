@@ -151,9 +151,10 @@ export default function DashboardPage() {
             const badge = STAGE_BADGE[job.stage] ?? STAGE_BADGE.Interested
             const progress = STAGE_PROGRESS[job.stage] ?? 0
             return (
-              <div
+              <Link
                 key={job.id}
-                className="bg-[#161b22] border border-[#30363d] rounded-lg p-4 hover:border-[#2f81f4] transition-colors"
+                href={`/jobs/${job.id}`}
+                className="bg-[#161b22] border border-[#30363d] rounded-lg p-4 hover:border-[#2f81f4] transition-colors cursor-pointer block"
               >
                 <div className="flex justify-between items-start mb-2">
                   <p className="text-xs text-[#8b949e]">{job.company}</p>
@@ -176,19 +177,20 @@ export default function DashboardPage() {
                 </div>
                 <div className="flex justify-end gap-2 pt-2 border-t border-[#30363d]">
                   <button
-                    onClick={() => handleEditJob(job)}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      handleEditJob(job)
+                    }}
                     className="text-xs px-3 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors"
                   >
                     Edit
                   </button>
-                  <Link
-                    href={`/jobs/${job.id}`}
-                    className="text-xs px-3 py-1.5 text-[#8b949e] rounded hover:text-white transition-colors"
-                  >
+                  <span className="text-xs px-3 py-1.5 text-[#8b949e] rounded">
                     View
-                  </Link>
+                  </span>
                 </div>
-              </div>
+              </Link>
             )
           })}
         </div>

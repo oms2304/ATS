@@ -40,15 +40,16 @@ describe('SettingsPage', () => {
   it('shows confirmation when sign out button is clicked', () => {
     renderWithAuth();
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
-    expect(screen.getByText('Are you sure?')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Confirm' })).toBeInTheDocument();
+    expect(screen.getByText('You can sign back in at any time.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+    // After clicking, the trigger is replaced by the confirm action, so exactly one "Sign out" button remains.
+    expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
   });
 
   it('calls logout when confirm is clicked', () => {
     renderWithAuth();
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
     expect(mockLogout).toHaveBeenCalledTimes(1);
   });
 
@@ -56,7 +57,7 @@ describe('SettingsPage', () => {
     renderWithAuth();
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
-    expect(screen.queryByText('Are you sure?')).not.toBeInTheDocument();
+    expect(screen.queryByText('You can sign back in at any time.')).not.toBeInTheDocument();
   });
 
   it('shows dashes when user info is missing', () => {

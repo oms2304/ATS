@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { ArrowRight, Loader, Mail, MailPlus } from 'lucide-react'
 import { apiFetch } from '@/lib/api'
 
 function fieldBorderClass(hasError: boolean) {
@@ -66,9 +67,7 @@ export default function ForgotPasswordPage() {
 
         {sent ? (
           <div className="rounded-lg border border-outline-variant bg-background p-md text-center">
-            <span className="material-symbols-outlined text-[28px] text-primary">
-              mark_email_unread
-            </span>
+            <MailPlus className="w-7 h-7 mx-auto text-primary" />
             <p className="text-on-surface text-body-sm font-body-sm mt-xs">
               If an account exists for that email, we&apos;ve sent a link to reset your password.
             </p>
@@ -85,9 +84,7 @@ export default function ForgotPasswordPage() {
                   Email
                 </label>
                 <div className="relative group input-focus-glow rounded-lg">
-                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors">
-                    mail
-                  </span>
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-on-surface-variant group-focus-within:text-primary transition-colors" />
                   <input
                     className={`w-full bg-background border rounded-lg py-2.5 pl-10 pr-4 text-on-surface text-body-md placeholder:text-outline focus:border-primary focus:ring-0 transition-all outline-none ${fieldBorderClass(!!fieldError)}`}
                     id="email"
@@ -110,15 +107,13 @@ export default function ForgotPasswordPage() {
               >
                 {loading ? (
                   <>
-                    <span className="material-symbols-outlined text-[18px] animate-spin">
-                      progress_activity
-                    </span>
+                    <Loader className="w-[18px] h-[18px] animate-spin" />
                     Sending...
                   </>
                 ) : (
                   <>
                     Send reset link
-                    <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                    <ArrowRight className="w-[18px] h-[18px]" />
                   </>
                 )}
               </button>
