@@ -2,8 +2,8 @@ const BASE = process.env.NEXT_PUBLIC_API_URL
 
 export async function apiFetch(path: string, options?: RequestInit) {
   const token =
-    localStorage.getItem('token') ||
-    localStorage.getItem('auth_token') ||
+    (typeof window !== 'undefined' &&
+      (localStorage.getItem('token') || localStorage.getItem('auth_token'))) ||
     ''
 
   const headers: Record<string, string> = {
@@ -22,5 +22,17 @@ export async function apiFetch(path: string, options?: RequestInit) {
     },
   })
 
-  return res.json()
+  const data = await res.json().catch(() => null)
+
+  if (!res.ok) {
+    const message =
+      (data && (data.error || data.message)) ||
+      `Request failed with status ${res.status}`
+    const err = new Error(message) as Error & { status?: number; data?: unknown }
+    err.status = res.status
+    err.data = data
+    throw err
+  }
+
+  return data
 }

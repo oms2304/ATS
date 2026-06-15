@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { apiFetch } from '@/lib/api'
@@ -16,14 +16,12 @@ function ResetPasswordInner() {
 
   const [form, setForm] = useState({ password: '', confirm: '' })
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
-  const [generalError, setGeneralError] = useState('')
+  const [generalError, setGeneralError] = useState(() =>
+    token ? '' : 'This reset link is missing its token. Please request a new one.'
+  )
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [done, setDone] = useState(false)
-
-  useEffect(() => {
-    if (!token) setGeneralError('This reset link is missing its token. Please request a new one.')
-  }, [token])
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const { name, value } = e.target

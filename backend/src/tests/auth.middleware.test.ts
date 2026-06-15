@@ -1,11 +1,20 @@
 process.env.JWT_SECRET = 'test-secret'
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import request from 'supertest'
 import express from 'express'
 import jwt from 'jsonwebtoken'
 import { signToken } from '../lib/jwt'
 import { authMiddleware } from '../middleware/auth.middleware'
+
+vi.mock('../lib/prisma', () => ({
+  default: {
+    revokedToken: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      upsert: vi.fn(),
+    },
+  },
+}))
 
 const app = express()
 app.get('/protected', authMiddleware, (req, res) => {

@@ -87,7 +87,7 @@ describe('DashboardPage', () => {
     (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: mockJobs });
     renderWithAuth();
     await screen.findByPlaceholderText('Search jobs...');  
-    fireEvent.click(screen.getByText('Add Job'));
+    fireEvent.click(screen.getByRole('button', { name: /add job/i }));
     expect(screen.getByTestId('job-modal')).toBeInTheDocument();
   });
 

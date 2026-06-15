@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=optional");
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -184,6 +185,20 @@
   font-size: 20px;
 }
 
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined', sans-serif;
+  font-weight: normal;
+  font-style: normal;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+}
+
 .ats-auth .input-focus-glow:focus-within {
   box-shadow: 0 0 0 2px rgba(47, 129, 244, 0.2);
 }
@@ -207,8 +222,8 @@
 /* ── NavBar ─────────────────────────────────────────── */
 .navbar {
   height: 60px;
-  background: #ffffff;
-  border-bottom: 1px solid #e5e7eb;
+  background: #0b141c;
+  border-bottom: 1px solid #414753;
   display: flex;
   align-items: center;
   padding: 0 2rem;
@@ -216,13 +231,15 @@
   position: sticky;
   top: 0;
   z-index: 100;
+  color: #dae3ee;
 }
 
 .navbar-brand a {
   font-weight: 700;
   font-size: 1.2rem;
-  color: #2563eb;
+  color: #dae3ee;
   text-decoration: none;
+  letter-spacing: -0.3px;
 }
 
 .navbar-links {
@@ -230,26 +247,29 @@
   list-style: none;
   gap: 0.5rem;
   flex: 1;
+  justify-content: center;
 }
 
 .nav-link {
   padding: 0.4rem 0.75rem;
   border-radius: 6px;
   text-decoration: none;
-  color: #6b7280;
+  color: #c1c6d6;
   font-size: 0.95rem;
   transition: background 0.15s, color 0.15s;
 }
 
 .nav-link:hover {
-  background: #f9fafb;
-  color: #111827;
+  background: #182028;
+  color: #dae3ee;
 }
 
 .nav-link--active {
-  color: #2563eb;
+  color: #acc7ff;
   font-weight: 600;
-  background: #eff6ff;
+  background: transparent;
+  border-bottom: 2px solid #acc7ff;
+  border-radius: 0;
 }
 
 /* ── User Menu ──────────────────────────────────────── */
@@ -269,28 +289,29 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: #2563eb;
+  background: #468fff;
   color: white;
   font-weight: 600;
   font-size: 0.9rem;
+  border: 1px solid #414753;
 }
 
 .user-menu__dropdown {
   position: absolute;
   right: 0;
   top: calc(100% + 8px);
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
+  background: #182028;
+  border: 1px solid #414753;
   border-radius: 8px;
   min-width: 200px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.32);
   padding: 0.5rem 0;
   z-index: 200;
 }
 
 .user-menu__info { padding: 0.75rem 1rem; }
-.user-menu__name { font-weight: 600; font-size: 0.95rem; }
-.user-menu__email { font-size: 0.8rem; color: #6b7280; margin-top: 2px; }
+.user-menu__name { font-weight: 600; font-size: 0.95rem; color: #dae3ee; }
+.user-menu__email { font-size: 0.8rem; color: #c1c6d6; margin-top: 2px; }
 
 .user-menu__logout {
   width: 100%;
@@ -300,10 +321,10 @@
   border: none;
   cursor: pointer;
   font-size: 0.9rem;
-  color: #dc2626;
+  color: #ffb4ab;
 }
 
-.user-menu__logout:hover { background: #fef2f2; }
+.user-menu__logout:hover { background: rgba(147, 0, 10, 0.20); }
 
 /* ── Loading Screen ─────────────────────────────────── */
 .loading-screen {
@@ -311,7 +332,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #6b7280;
+  color: #c1c6d6;
 }
 
 /* ── Responsive ─────────────────────────────────────── */

@@ -101,3 +101,9 @@ model JobDocumentLink {
 
     @@unique([job_id, type])
 }
+
+model RevokedToken {
+    token     String   @id
+    expiresAt DateTime
+    createdAt DateTime @default(now())
+}

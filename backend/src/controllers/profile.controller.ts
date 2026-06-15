@@ -2,7 +2,7 @@
 import prisma from '../lib/prisma';
 import { profileSchema } from '../schemas/profile.schema';
 
-const BASELINE_FIELDS = ['firstName', 'lastName', 'phone', 'linkedIn', 'summary'] as const;
+const BASELINE_FIELDS = ['firstName', 'lastName', 'phone', 'location', 'summary'] as const;
 
 function calculateCompletionScore(profile: Partial<Record<string, unknown>>): number {
   const completed = BASELINE_FIELDS.filter(

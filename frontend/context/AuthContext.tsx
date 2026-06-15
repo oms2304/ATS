@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { apiFetch } from '@/lib/api';
 
 interface User {
   userId: string;
@@ -45,6 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    void apiFetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
     setUser(null);
     localStorage.removeItem('token');
     localStorage.removeItem('auth_token');

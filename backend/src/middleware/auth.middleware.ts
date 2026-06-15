@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express'
 import { verifyToken } from '../lib/jwt'
+import prisma from '../lib/prisma'
 
-export function authMiddleware(req: Request, res: Response, next: NextFunction) {
+export async function authMiddleware(req: Request, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -12,6 +13,11 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
   const decoded = verifyToken(token)
 
   if (!decoded) {
+    return res.status(401).json({ success: false, error: 'Invalid or expired token' })
+  }
+
+  const revoked = await prisma.revokedToken.findUnique({ where: { token } })
+  if (revoked) {
     return res.status(401).json({ success: false, error: 'Invalid or expired token' })
   }
 

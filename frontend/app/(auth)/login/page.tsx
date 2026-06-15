@@ -74,15 +74,13 @@ export default function LoginPage() {
         return
       }
 
-      const user = {
-        userId: data.data.user.id,
-        name: data.data.user.name,
-        email: data.data.user.email
-      }
-      login(user, data.data.token)
+      const { token, user } = data.data
+      login({ userId: user.id, name: user.name, email: user.email }, token)
       router.push('/dashboard')
-    } catch {
-      setGeneralError('Something went wrong. Please try again.')
+    } catch (err) {
+      setGeneralError(
+        err instanceof Error ? err.message : 'Something went wrong. Please try again.'
+      )
     } finally {
       setLoading(false)
     }
@@ -99,8 +97,12 @@ export default function LoginPage() {
       setResendMessage(
         data.message ?? 'If an unverified account exists for that email, a link has been sent.'
       )
-    } catch {
-      setResendMessage('Could not resend the email. Please try again.')
+    } catch (err) {
+      setResendMessage(
+        err instanceof Error
+          ? err.message
+          : 'Could not resend the email. Please try again.'
+      )
     } finally {
       setResendLoading(false)
     }

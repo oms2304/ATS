@@ -32,11 +32,17 @@ const renderWithAuth = (user: MockUser | null = mockUser, path = '/dashboard') =
 };
 
 describe('NavBar', () => {
-  it('renders Dashboard, Profile, and Settings links', () => {
+  it('renders Dashboard, Documents, Profile, and Settings links', () => {
     renderWithAuth();
     expect(screen.getByText('Dashboard')).toBeInTheDocument();
+    expect(screen.getByText('Documents')).toBeInTheDocument();
     expect(screen.getByText('Profile')).toBeInTheDocument();
     expect(screen.getByText('Settings')).toBeInTheDocument();
+  });
+
+  it('renders the brand text as "ATS for Job Seekers"', () => {
+    renderWithAuth();
+    expect(screen.getByText('ATS for Job Seekers')).toBeInTheDocument();
   });
 
   it('marks the current route link as active', () => {

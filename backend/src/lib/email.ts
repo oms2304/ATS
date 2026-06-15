@@ -2,7 +2,7 @@ import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
-const FROM = 'ATS for Job Seekers <onboarding@resend.dev>'
+const FROM = 'ATS for Job Seekers <onboarding@jacobmoawad.fun>'
 
 export async function sendVerificationEmail(email: string, token: string) {
   const url = `${process.env.FRONTEND_URL}/verify-email?token=${token}`
