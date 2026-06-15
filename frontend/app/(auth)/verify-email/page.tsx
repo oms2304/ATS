@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
+import { ArrowRight, CircleCheck, CircleX, Loader } from 'lucide-react'
 import { apiFetch } from '@/lib/api'
 
 type Status = 'verifying' | 'success' | 'error'
@@ -41,12 +42,18 @@ function VerifyEmailContent() {
     verify()
   }, [token])
 
-  const icon =
+  const Icon =
     status === 'verifying'
-      ? { name: 'progress_activity', cls: 'text-primary animate-spin' }
+      ? Loader
       : status === 'success'
-        ? { name: 'check_circle', cls: 'text-primary' }
-        : { name: 'error', cls: 'text-error' }
+        ? CircleCheck
+        : CircleX
+  const iconClass =
+    status === 'verifying'
+      ? 'w-14 h-14 text-primary animate-spin'
+      : status === 'success'
+        ? 'w-14 h-14 text-primary'
+        : 'w-14 h-14 text-error'
 
   return (
     <main className="relative z-10 w-full max-w-[440px] bg-surface-container border border-outline-variant rounded-xl p-xl shadow-2xl">
@@ -62,9 +69,7 @@ function VerifyEmailContent() {
       <div className="w-full h-px bg-outline-variant mb-xl" />
 
       <div className="flex flex-col items-center text-center gap-md">
-        <span className={`material-symbols-outlined text-[56px] ${icon.cls}`}>
-          {icon.name}
-        </span>
+        <Icon className={iconClass} />
         <p className="text-on-surface font-body-md text-body-md">{message}</p>
 
         {status !== 'verifying' && (
@@ -73,7 +78,7 @@ function VerifyEmailContent() {
             href="/login"
           >
             Continue to Login
-            <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+            <ArrowRight className="w-[18px] h-[18px]" />
           </Link>
         )}
       </div>
