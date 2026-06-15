@@ -1,47 +1,53 @@
-﻿'use client'
+'use client'
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { apiFetch } from '@/lib/api'
 
 function fieldBorderClass(hasError: boolean) {
   return hasError ? 'border-error' : 'border-outline-variant'
 }
 
-export default function LoginPage() {
-  const router = useRouter()
-  const [form, setForm] = useState({ email: '', password: '' })
+export default function RegisterPage() {
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+    confirmPassword: ''
+  })
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [generalError, setGeneralError] = useState('')
+  const [successMessage, setSuccessMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
-  const [needsVerification, setNeedsVerification] = useState(false)
-  const [unverifiedEmail, setUnverifiedEmail] = useState('')
-  const [resendLoading, setResendLoading] = useState(false)
-  const [resendMessage, setResendMessage] = useState('')
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const { name, value } = e.target
     setForm(prev => ({ ...prev, [name]: value }))
     setFieldErrors(prev => ({ ...prev, [name]: '' }))
     setGeneralError('')
-    setNeedsVerification(false)
-    setResendMessage('')
   }
 
   function validate() {
     const errors: Record<string, string> = {}
+    if (!form.name.trim()) errors.name = 'Name is required'
     if (!form.email.trim()) errors.email = 'Email is required'
     if (!form.password) errors.password = 'Password is required'
+    else if (form.password.length < 8)
+      errors.password = 'Password must be at least 8 characters'
+    else if (!/[A-Za-z]/.test(form.password))
+      errors.password = 'Password must contain at least one letter'
+    else if (!/[0-9]/.test(form.password))
+      errors.password = 'Password must contain at least one number'
+    if (form.password !== form.confirmPassword)
+      errors.confirmPassword = 'Passwords do not match'
     return errors
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setGeneralError('')
-    setNeedsVerification(false)
-    setResendMessage('')
 
     const errors = validate()
     if (Object.keys(errors).length > 0) {
@@ -51,52 +57,33 @@ export default function LoginPage() {
 
     setLoading(true)
     try {
-      const data = await apiFetch('/api/auth/login', {
+      const data = await apiFetch('/api/auth/register', {
         method: 'POST',
         body: JSON.stringify({
+          name: form.name,
           email: form.email,
           password: form.password
         })
       })
 
       if (!data.success) {
-        if (data.needsVerification) {
-          setNeedsVerification(true)
-          setUnverifiedEmail(data.email ?? form.email)
-          setGeneralError(data.error ?? 'Please verify your email before logging in')
-        } else if (data.fields) {
+        if (data.fields) {
           setFieldErrors(data.fields)
         } else {
-          setGeneralError(data.error ?? 'Login failed')
+          setGeneralError(data.error ?? 'Registration failed')
         }
         return
       }
 
-      localStorage.setItem('token', data.data.token)
-      document.cookie = `token=${data.data.token}; path=/`
-      router.push('/dashboard')
-    } catch {
-      setGeneralError('Something went wrong. Please try again.')
+      setSuccessMessage(
+        data.data?.message ?? 'Account created! Check your email to verify your account.'
+      )
+    } catch (err) {
+      setGeneralError(
+        err instanceof Error ? err.message : 'Something went wrong. Please try again.'
+      )
     } finally {
       setLoading(false)
-    }
-  }
-
-  async function handleResend() {
-    setResendLoading(true)
-    setResendMessage('')
-    try {
-      const data = await apiFetch('/api/auth/resend-verification', {
-        method: 'POST',
-        body: JSON.stringify({ email: unverifiedEmail })
-      })
-      setResendMessage(
-        data.message ?? 'If an unverified account exists for that email, a link has been sent.'
-      )
-    } catch {
-      setResendMessage('Could not resend the email. Please try again.')
-    } finally {
-      setResendLoading(false)
     }
   }
 
@@ -113,47 +100,62 @@ export default function LoginPage() {
             ATS for Job Seekers
           </h1>
           <p className="text-on-surface-variant font-body-md text-body-md">
-            Welcome back, sign in to continue
+            Track your job search like a pro
           </p>
         </header>
 
         <div className="w-full h-px bg-outline-variant mb-xl" />
 
-        {generalError && !needsVerification && (
-          <p className="text-error text-[12px] text-center mb-md">{generalError}</p>
-        )}
-
-        {needsVerification && (
-          <div className="mb-md rounded-lg border border-outline-variant bg-background p-md text-center">
-            <span className="material-symbols-outlined text-[28px] text-primary">
+        {successMessage ? (
+          <div className="flex flex-col items-center text-center gap-md py-md">
+            <span className="material-symbols-outlined text-[56px] text-primary">
               mark_email_unread
             </span>
-            <p className="text-on-surface text-body-sm font-body-sm mt-xs">{generalError}</p>
-            {resendMessage ? (
-              <p className="text-on-surface-variant text-[12px] mt-xs">{resendMessage}</p>
-            ) : (
-              <button
-                className="mt-md text-primary-container hover:text-primary-container/80 font-medium text-body-sm hover:underline transition-all disabled:opacity-70 disabled:cursor-not-allowed inline-flex items-center gap-1"
-                type="button"
-                onClick={handleResend}
-                disabled={resendLoading}
-              >
-                {resendLoading ? (
-                  <>
-                    <span className="material-symbols-outlined text-[16px] animate-spin">
-                      progress_activity
-                    </span>
-                    Sending...
-                  </>
-                ) : (
-                  'Resend verification email'
-                )}
-              </button>
+            <p className="text-on-surface font-label-md text-body-lg">Check your email</p>
+            <p className="text-on-surface-variant font-body-md text-body-md">
+              {successMessage}
+            </p>
+            <Link
+              className="w-full bg-primary-container hover:bg-primary-container/90 active:scale-[0.98] text-white font-label-md text-body-lg py-3 rounded-lg flex items-center justify-center gap-2 transition-all mt-md shadow-lg shadow-primary-container/10"
+              href="/login"
+            >
+              Go to Login
+              <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+            </Link>
+          </div>
+        ) : (
+          <>
+            {generalError && (
+              <p className="text-error text-[12px] text-center mb-md">{generalError}</p>
+            )}
+
+            <form className="space-y-md" onSubmit={handleSubmit} noValidate>
+          <div className="flex flex-col gap-xs">
+            <label
+              className="text-on-surface font-label-md text-label-md ml-1"
+              htmlFor="fullName"
+            >
+              Full Name
+            </label>
+            <div className="relative group input-focus-glow rounded-lg">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors">
+                person
+              </span>
+              <input
+                className={`w-full bg-background border rounded-lg py-2.5 pl-10 pr-4 text-on-surface text-body-md placeholder:text-outline focus:border-primary focus:ring-0 transition-all outline-none ${fieldBorderClass(!!fieldErrors.name)}`}
+                id="fullName"
+                name="name"
+                placeholder="John Doe"
+                type="text"
+                value={form.name}
+                onChange={handleChange}
+              />
+            </div>
+            {fieldErrors.name && (
+              <p className="text-error text-[12px] mt-1">{fieldErrors.name}</p>
             )}
           </div>
-        )}
 
-        <form className="space-y-md" onSubmit={handleSubmit} noValidate>
           <div className="flex flex-col gap-xs">
             <label
               className="text-on-surface font-label-md text-label-md ml-1"
@@ -216,13 +218,40 @@ export default function LoginPage() {
             )}
           </div>
 
-          <div className="flex justify-end">
-            <Link
-              className="text-primary-container hover:text-primary-container/80 font-body-sm text-body-sm hover:underline transition-all"
-              href="/forgot-password"
+          <div className="flex flex-col gap-xs">
+            <label
+              className="text-on-surface font-label-md text-label-md ml-1"
+              htmlFor="confirmPassword"
             >
-              Forgot password?
-            </Link>
+              Confirm Password
+            </label>
+            <div className="relative group input-focus-glow rounded-lg">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors">
+                lock
+              </span>
+              <input
+                className={`w-full bg-background border rounded-lg py-2.5 pl-10 pr-10 text-on-surface text-body-md placeholder:text-outline focus:border-primary focus:ring-0 transition-all outline-none ${fieldBorderClass(!!fieldErrors.confirmPassword)}`}
+                id="confirmPassword"
+                name="confirmPassword"
+                placeholder="••••••••"
+                type={showConfirmPassword ? 'text' : 'password'}
+                value={form.confirmPassword}
+                onChange={handleChange}
+              />
+              <button
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
+                type="button"
+                aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                onClick={() => setShowConfirmPassword(prev => !prev)}
+              >
+                <span className="material-symbols-outlined">
+                  {showConfirmPassword ? 'visibility_off' : 'visibility'}
+                </span>
+              </button>
+            </div>
+            {fieldErrors.confirmPassword && (
+              <p className="text-error text-[12px] mt-1">{fieldErrors.confirmPassword}</p>
+            )}
           </div>
 
           <button
@@ -235,25 +264,27 @@ export default function LoginPage() {
                 <span className="material-symbols-outlined text-[18px] animate-spin">
                   progress_activity
                 </span>
-                Signing in...
+                Creating...
               </>
             ) : (
               <>
-                Login
+                Create Account
                 <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
               </>
             )}
           </button>
-        </form>
+            </form>
+          </>
+        )}
 
         <footer className="mt-xl text-center">
           <p className="text-on-surface-variant font-body-sm text-body-sm">
-            Don&apos;t have an account?{' '}
+            Already have an account?{' '}
             <Link
               className="text-primary-container hover:text-primary-container/80 font-medium hover:underline transition-all"
-              href="/register"
+              href="/login"
             >
-              Register
+              Login
             </Link>
           </p>
         </footer>

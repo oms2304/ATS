@@ -7,6 +7,7 @@ import UserMenu from './UserMenu';
 
 const NAV_ITEMS = [
   { label: 'Dashboard', href: '/dashboard' },
+  { label: 'Documents', href: '/documents' },
   { label: 'Profile',   href: '/profile'   },
   { label: 'Settings',  href: '/settings'  },
 ];
@@ -18,7 +19,7 @@ export default function NavBar() {
   return (
     <nav className="navbar">
       <div className="navbar-brand">
-        <Link href="/dashboard">JobTrack</Link>
+        <Link href="/dashboard">ATS for Job Seekers</Link>
       </div>
 
       <ul className="navbar-links">

@@ -4,7 +4,6 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { apiFetch } from '@/lib/api'
-import { useAuth } from '@/context/AuthContext'
 
 function fieldBorderClass(hasError: boolean) {
   return hasError ? 'border-error' : 'border-outline-variant'
@@ -12,7 +11,6 @@ function fieldBorderClass(hasError: boolean) {
 
 export default function LoginPage() {
   const router = useRouter()
-  const { login } = useAuth()
   const [form, setForm] = useState({ email: '', password: '' })
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [generalError, setGeneralError] = useState('')
@@ -74,15 +72,13 @@ export default function LoginPage() {
         return
       }
 
-      const user = {
-        userId: data.data.user.id,
-        name: data.data.user.name,
-        email: data.data.user.email
-      }
-      login(user, data.data.token)
+      localStorage.setItem('token', data.data.token)
+      document.cookie = `token=${data.data.token}; path=/`
       router.push('/dashboard')
-    } catch {
-      setGeneralError('Something went wrong. Please try again.')
+    } catch (err) {
+      setGeneralError(
+        err instanceof Error ? err.message : 'Something went wrong. Please try again.'
+      )
     } finally {
       setLoading(false)
     }
@@ -99,8 +95,12 @@ export default function LoginPage() {
       setResendMessage(
         data.message ?? 'If an unverified account exists for that email, a link has been sent.'
       )
-    } catch {
-      setResendMessage('Could not resend the email. Please try again.')
+    } catch (err) {
+      setResendMessage(
+        err instanceof Error
+          ? err.message
+          : 'Could not resend the email. Please try again.'
+      )
     } finally {
       setResendLoading(false)
     }

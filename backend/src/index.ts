@@ -21,7 +21,16 @@ if (!process.env.JWT_SECRET) {
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-app.use(cors({ origin: 'http://localhost:3000' }));
+const allowedOrigins = ['http://localhost:3000', 'http://127.0.0.1:3000']
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      if (!origin || allowedOrigins.includes(origin)) return cb(null, true)
+      cb(new Error(`CORS: origin ${origin} not allowed`))
+    },
+    credentials: true,
+  })
+)
 app.use(express.json());
 
 app.use('/api/auth', authRoutes);
