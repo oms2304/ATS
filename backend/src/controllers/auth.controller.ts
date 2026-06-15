@@ -1,6 +1,7 @@
 import { Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
+import jwt from 'jsonwebtoken'
 import { Prisma } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { signToken } from '../lib/jwt'
@@ -195,6 +196,18 @@ export async function verifyEmail(req: Request, res: Response) {
 
 export async function logout(req: Request, res: Response) {
   try {
+    const authHeader = req.headers.authorization
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1]
+      const decoded = jwt.decode(token) as { exp?: number } | null
+      if (decoded && typeof decoded.exp === 'number') {
+        await prisma.revokedToken.upsert({
+          where: { token },
+          create: { token, expiresAt: new Date(decoded.exp * 1000) },
+          update: {}
+        })
+      }
+    }
     return res.status(200).json({
       success: true,
       data: { message: 'Logged out successfully' }

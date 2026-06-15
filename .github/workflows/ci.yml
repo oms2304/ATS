@@ -55,3 +55,7 @@ jobs:
         run: |
           cd frontend
           npm run build
+      - name: Test frontend
+        run: |
+          cd frontend
+          npm run test -- --ci

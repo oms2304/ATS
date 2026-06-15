@@ -10,22 +10,47 @@ import {
   verifyEmail,
   logout
 } from '../controllers/auth.controller'
+import { authMiddleware } from '../middleware/auth.middleware'
+
+const {
+  findUniqueMock,
+  findFirstMock,
+  createMock,
+  updateMock,
+  revokedUpsertMock,
+  revokedFindUniqueMock
+} = vi.hoisted(() => ({
+  findUniqueMock: vi.fn(),
+  findFirstMock: vi.fn(),
+  createMock: vi.fn(),
+  updateMock: vi.fn(),
+  revokedUpsertMock: vi.fn(),
+  revokedFindUniqueMock: vi.fn()
+}))
 
 vi.mock('../lib/prisma', () => ({
   prisma: {
     user: {
-      findUnique: vi.fn(),
-      findFirst: vi.fn(),
-      create: vi.fn(),
-      update: vi.fn()
+      findUnique: findUniqueMock,
+      findFirst: findFirstMock,
+      create: createMock,
+      update: updateMock
+    },
+    revokedToken: {
+      upsert: revokedUpsertMock,
+      findUnique: revokedFindUniqueMock
     }
   },
   default: {
     user: {
-      findUnique: vi.fn(),
-      findFirst: vi.fn(),
-      create: vi.fn(),
-      update: vi.fn()
+      findUnique: findUniqueMock,
+      findFirst: findFirstMock,
+      create: createMock,
+      update: updateMock
+    },
+    revokedToken: {
+      upsert: revokedUpsertMock,
+      findUnique: revokedFindUniqueMock
     }
   }
 }))
@@ -34,8 +59,17 @@ vi.mock('../lib/email', () => ({
   sendVerificationEmail: vi.fn().mockResolvedValue(undefined)
 }))
 
+const {
+  signTokenMock,
+  verifyTokenMock
+} = vi.hoisted(() => ({
+  signTokenMock: vi.fn().mockReturnValue('mock-token'),
+  verifyTokenMock: vi.fn()
+}))
+
 vi.mock('../lib/jwt', () => ({
-  signToken: vi.fn().mockReturnValue('mock-token')
+  signToken: signTokenMock,
+  verifyToken: verifyTokenMock
 }))
 
 import type { User } from '@prisma/client'
@@ -507,6 +541,10 @@ logoutApp.use(express.json())
 logoutApp.post('/api/auth/logout', logout)
 
 describe('POST /api/auth/logout', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   // HAPPY PATH: logout returns 200
   it('returns 200 with success message', async () => {
     const res = await request(logoutApp).post('/api/auth/logout').send()
@@ -520,5 +558,57 @@ describe('POST /api/auth/logout', () => {
     const res = await request(logoutApp).post('/api/auth/logout')
     expect(res.status).toBe(200)
     expect(res.body.success).toBe(true)
+  })
+
+  // HARDENING: revokes the bearer token on logout
+  it('writes the bearer token to the denylist on logout', async () => {
+    const realToken = jwt.sign(
+      { userId: 'clx123', email: 'jacob@example.com' },
+      TEST_SECRET,
+      { expiresIn: '7d' }
+    )
+    vi.mocked(prisma.revokedToken.upsert).mockResolvedValue({} as never)
+
+    const res = await request(logoutApp)
+      .post('/api/auth/logout')
+      .set('Authorization', `Bearer ${realToken}`)
+
+    expect(res.status).toBe(200)
+    expect(prisma.revokedToken.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { token: realToken },
+        create: expect.objectContaining({ token: realToken }),
+        update: {}
+      })
+    )
+  })
+
+  // NON-HAPPY PATH: a revoked token cannot access protected routes
+  it('rejects a revoked token on a protected route with 401', async () => {
+    const realToken = jwt.sign(
+      { userId: 'clx123', email: 'jacob@example.com' },
+      TEST_SECRET,
+      { expiresIn: '7d' }
+    )
+    vi.mocked(prisma.revokedToken.upsert).mockResolvedValue({} as never)
+    vi.mocked(prisma.revokedToken.findUnique).mockResolvedValue({
+      token: realToken,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      createdAt: new Date()
+    } as never)
+
+    // Replay the revoked token against a protected route using the real middleware
+    const protectedApp = express()
+    protectedApp.use(express.json())
+    protectedApp.get('/api/protected', authMiddleware, (req, res) =>
+      res.status(200).json({ success: true, data: { userId: (req as any).user.userId } })
+    )
+
+    const res = await request(protectedApp)
+      .get('/api/protected')
+      .set('Authorization', `Bearer ${realToken}`)
+
+    expect(res.status).toBe(401)
+    expect(res.body.error).toBe('Invalid or expired token')
   })
 })
