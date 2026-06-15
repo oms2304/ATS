@@ -12,7 +12,7 @@ model User {
     name               String
     email              String    @unique
     password           String
-    is_verified        Boolean   @default(true)
+    is_verified        Boolean   @default(false)
     ver_token          String?
     reset_token        String?
     reset_token_expire DateTime?
