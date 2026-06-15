@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 
@@ -12,14 +12,34 @@ export default function UserMenu({ user }: Props) {
   const [open, setOpen] = useState(false);
   const { logout } = useAuth();
   const router = useRouter();
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
 
   const handleLogout = () => {
+    setOpen(false);
     logout();
     router.push('/login');
   };
 
   return (
-    <div className="user-menu">
+    <div className="user-menu" ref={menuRef}>
       <button
         className="user-menu__trigger"
         onClick={() => setOpen(prev => !prev)}
@@ -44,7 +64,23 @@ export default function UserMenu({ user }: Props) {
             onClick={handleLogout}
             role="menuitem"
           >
-            Sign out
+            <svg
+              className="user-menu__logout-icon"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            <span>Sign out</span>
           </button>
         </div>
       )}
