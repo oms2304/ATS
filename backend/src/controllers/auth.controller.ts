@@ -6,7 +6,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { signToken } from '../lib/jwt'
 import { sendVerificationEmail, sendPasswordResetEmail } from '../lib/email'
-import { registerSchema, loginSchema, resendVerificationSchema, forgotPasswordSchema, resetPasswordSchema } from '../schemas/auth.schema'
+import { registerSchema, loginSchema, resendVerificationSchema, forgotPasswordSchema, resetPasswordSchema, changePasswordSchema } from '../schemas/auth.schema'
 
 export async function register(req: Request, res: Response) {
   try {
@@ -300,5 +300,47 @@ export async function confirmPasswordReset(req: Request, res: Response) {
   } catch (error) {
     console.error('confirmPasswordReset error:', error)
     return res.status(500).json({ success: false, error: 'Password reset failed' })
+  }
+}
+
+export async function changePassword(req: Request, res: Response) {
+  try {
+    const userId = req.user?.userId
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' })
+    }
+
+    const result = changePasswordSchema.safeParse(req.body)
+    if (!result.success) {
+      const fields: Record<string, string> = {}
+      for (const issue of result.error.issues) {
+        fields[issue.path[0] as string] = issue.message
+      }
+      return res.status(400).json({ success: false, error: 'Validation failed', fields })
+    }
+
+    const { currentPassword, newPassword } = result.data
+
+    const user = await prisma.user.findUnique({ where: { id: userId } })
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' })
+    }
+
+    const passwordMatch = await bcrypt.compare(currentPassword, user.password)
+    if (!passwordMatch) {
+      return res.status(401).json({ success: false, error: 'Current password is incorrect' })
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10)
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedPassword },
+    })
+
+    return res.status(200).json({ success: true, message: 'Password updated' })
+  } catch (error) {
+    console.error('changePassword error:', error)
+    return res.status(500).json({ success: false, error: 'Password change failed' })
   }
 }

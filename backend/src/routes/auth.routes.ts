@@ -7,7 +7,9 @@ import {
   logout,
   requestPasswordReset,
   confirmPasswordReset,
+  changePassword,
 } from '../controllers/auth.controller'
+import { authMiddleware } from '../middleware/auth.middleware'
 
 const router = Router()
 
@@ -18,5 +20,6 @@ router.get('/verify-email', verifyEmail)
 router.post('/logout', logout)
 router.post('/forgot-password', requestPasswordReset)
 router.post('/reset-password', confirmPasswordReset)
+router.post('/change-password', authMiddleware, changePassword)
 
 export default router
