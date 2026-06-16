@@ -13,7 +13,7 @@ const mockLogout = jest.fn();
 
 const renderUserMenu = () => {
   return render(
-    <AuthContext.Provider value={{ user: mockUser, isLoading: false, login: jest.fn(), logout: mockLogout }}>
+    <AuthContext.Provider value={{ user: mockUser, isLoading: false, login: jest.fn(), logout: mockLogout, setUser: jest.fn() }}>
       <UserMenu user={mockUser} />
     </AuthContext.Provider>
   );

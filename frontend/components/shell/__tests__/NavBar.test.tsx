@@ -25,7 +25,7 @@ type MockUser = { userId: string; name: string; email: string };
 const renderWithAuth = (user: MockUser | null = mockUser, path = '/dashboard') => {
   (usePathname as jest.Mock).mockReturnValue(path);
   return render(
-    <AuthContext.Provider value={{ user, isLoading: false, login: jest.fn(), logout: jest.fn() }}>
+    <AuthContext.Provider value={{ user, isLoading: false, login: jest.fn(), logout: jest.fn(), setUser: jest.fn() }}>
       <NavBar />
     </AuthContext.Provider>
   );
@@ -35,7 +35,6 @@ describe('NavBar', () => {
   it('renders Dashboard, Profile, and Settings links', () => {
     renderWithAuth();
     expect(screen.getByText('Dashboard')).toBeInTheDocument();
-    // expect(screen.getByText('Documents')).toBeInTheDocument();
     expect(screen.getByText('Profile')).toBeInTheDocument();
     expect(screen.getByText('Settings')).toBeInTheDocument();
   });
