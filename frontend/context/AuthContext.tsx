@@ -14,6 +14,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (user: User, token: string) => void;
   logout: () => void;
+  setUser: (user: User | null) => void;
 }
 
 const defaultValue: AuthContextType = {
@@ -21,6 +22,7 @@ const defaultValue: AuthContextType = {
   isLoading: true,
   login: () => {},
   logout: () => {},
+  setUser: () => {},
 };
 
 export const AuthContext = createContext<AuthContextType>(defaultValue);
@@ -54,8 +56,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
   };
 
+  const setUserAndPersist = (next: User | null) => {
+    setUser(next);
+    if (next) {
+      localStorage.setItem('auth_user', JSON.stringify(next));
+    } else {
+      localStorage.removeItem('auth_user');
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, setUser: setUserAndPersist }}>
       {children}
     </AuthContext.Provider>
   );

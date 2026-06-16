@@ -67,6 +67,17 @@ export const updateProfile = async (req: Request, res: Response) => {
       where: { userId },
       data: { ...parsed.data, completionScore },
     });
+
+    const firstName = parsed.data.firstName ?? existing.firstName ?? '';
+    const lastName = parsed.data.lastName ?? existing.lastName ?? '';
+    const composedName = `${firstName} ${lastName}`.trim();
+    if (composedName) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { name: composedName },
+      });
+    }
+
     return res.status(200).json({ success: true, data: profile });
   } catch {
     return res.status(500).json({ success: false, error: 'Internal server error' });

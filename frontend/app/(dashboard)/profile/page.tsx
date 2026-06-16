@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { apiFetch } from '@/lib/api'
+import { useAuth } from '@/context/AuthContext'
 
 type Profile = {
   firstName: string
@@ -30,12 +31,15 @@ const IDENTITY_FIELDS = [
 ]
 
 const PHONE_REGEX = /^[0-9+\-\s]+$/
+const NAME_REGEX = /^[A-Za-z]+$/
+const NAME_FIELDS = new Set(['firstName', 'lastName'])
 
 function countWords(text: string) {
   return text.trim() === '' ? 0 : text.trim().split(/\s+/).length
 }
 
 export default function ProfilePage() {
+  const { user: authUser, setUser: setAuthUser } = useAuth()
   const [profile, setProfile] = useState<Profile>({
     firstName: '',
     lastName: '',
@@ -86,6 +90,13 @@ export default function ProfilePage() {
     setProfile(prev => ({ ...prev, [e.target.name]: e.target.value }))
   }
 
+  function handleNameKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return
+    if (e.key.length === 1 && /[0-9]/.test(e.key)) {
+      e.preventDefault()
+    }
+  }
+
   function showSaved(message: string) {
     setSavedMessage(message)
     setTimeout(() => setSavedMessage(''), 2500)
@@ -95,9 +106,13 @@ export default function ProfilePage() {
     const errors: Record<string, string> = {}
     if (profile.firstName.trim() === '') {
       errors.firstName = 'First name is required'
+    } else if (!NAME_REGEX.test(profile.firstName.trim())) {
+      errors.firstName = 'Only letters are allowed'
     }
     if (profile.lastName.trim() === '') {
       errors.lastName = 'Last name is required'
+    } else if (!NAME_REGEX.test(profile.lastName.trim())) {
+      errors.lastName = 'Only letters are allowed'
     }
     if (profile.phone.trim() === '') {
       errors.phone = 'Phone is required'
@@ -135,15 +150,23 @@ export default function ProfilePage() {
       body: JSON.stringify(profile)
     })
     if (res.success && res.data) {
+      const updatedFirstName = res.data.firstName ?? profile.firstName
+      const updatedLastName = res.data.lastName ?? profile.lastName
       setProfile({
-        firstName: res.data.firstName ?? '',
-        lastName: res.data.lastName ?? '',
+        firstName: updatedFirstName,
+        lastName: updatedLastName,
         phone: res.data.phone ?? '',
         location: res.data.location ?? '',
         linkedIn: res.data.linkedIn ?? '',
         summary: res.data.summary ?? '',
         completionScore: res.data.completionScore ?? 0,
       })
+      if (authUser) {
+        setAuthUser({
+          ...authUser,
+          name: `${updatedFirstName} ${updatedLastName}`.trim(),
+        })
+      }
       setEditingIdentity(false)
       showSaved('Identity saved')
     }
@@ -245,12 +268,16 @@ export default function ProfilePage() {
                 name={field.name}
                 value={String(profile[field.name as keyof Profile] ?? '')}
                 onChange={handleChange}
+                onKeyDown={NAME_FIELDS.has(field.name) ? handleNameKeyDown : undefined}
                 readOnly={!editingIdentity}
                 placeholder={
                   editingIdentity
                     ? `Enter ${field.label.toLowerCase()}`
                     : 'Not filled in yet'
                 }
+                pattern={NAME_FIELDS.has(field.name) ? '[A-Za-z]+' : undefined}
+                inputMode={NAME_FIELDS.has(field.name) ? 'text' : undefined}
+                maxLength={NAME_FIELDS.has(field.name) ? 50 : undefined}
                 className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white placeholder-[#484f58] focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all read-only:opacity-60 read-only:cursor-default"
               />
               {identityErrors[field.name] && (
