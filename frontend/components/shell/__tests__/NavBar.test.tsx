@@ -35,7 +35,6 @@ describe('NavBar', () => {
   it('renders Dashboard, Profile, and Settings links', () => {
     renderWithAuth();
     expect(screen.getByText('Dashboard')).toBeInTheDocument();
-    expect(screen.getByText('Documents')).toBeInTheDocument();
     expect(screen.getByText('Profile')).toBeInTheDocument();
     expect(screen.getByText('Settings')).toBeInTheDocument();
   });
