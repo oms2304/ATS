@@ -50,7 +50,7 @@ const mockJobs = [
 
 const renderWithAuth = () => {
   return render(
-    <AuthContext.Provider value={{ user: mockUser, isLoading: false, login: jest.fn(), logout: jest.fn() }}>
+    <AuthContext.Provider value={{ user: mockUser, isLoading: false, login: jest.fn(), logout: jest.fn(), setUser: jest.fn() }}>
       <DashboardPage />
     </AuthContext.Provider>
   );

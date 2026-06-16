@@ -21,7 +21,7 @@ type MockUser = { userId: string; name: string; email: string };
 
 const renderWithAuth = (user: MockUser | null) => {
   return render(
-    <AuthContext.Provider value={{ user, isLoading: false, login: jest.fn(), logout: jest.fn() }}>
+    <AuthContext.Provider value={{ user, isLoading: false, login: jest.fn(), logout: jest.fn(), setUser: jest.fn() }}>
       <DashboardLayout><p>Protected Content</p></DashboardLayout>
     </AuthContext.Provider>
   );
