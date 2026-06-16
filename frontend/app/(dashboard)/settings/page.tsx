@@ -2,10 +2,82 @@
 
 import { useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
+import { apiFetch } from '@/lib/api'
 
 export default function SettingsPage() {
   const { user, logout } = useAuth()
   const [showConfirm, setShowConfirm] = useState(false)
+
+  const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' })
+  const [pwFieldErrors, setPwFieldErrors] = useState<Record<string, string>>({})
+  const [pwGeneralError, setPwGeneralError] = useState('')
+  const [pwSuccess, setPwSuccess] = useState('')
+  const [pwLoading, setPwLoading] = useState(false)
+
+  function fieldBorderClass(hasError: boolean) {
+    return hasError ? 'border-[#f85149]' : 'border-[#30363d]'
+  }
+
+  function handlePwChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const { name, value } = e.target
+    setPwForm(prev => ({ ...prev, [name]: value }))
+    setPwFieldErrors(prev => ({ ...prev, [name]: '' }))
+    setPwGeneralError('')
+    setPwSuccess('')
+  }
+
+  function validatePw() {
+    const errors: Record<string, string> = {}
+    if (pwForm.next.length < 8) {
+      errors.next = 'Password must be at least 8 characters'
+    } else if (!/[A-Za-z]/.test(pwForm.next) || !/[0-9]/.test(pwForm.next)) {
+      errors.next = 'Password must contain at least one letter and one number'
+    }
+    if (pwForm.confirm !== pwForm.next) {
+      errors.confirm = 'Passwords do not match'
+    }
+    return errors
+  }
+
+  async function handlePwSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setPwGeneralError('')
+    setPwSuccess('')
+
+    const errors = validatePw()
+    if (Object.keys(errors).length > 0) {
+      setPwFieldErrors(errors)
+      return
+    }
+
+    setPwLoading(true)
+    try {
+      const data = await apiFetch('/api/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({
+          currentPassword: pwForm.current,
+          newPassword: pwForm.next,
+        }),
+      })
+
+      if (!data.success) {
+        if (data.fields) {
+          setPwFieldErrors(data.fields)
+        } else {
+          setPwGeneralError(data.error ?? 'Could not update password')
+        }
+        return
+      }
+
+      setPwForm({ current: '', next: '', confirm: '' })
+      setPwSuccess('Password updated')
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Something went wrong. Please try again.'
+      setPwGeneralError(message)
+    } finally {
+      setPwLoading(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[#0d1117] p-6 text-[#e6edf3]">
@@ -37,11 +109,78 @@ export default function SettingsPage() {
             <h2 className="text-base font-semibold text-white">Password</h2>
             <p className="text-sm text-[#8b949e] mt-1">Update your password to keep your account secure</p>
           </div>
-          <div className="px-6 py-4">
-            <a href="/reset-password" className="text-sm text-[#2f81f4] hover:underline">
-              Change password →
-            </a>
-          </div>
+          <form className="px-6 py-4 flex flex-col gap-4" onSubmit={handlePwSubmit} noValidate>
+            {pwGeneralError && (
+              <p className="text-sm text-[#f85149]">{pwGeneralError}</p>
+            )}
+            {pwSuccess && (
+              <p className="text-sm text-[#3fb950]">{pwSuccess}</p>
+            )}
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#8b949e] uppercase tracking-wide" htmlFor="current">
+                Current password
+              </label>
+              <input
+                id="current"
+                name="current"
+                type="password"
+                autoComplete="current-password"
+                value={pwForm.current}
+                onChange={handlePwChange}
+                className={`bg-[#0d1117] border rounded-md px-3 py-2 text-sm text-white placeholder:text-[#6e7681] focus:border-[#2f81f4] focus:outline-none transition-colors ${fieldBorderClass(!!pwFieldErrors.current)}`}
+              />
+              {pwFieldErrors.current && (
+                <p className="text-xs text-[#f85149] mt-1">{pwFieldErrors.current}</p>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#8b949e] uppercase tracking-wide" htmlFor="next">
+                New password
+              </label>
+              <input
+                id="next"
+                name="next"
+                type="password"
+                autoComplete="new-password"
+                value={pwForm.next}
+                onChange={handlePwChange}
+                className={`bg-[#0d1117] border rounded-md px-3 py-2 text-sm text-white placeholder:text-[#6e7681] focus:border-[#2f81f4] focus:outline-none transition-colors ${fieldBorderClass(!!pwFieldErrors.next)}`}
+              />
+              {pwFieldErrors.next && (
+                <p className="text-xs text-[#f85149] mt-1">{pwFieldErrors.next}</p>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#8b949e] uppercase tracking-wide" htmlFor="confirm">
+                Confirm new password
+              </label>
+              <input
+                id="confirm"
+                name="confirm"
+                type="password"
+                autoComplete="new-password"
+                value={pwForm.confirm}
+                onChange={handlePwChange}
+                className={`bg-[#0d1117] border rounded-md px-3 py-2 text-sm text-white placeholder:text-[#6e7681] focus:border-[#2f81f4] focus:outline-none transition-colors ${fieldBorderClass(!!pwFieldErrors.confirm)}`}
+              />
+              {pwFieldErrors.confirm && (
+                <p className="text-xs text-[#f85149] mt-1">{pwFieldErrors.confirm}</p>
+              )}
+            </div>
+
+            <div>
+              <button
+                type="submit"
+                disabled={pwLoading}
+                className="text-sm px-4 py-2 bg-[#2f81f4] text-white rounded-md hover:bg-[#2f81f4]/90 active:scale-[0.98] transition-all shadow-sm shadow-[#2f81f4]/20 disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100"
+              >
+                {pwLoading ? 'Updating...' : 'Update password'}
+              </button>
+            </div>
+          </form>
         </div>
 
         {/* Danger Zone */}
