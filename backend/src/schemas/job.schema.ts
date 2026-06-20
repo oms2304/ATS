@@ -1,4 +1,4 @@
-﻿import { z } from 'zod';
+import { z } from 'zod';
 
 export const STAGES = [
   'Interested',
@@ -14,6 +14,8 @@ export const createJobSchema = z.object({
   company: z.string().min(1, 'Company is required'),
   jobPostingBody: z.string().min(1, 'Job posting body is required'),
   stage: z.enum(STAGES).default('Interested'),
+  deadline: z.string().datetime().optional().nullable(),
+  recruiterNotes: z.string().optional().nullable(),
 });
 
 export const updateJobSchema = createJobSchema.partial();

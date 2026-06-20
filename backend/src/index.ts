@@ -8,6 +8,8 @@ import profileRouter from './routes/profile.routes';
 import { authMiddleware } from './middleware/auth.middleware';
 import documentsRouter from './routes/documents.routes';
 import aiRouter from './routes/ai.routes';
+import interviewRouter from './routes/interview.routes';
+import followUpRouter from './routes/followup.routes';
 
 if (!process.env.DATABASE_URL) {
   console.error('Missing DATABASE_URL in backend/.env');
@@ -38,6 +40,8 @@ app.use('/api/jobs', authMiddleware, jobsRouter);
 app.use('/api/profile', authMiddleware, profileRouter);
 app.use('/api/documents', authMiddleware, documentsRouter);
 app.use('/api/ai', authMiddleware, aiRouter);
+app.use('/api', interviewRouter);
+app.use('/api', followUpRouter);
 
 app.get('/', (req, res) => {
   res.json({ success: true, message: 'ATS for Job Seekers API is running' });

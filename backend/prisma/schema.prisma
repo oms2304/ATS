@@ -40,20 +40,23 @@ model Profile {
 }
 
 model Job {
-    id               String   @id @default(cuid())
-    user_id          String
-    user             User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-    title            String
-    company          String
-    jobPostingBody   String   @map("job_posting_body")
-    stage            String   @default("Interested")
-    createdAt        DateTime @default(now())
-    updatedAt        DateTime @updatedAt
+    id              String   @id @default(cuid())
+    user_id         String
+    user            User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+    title           String
+    company         String
+    jobPostingBody  String   @map("job_posting_body")
+    stage           String   @default("Interested")
+    deadline        DateTime?
+    recruiterNotes  String?  @map("recruiter_notes")
+    createdAt       DateTime @default(now())
+    updatedAt       DateTime @updatedAt
 
-    activities JobActivity[]
-    documents  JobDocumentLink[]
+    activities  JobActivity[]
+    documents   JobDocumentLink[]
+    interviews  Interview[]
+    followUps   FollowUp[]
 }
-
 model JobActivity {
     id        String   @id @default(cuid())
     job_id    String
@@ -106,4 +109,25 @@ model RevokedToken {
     token     String   @id
     expiresAt DateTime
     createdAt DateTime @default(now())
+}
+model Interview {
+    id        String   @id @default(cuid())
+    job_id    String
+    job       Job      @relation(fields: [job_id], references: [id], onDelete: Cascade)
+    roundType String   @map("round_type")
+    date      DateTime
+    notes     String?
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+}
+
+model FollowUp {
+    id          String    @id @default(cuid())
+    job_id      String
+    job         Job       @relation(fields: [job_id], references: [id], onDelete: Cascade)
+    title       String
+    dueDate     DateTime  @map("due_date")
+    completed   Boolean   @default(false)
+    createdAt   DateTime  @default(now())
+    updatedAt   DateTime  @updatedAt
 }
