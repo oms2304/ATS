@@ -129,4 +129,43 @@ describe('DashboardPage - S2-001 Job Search', () => {
     expect(screen.getByText('Frontend Developer')).toBeInTheDocument();
     expect(screen.getByText('Backend Engineer')).toBeInTheDocument();
   });
+
+  // S2-002 Filter Tests
+it('renders stage filter dropdown', async () => {
+  (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: mockJobs });
+  renderWithAuth();
+  expect(await screen.findByRole('combobox')).toBeInTheDocument();
+});
+
+it('filters jobs by stage', async () => {
+  (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: mockJobs });
+  renderWithAuth();
+  await screen.findByPlaceholderText('Search jobs...');
+  fireEvent.change(screen.getByRole('combobox'), {
+    target: { value: 'Applied' },
+  });
+  expect(screen.getByText('Frontend Developer')).toBeInTheDocument();
+  expect(screen.queryByText('Backend Engineer')).not.toBeInTheDocument();
+});
+
+it('shows all jobs when All stages selected', async () => {
+  (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: mockJobs });
+  renderWithAuth();
+  await screen.findByPlaceholderText('Search jobs...');
+  fireEvent.change(screen.getByRole('combobox'), {
+    target: { value: 'All' },
+  });
+  expect(screen.getByText('Frontend Developer')).toBeInTheDocument();
+  expect(screen.getByText('Backend Engineer')).toBeInTheDocument();
+});
+
+it('shows no match when stage has no jobs', async () => {
+  (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: mockJobs });
+  renderWithAuth();
+  await screen.findByPlaceholderText('Search jobs...');
+  fireEvent.change(screen.getByRole('combobox'), {
+    target: { value: 'Offer' },
+  });
+  expect(screen.getByText('No jobs match your filters')).toBeInTheDocument();
+});
 });
