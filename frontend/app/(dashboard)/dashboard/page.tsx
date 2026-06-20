@@ -70,7 +70,8 @@ export default function DashboardPage() {
       const matchesSearch =
         !term ||
         job.title.toLowerCase().includes(term) ||
-        job.company.toLowerCase().includes(term)
+        job.company.toLowerCase().includes(term) ||
+        job.jobPostingBody.toLowerCase().includes(term)
       return matchesStage && matchesSearch
     })
   }, [jobs, search, stageFilter])
