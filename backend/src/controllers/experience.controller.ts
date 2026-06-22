@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../lib/prisma';
-import { experienceSchema } from '../schemas/experience.schema';
+import { experienceSchema, updateExperienceSchema } from '../schemas/experience.schema';
 
 export const getExperiences = async (req: Request, res: Response) => {
   try {
@@ -46,7 +46,7 @@ export const updateExperience = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.userId;
     if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
-    const parsed = experienceSchema.partial().safeParse(req.body);
+    const parsed = updateExperienceSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
         success: false,
