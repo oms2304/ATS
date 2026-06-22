@@ -19,9 +19,10 @@ model User {
     createdAt          DateTime  @default(now())
     updatedAt          DateTime  @updatedAt
 
-    profile   Profile?
-    jobs      Job[]
-    documents Document[]
+    profile      Profile?
+    jobs         Job[]
+    documents    Document[]
+    experiences  Experience[]
 }
 
 model Profile {
@@ -128,6 +129,21 @@ model FollowUp {
     title       String
     dueDate     DateTime  @map("due_date")
     completed   Boolean   @default(false)
+    createdAt   DateTime  @default(now())
+    updatedAt   DateTime  @updatedAt
+}
+
+model Experience {
+    id          String    @id @default(cuid())
+    userId      String
+    user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+    title       String
+    company     String
+    startDate   DateTime
+    endDate     DateTime?
+    isCurrent   Boolean   @default(false)
+    description String?
+    order       Int       @default(0)
     createdAt   DateTime  @default(now())
     updatedAt   DateTime  @updatedAt
 }
