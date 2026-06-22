@@ -12,6 +12,7 @@ import interviewRouter from './routes/interview.routes';
 import followUpRouter from './routes/followup.routes';
 import experienceRouter from './routes/experience.routes';
 import educationRouter from './routes/education.routes';
+import skillRouter from './routes/skill.routes';
 
 if (!process.env.DATABASE_URL) {
   console.error('Missing DATABASE_URL in backend/.env');
@@ -46,6 +47,7 @@ app.use('/api', interviewRouter);
 app.use('/api', followUpRouter);
 app.use('/api/experience', authMiddleware, experienceRouter);
 app.use('/api/education', authMiddleware, educationRouter);
+app.use('/api/skills', authMiddleware, skillRouter);
 
 app.get('/', (req, res) => {
   res.json({ success: true, message: 'ATS for Job Seekers API is running' });

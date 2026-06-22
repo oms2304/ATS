@@ -24,6 +24,7 @@ model User {
     documents    Document[]
     experiences  Experience[]
     educations   Education[]
+    skills       Skill[]
 }
 
 model Profile {
@@ -163,4 +164,18 @@ model Education {
     order        Int       @default(0)
     createdAt    DateTime  @default(now())
     updatedAt    DateTime  @updatedAt
+}
+
+model Skill {
+    id          String   @id @default(cuid())
+    userId      String
+    user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    name        String
+    category    String?
+    proficiency String?
+    order       Int      @default(0)
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    @@unique([userId, name])
 }
