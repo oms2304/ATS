@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 
-type PrismaModel = 'job' | 'document' | 'profile';
+type PrismaModel = 'job' | 'document' | 'profile' | 'experience';
 
 export function checkOwnership(model: PrismaModel, paramName: string = 'id') {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -21,7 +21,8 @@ export function checkOwnership(model: PrismaModel, paramName: string = 'id') {
         return res.status(404).json({ success: false, error: 'Record not found' });
       }
 
-      if (record.user_id !== userId) {
+      const ownerId = record.user_id ?? record.userId;
+      if (ownerId !== userId) {
         return res.status(403).json({ success: false, error: 'Access denied' });
       }
 
