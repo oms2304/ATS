@@ -1,12 +1,13 @@
 import { z } from 'zod';
 
-export const experienceSchema = z.object({
-  title: z.string().min(1, 'Job title is required'),
-  company: z.string().min(1, 'Company is required'),
+export const educationSchema = z.object({
+  school: z.string().min(1, 'School name is required'),
+  degree: z.string().min(1, 'Degree is required'),
+  fieldOfStudy: z.string().optional(),
   startDate: z.string().min(1, 'Start date is required'),
   endDate: z.string().optional().nullable(),
   isCurrent: z.boolean().optional().default(false),
-  description: z.string().optional(),
+  gpa: z.string().optional(),
   order: z.number().optional().default(0),
 });
 

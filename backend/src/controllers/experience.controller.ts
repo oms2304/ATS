@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../lib/prisma';
-import { experienceSchema, updateExperienceSchema } from '../schemas/experience.schema';
+import { experienceSchema, dateRangeRefine } from '../schemas/experience.schema';
 
 export const getExperiences = async (req: Request, res: Response) => {
   try {
@@ -28,6 +28,13 @@ export const createExperience = async (req: Request, res: Response) => {
         fields: parsed.error.flatten().fieldErrors,
       });
     }
+    if (!dateRangeRefine(parsed.data)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        fields: { endDate: ['End date cannot be earlier than start date'] },
+      });
+    }
     const experience = await prisma.experience.create({
       data: {
         ...parsed.data,
@@ -46,12 +53,19 @@ export const updateExperience = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.userId;
     if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
-    const parsed = updateExperienceSchema.safeParse(req.body);
+    const parsed = experienceSchema.partial().safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
         success: false,
         error: 'Validation failed',
         fields: parsed.error.flatten().fieldErrors,
+      });
+    }
+    if (!dateRangeRefine(parsed.data)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        fields: { endDate: ['End date cannot be earlier than start date'] },
       });
     }
     const data: Record<string, unknown> = { ...parsed.data };
