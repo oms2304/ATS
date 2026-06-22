@@ -56,6 +56,20 @@ const EMPTY_EDUCATION_FORM = {
   gpa: '',
 }
 
+type Skill = {
+  id: string
+  name: string
+  category: string | null
+  proficiency: string | null
+  order: number
+}
+
+const EMPTY_SKILL_FORM = {
+  name: '',
+  category: '',
+  proficiency: '',
+}
+
 const REQUIRED_FIELDS: (keyof Profile)[] = [
   'firstName',
   'lastName',
@@ -115,6 +129,14 @@ export default function ProfilePage() {
   const [educationErrors, setEducationErrors] = useState<Record<string, string>>({})
   const [savingEducation, setSavingEducation] = useState(false)
   const [educationGeneralError, setEducationGeneralError] = useState('')
+  const [skills, setSkills] = useState<Skill[]>([])
+  const [loadingSkills, setLoadingSkills] = useState(true)
+  const [showSkillForm, setShowSkillForm] = useState(false)
+  const [editingSkill, setEditingSkill] = useState<Skill | null>(null)
+  const [skillForm, setSkillForm] = useState({ ...EMPTY_SKILL_FORM })
+  const [skillErrors, setSkillErrors] = useState<Record<string, string>>({})
+  const [savingSkill, setSavingSkill] = useState(false)
+  const [skillGeneralError, setSkillGeneralError] = useState('')
 
   useEffect(() => {
     async function fetchProfile() {
@@ -313,6 +335,93 @@ export default function ProfilePage() {
       }
     } catch {
       setEducationGeneralError('Failed to delete. Please try again.')
+    }
+  }
+
+  useEffect(() => {
+    async function fetchSkills() {
+      try {
+        const res = await apiFetch('/api/skills')
+        if (res.success && Array.isArray(res.data)) {
+          setSkills(res.data)
+        }
+      } catch {
+        // network/load failure: leave list empty so the page still renders
+      } finally {
+        setLoadingSkills(false)
+      }
+    }
+    fetchSkills()
+  }, [])
+
+  function resetSkillForm() {
+    setSkillForm({ ...EMPTY_SKILL_FORM })
+    setSkillErrors({})
+    setSkillGeneralError('')
+    setEditingSkill(null)
+  }
+
+  function startEditSkill(skill: Skill) {
+    setEditingSkill(skill)
+    setSkillForm({
+      name: skill.name,
+      category: skill.category || '',
+      proficiency: skill.proficiency || '',
+    })
+    setSkillErrors({})
+    setSkillGeneralError('')
+    setShowSkillForm(true)
+  }
+
+  async function saveSkill() {
+    setSavingSkill(true)
+    setSkillErrors({})
+    setSkillGeneralError('')
+    const isEdit = editingSkill !== null
+    const url = isEdit ? `/api/skills/${editingSkill!.id}` : '/api/skills'
+    const method = isEdit ? 'PATCH' : 'POST'
+    try {
+      const res = await apiFetch(url, {
+        method,
+        body: JSON.stringify(skillForm),
+      })
+      if (res.success) {
+        if (isEdit) {
+          setSkills(prev => prev.map(s => s.id === res.data.id ? res.data : s))
+        } else {
+          setSkills(prev => [...prev, res.data])
+        }
+        setShowSkillForm(false)
+        resetSkillForm()
+        showSaved(isEdit ? 'Skill updated' : 'Skill added')
+      } else {
+        if (res.fields) {
+          setSkillErrors(res.fields)
+        } else {
+          setSkillGeneralError(res.error || 'Something went wrong')
+        }
+      }
+    } catch {
+      setSkillGeneralError('Failed to save. Please try again.')
+    } finally {
+      setSavingSkill(false)
+    }
+  }
+
+  async function deleteSkill(id: string) {
+    if (typeof window !== 'undefined' && !window.confirm('Delete this skill?')) {
+      return
+    }
+    try {
+      const res = await apiFetch(`/api/skills/${id}`, { method: 'DELETE' })
+      if (res.success) {
+        setSkills(prev => prev.filter(s => s.id !== id))
+        showSaved('Skill deleted')
+      } else {
+        setSkillGeneralError(res.error || 'Failed to delete')
+      }
+    } catch {
+      setSkillGeneralError('Failed to delete. Please try again.')
     }
   }
 
@@ -972,6 +1081,138 @@ export default function ProfilePage() {
                     </button>
                   </div>
                 </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-6">
+        <div className="flex justify-between items-center mb-5">
+          <h2 className="text-base font-medium text-white">Skills</h2>
+          {!showSkillForm && (
+            <button
+              onClick={() => {
+                resetSkillForm()
+                setShowSkillForm(true)
+              }}
+              className="text-sm px-4 py-1.5 bg-[#2f81f4] text-white rounded hover:bg-blue-600 transition-colors"
+            >
+              Add Skill
+            </button>
+          )}
+        </div>
+
+        {showSkillForm && (
+          <div className="flex flex-col gap-3 mb-5 pb-5 border-b border-[#30363d]">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#8b949e]">
+                Skill Name<span className="text-red-500"> *</span>
+              </label>
+              <input
+                value={skillForm.name}
+                onChange={e => setSkillForm(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="Enter skill name"
+                className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white placeholder-[#484f58] focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all"
+              />
+              {skillErrors.name && (
+                <p className="text-red-500 text-xs">{skillErrors.name}</p>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#8b949e]">Category</label>
+              <input
+                value={skillForm.category}
+                onChange={e => setSkillForm(prev => ({ ...prev, category: e.target.value }))}
+                placeholder="e.g. Frontend, Backend, Tools"
+                className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white placeholder-[#484f58] focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all"
+              />
+              {skillErrors.category && (
+                <p className="text-red-500 text-xs">{skillErrors.category}</p>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#8b949e]">Proficiency</label>
+              <select
+                value={skillForm.proficiency}
+                onChange={e => setSkillForm(prev => ({ ...prev, proficiency: e.target.value }))}
+                className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all"
+              >
+                <option value="">Select proficiency</option>
+                <option value="Beginner">Beginner</option>
+                <option value="Intermediate">Intermediate</option>
+                <option value="Advanced">Advanced</option>
+                <option value="Expert">Expert</option>
+              </select>
+              {skillErrors.proficiency && (
+                <p className="text-red-500 text-xs">{skillErrors.proficiency}</p>
+              )}
+            </div>
+
+            {skillGeneralError && (
+              <p className="text-red-500 text-xs">{skillGeneralError}</p>
+            )}
+
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => {
+                  setShowSkillForm(false)
+                  resetSkillForm()
+                }}
+                disabled={savingSkill}
+                className="text-sm px-4 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveSkill}
+                disabled={savingSkill}
+                className="text-sm px-4 py-1.5 bg-[#2f81f4] text-white rounded hover:bg-blue-600 transition-colors disabled:opacity-50"
+              >
+                {savingSkill
+                  ? 'Saving...'
+                  : editingSkill
+                    ? 'Save Changes'
+                    : 'Add Skill'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {loadingSkills ? (
+          <p className="text-sm text-[#8b949e]">Loading skills...</p>
+        ) : skills.length === 0 && !showSkillForm ? (
+          <p className="text-sm text-[#8b949e]">No skills added yet.</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {skills.map(skill => (
+              <div
+                key={skill.id}
+                className="flex items-center gap-2 bg-[#161b22] border border-[#30363d] rounded-full px-3 py-1.5"
+              >
+                <span className="text-sm text-white">{skill.name}</span>
+                {skill.proficiency && (
+                  <span className="text-xs text-[#8b949e]">{skill.proficiency}</span>
+                )}
+                {skill.category && (
+                  <span className="text-xs text-[#2f81f4]">{skill.category}</span>
+                )}
+                <button
+                  onClick={() => startEditSkill(skill)}
+                  disabled={showSkillForm}
+                  className="text-[#8b949e] hover:text-white transition-colors text-xs disabled:opacity-50"
+                >
+                  edit
+                </button>
+                <button
+                  onClick={() => deleteSkill(skill.id)}
+                  disabled={showSkillForm}
+                  className="text-[#f85149] hover:text-red-400 transition-colors text-xs disabled:opacity-50"
+                >
+                  ✕
+                </button>
               </div>
             ))}
           </div>
