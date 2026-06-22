@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../lib/prisma';
-import { educationSchema } from '../schemas/education.schema';
+import { educationSchema, dateRangeRefine } from '../schemas/education.schema';
 
 export const getEducations = async (req: Request, res: Response) => {
   try {
@@ -28,6 +28,13 @@ export const createEducation = async (req: Request, res: Response) => {
         fields: parsed.error.flatten().fieldErrors,
       });
     }
+    if (!dateRangeRefine(parsed.data)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        fields: { endDate: ['End date cannot be earlier than start date'] },
+      });
+    }
     const education = await prisma.education.create({
       data: {
         ...parsed.data,
@@ -52,6 +59,13 @@ export const updateEducation = async (req: Request, res: Response) => {
         success: false,
         error: 'Validation failed',
         fields: parsed.error.flatten().fieldErrors,
+      });
+    }
+    if (!dateRangeRefine(parsed.data)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        fields: { endDate: ['End date cannot be earlier than start date'] },
       });
     }
     const data: Record<string, unknown> = { ...parsed.data };
