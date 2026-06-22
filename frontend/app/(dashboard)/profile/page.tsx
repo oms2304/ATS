@@ -34,6 +34,28 @@ const EMPTY_EXPERIENCE_FORM = {
   description: '',
 }
 
+type Education = {
+  id: string
+  school: string
+  degree: string
+  fieldOfStudy: string | null
+  startDate: string
+  endDate: string | null
+  isCurrent: boolean
+  gpa: string | null
+  order: number
+}
+
+const EMPTY_EDUCATION_FORM = {
+  school: '',
+  degree: '',
+  fieldOfStudy: '',
+  startDate: '',
+  endDate: '',
+  isCurrent: false,
+  gpa: '',
+}
+
 const REQUIRED_FIELDS: (keyof Profile)[] = [
   'firstName',
   'lastName',
@@ -85,6 +107,14 @@ export default function ProfilePage() {
   const [experienceErrors, setExperienceErrors] = useState<Record<string, string>>({})
   const [savingExperience, setSavingExperience] = useState(false)
   const [experienceGeneralError, setExperienceGeneralError] = useState('')
+  const [educations, setEducations] = useState<Education[]>([])
+  const [loadingEducations, setLoadingEducations] = useState(true)
+  const [showEducationForm, setShowEducationForm] = useState(false)
+  const [editingEducation, setEditingEducation] = useState<Education | null>(null)
+  const [educationForm, setEducationForm] = useState({ ...EMPTY_EDUCATION_FORM })
+  const [educationErrors, setEducationErrors] = useState<Record<string, string>>({})
+  const [savingEducation, setSavingEducation] = useState(false)
+  const [educationGeneralError, setEducationGeneralError] = useState('')
 
   useEffect(() => {
     async function fetchProfile() {
@@ -192,6 +222,97 @@ export default function ProfilePage() {
       }
     } catch {
       setExperienceGeneralError('Failed to delete. Please try again.')
+    }
+  }
+
+  useEffect(() => {
+    async function fetchEducations() {
+      try {
+        const res = await apiFetch('/api/education')
+        if (res.success && Array.isArray(res.data)) {
+          setEducations(res.data)
+        }
+      } catch {
+        // network/load failure: leave list empty so the page still renders
+      } finally {
+        setLoadingEducations(false)
+      }
+    }
+    fetchEducations()
+  }, [])
+
+  function resetEducationForm() {
+    setEducationForm({ ...EMPTY_EDUCATION_FORM })
+    setEducationErrors({})
+    setEducationGeneralError('')
+    setEditingEducation(null)
+  }
+
+  function startEditEducation(edu: Education) {
+    setEditingEducation(edu)
+    setEducationForm({
+      school: edu.school,
+      degree: edu.degree,
+      fieldOfStudy: edu.fieldOfStudy || '',
+      startDate: edu.startDate.split('T')[0],
+      endDate: edu.endDate ? edu.endDate.split('T')[0] : '',
+      isCurrent: edu.isCurrent,
+      gpa: edu.gpa || '',
+    })
+    setEducationErrors({})
+    setEducationGeneralError('')
+    setShowEducationForm(true)
+  }
+
+  async function saveEducation() {
+    setSavingEducation(true)
+    setEducationErrors({})
+    setEducationGeneralError('')
+    const isEdit = editingEducation !== null
+    const url = isEdit ? `/api/education/${editingEducation!.id}` : '/api/education'
+    const method = isEdit ? 'PATCH' : 'POST'
+    try {
+      const res = await apiFetch(url, {
+        method,
+        body: JSON.stringify(educationForm),
+      })
+      if (res.success) {
+        if (isEdit) {
+          setEducations(prev => prev.map(e => e.id === res.data.id ? res.data : e))
+        } else {
+          setEducations(prev => [...prev, res.data])
+        }
+        setShowEducationForm(false)
+        resetEducationForm()
+        showSaved(isEdit ? 'Education updated' : 'Education added')
+      } else {
+        if (res.fields) {
+          setEducationErrors(res.fields)
+        } else {
+          setEducationGeneralError(res.error || 'Something went wrong')
+        }
+      }
+    } catch {
+      setEducationGeneralError('Failed to save. Please try again.')
+    } finally {
+      setSavingEducation(false)
+    }
+  }
+
+  async function deleteEducation(id: string) {
+    if (typeof window !== 'undefined' && !window.confirm('Delete this education entry?')) {
+      return
+    }
+    try {
+      const res = await apiFetch(`/api/education/${id}`, { method: 'DELETE' })
+      if (res.success) {
+        setEducations(prev => prev.filter(e => e.id !== id))
+        showSaved('Education deleted')
+      } else {
+        setEducationGeneralError(res.error || 'Failed to delete')
+      }
+    } catch {
+      setEducationGeneralError('Failed to delete. Please try again.')
     }
   }
 
@@ -640,6 +761,211 @@ export default function ProfilePage() {
                     </button>
                     <button
                       onClick={() => deleteExperience(exp.id)}
+                      className="text-xs px-3 py-1.5 border border-[#f85149]/50 text-[#f85149] rounded hover:bg-[#f85149]/10 transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-6">
+        <div className="flex justify-between items-center mb-5">
+          <h2 className="text-base font-medium text-white">Education</h2>
+          {!showEducationForm && (
+            <button
+              onClick={() => {
+                resetEducationForm()
+                setShowEducationForm(true)
+              }}
+              className="text-sm px-4 py-1.5 bg-[#2f81f4] text-white rounded hover:bg-blue-600 transition-colors"
+            >
+              Add Education
+            </button>
+          )}
+        </div>
+
+        {showEducationForm && (
+          <div className="flex flex-col gap-3 mb-5 pb-5 border-b border-[#30363d]">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#8b949e]">
+                School Name<span className="text-red-500"> *</span>
+              </label>
+              <input
+                value={educationForm.school}
+                onChange={e => setEducationForm(prev => ({ ...prev, school: e.target.value }))}
+                placeholder="Enter school name"
+                className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white placeholder-[#484f58] focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all"
+              />
+              {educationErrors.school && (
+                <p className="text-red-500 text-xs">{educationErrors.school}</p>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#8b949e]">
+                Degree<span className="text-red-500"> *</span>
+              </label>
+              <input
+                value={educationForm.degree}
+                onChange={e => setEducationForm(prev => ({ ...prev, degree: e.target.value }))}
+                placeholder="Enter degree"
+                className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white placeholder-[#484f58] focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all"
+              />
+              {educationErrors.degree && (
+                <p className="text-red-500 text-xs">{educationErrors.degree}</p>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#8b949e]">Field of Study</label>
+              <input
+                value={educationForm.fieldOfStudy}
+                onChange={e => setEducationForm(prev => ({ ...prev, fieldOfStudy: e.target.value }))}
+                placeholder="Enter field of study"
+                className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white placeholder-[#484f58] focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-[#8b949e]">
+                  Start Date<span className="text-red-500"> *</span>
+                </label>
+                <input
+                  type="date"
+                  value={educationForm.startDate}
+                  onChange={e => setEducationForm(prev => ({ ...prev, startDate: e.target.value }))}
+                  className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white placeholder-[#484f58] focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all"
+                />
+                {educationErrors.startDate && (
+                  <p className="text-red-500 text-xs">{educationErrors.startDate}</p>
+                )}
+              </div>
+
+              {!educationForm.isCurrent && (
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-[#8b949e]">End Date</label>
+                  <input
+                    type="date"
+                    value={educationForm.endDate}
+                    onChange={e => setEducationForm(prev => ({ ...prev, endDate: e.target.value }))}
+                    className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white placeholder-[#484f58] focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all"
+                  />
+                  {educationErrors.endDate && (
+                    <p className="text-red-500 text-xs">{educationErrors.endDate}</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <label className="flex items-center gap-2 text-sm text-[#8b949e] cursor-pointer">
+              <input
+                type="checkbox"
+                checked={educationForm.isCurrent}
+                onChange={e => setEducationForm(prev => ({
+                  ...prev,
+                  isCurrent: e.target.checked,
+                  endDate: e.target.checked ? '' : prev.endDate,
+                }))}
+                className="accent-[#2f81f4]"
+              />
+              I am currently studying here
+            </label>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#8b949e]">GPA</label>
+              <input
+                value={educationForm.gpa}
+                onChange={e => setEducationForm(prev => ({ ...prev, gpa: e.target.value }))}
+                placeholder="e.g. 3.8"
+                className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white placeholder-[#484f58] focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all"
+              />
+            </div>
+
+            {educationGeneralError && (
+              <p className="text-red-500 text-xs">{educationGeneralError}</p>
+            )}
+
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => {
+                  setShowEducationForm(false)
+                  resetEducationForm()
+                }}
+                disabled={savingEducation}
+                className="text-sm px-4 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveEducation}
+                disabled={savingEducation}
+                className="text-sm px-4 py-1.5 bg-[#2f81f4] text-white rounded hover:bg-blue-600 transition-colors disabled:opacity-50"
+              >
+                {savingEducation
+                  ? 'Saving...'
+                  : editingEducation
+                    ? 'Save Changes'
+                    : 'Add Education'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {loadingEducations ? (
+          <p className="text-sm text-[#8b949e]">Loading educations...</p>
+        ) : educations.length === 0 && !showEducationForm ? (
+          <p className="text-sm text-[#8b949e]">No education added yet.</p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {educations.map(edu => (
+              <div
+                key={edu.id}
+                className="bg-[#0d1117] border border-[#30363d] rounded-lg p-4"
+              >
+                <div className="flex justify-between items-start gap-3">
+                  <div className="flex-1">
+                    <p className="text-white font-medium">{edu.school}</p>
+                    <p className="text-sm text-[#8b949e]">
+                      {edu.degree}
+                      {edu.fieldOfStudy ? `, ${edu.fieldOfStudy}` : ''}
+                    </p>
+                    <p className="text-xs text-[#8b949e] mt-1">
+                      {new Date(edu.startDate).toLocaleDateString('en-US', {
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                      {' — '}
+                      {edu.isCurrent
+                        ? 'Present'
+                        : edu.endDate
+                          ? new Date(edu.endDate).toLocaleDateString('en-US', {
+                              month: 'short',
+                              year: 'numeric',
+                            })
+                          : ''}
+                    </p>
+                    {edu.gpa && (
+                      <p className="text-sm text-[#8b949e] mt-2">
+                        GPA: {edu.gpa}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      onClick={() => startEditEducation(edu)}
+                      disabled={showEducationForm}
+                      className="text-xs px-3 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors disabled:opacity-50"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => deleteEducation(edu.id)}
                       className="text-xs px-3 py-1.5 border border-[#f85149]/50 text-[#f85149] rounded hover:bg-[#f85149]/10 transition-colors"
                     >
                       Delete
