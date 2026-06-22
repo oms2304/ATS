@@ -70,6 +70,23 @@ const EMPTY_SKILL_FORM = {
   proficiency: '',
 }
 
+type CareerPreferences = {
+  id: string
+  targetRoles: string[]
+  preferredLocations: string[]
+  workMode: string | null
+  salaryMin: number | null
+  salaryMax: number | null
+}
+
+const EMPTY_PREFERENCES_FORM = {
+  targetRoles: [] as string[],
+  preferredLocations: [] as string[],
+  workMode: '',
+  salaryMin: '',
+  salaryMax: '',
+}
+
 const REQUIRED_FIELDS: (keyof Profile)[] = [
   'firstName',
   'lastName',
@@ -137,6 +154,15 @@ export default function ProfilePage() {
   const [skillErrors, setSkillErrors] = useState<Record<string, string>>({})
   const [savingSkill, setSavingSkill] = useState(false)
   const [skillGeneralError, setSkillGeneralError] = useState('')
+  const [preferences, setPreferences] = useState<CareerPreferences | null>(null)
+  const [loadingPreferences, setLoadingPreferences] = useState(true)
+  const [editingPreferences, setEditingPreferences] = useState(false)
+  const [preferencesForm, setPreferencesForm] = useState({ ...EMPTY_PREFERENCES_FORM })
+  const [preferencesErrors, setPreferencesErrors] = useState<Record<string, string>>({})
+  const [preferencesGeneralError, setPreferencesGeneralError] = useState('')
+  const [savingPreferences, setSavingPreferences] = useState(false)
+  const [targetRoleInput, setTargetRoleInput] = useState('')
+  const [locationInput, setLocationInput] = useState('')
 
   useEffect(() => {
     async function fetchProfile() {
@@ -422,6 +448,88 @@ export default function ProfilePage() {
       }
     } catch {
       setSkillGeneralError('Failed to delete. Please try again.')
+    }
+  }
+
+  useEffect(() => {
+    async function fetchPreferences() {
+      try {
+        const res = await apiFetch('/api/preferences')
+        if (res.success && res.data) {
+          setPreferences(res.data)
+          setPreferencesForm({
+            targetRoles: res.data.targetRoles || [],
+            preferredLocations: res.data.preferredLocations || [],
+            workMode: res.data.workMode || '',
+            salaryMin: res.data.salaryMin?.toString() || '',
+            salaryMax: res.data.salaryMax?.toString() || '',
+          })
+        }
+      } catch {
+        // network/load failure: leave preferences empty so the page still renders
+      } finally {
+        setLoadingPreferences(false)
+      }
+    }
+    fetchPreferences()
+  }, [])
+
+  function cancelEditPreferences() {
+    setEditingPreferences(false)
+    setPreferencesErrors({})
+    setPreferencesGeneralError('')
+    setTargetRoleInput('')
+    setLocationInput('')
+    if (preferences) {
+      setPreferencesForm({
+        targetRoles: preferences.targetRoles || [],
+        preferredLocations: preferences.preferredLocations || [],
+        workMode: preferences.workMode || '',
+        salaryMin: preferences.salaryMin?.toString() || '',
+        salaryMax: preferences.salaryMax?.toString() || '',
+      })
+    } else {
+      setPreferencesForm({ ...EMPTY_PREFERENCES_FORM })
+    }
+  }
+
+  async function savePreferences() {
+    setSavingPreferences(true)
+    setPreferencesErrors({})
+    setPreferencesGeneralError('')
+    try {
+      const res = await apiFetch('/api/preferences', {
+        method: 'PUT',
+        body: JSON.stringify({
+          targetRoles: preferencesForm.targetRoles,
+          preferredLocations: preferencesForm.preferredLocations,
+          workMode: preferencesForm.workMode || null,
+          salaryMin: preferencesForm.salaryMin ? parseInt(preferencesForm.salaryMin) : null,
+          salaryMax: preferencesForm.salaryMax ? parseInt(preferencesForm.salaryMax) : null,
+        }),
+      })
+      if (res.success) {
+        setPreferences(res.data)
+        setEditingPreferences(false)
+        setTargetRoleInput('')
+        setLocationInput('')
+        showSaved('Career preferences saved')
+      } else {
+        if (res.fields) {
+          const flat: Record<string, string> = {}
+          for (const key of Object.keys(res.fields)) {
+            const v = res.fields[key]
+            flat[key] = Array.isArray(v) ? v[0] : String(v)
+          }
+          setPreferencesErrors(flat)
+        } else {
+          setPreferencesGeneralError(res.error || 'Something went wrong')
+        }
+      }
+    } catch {
+      setPreferencesGeneralError('Failed to save. Please try again.')
+    } finally {
+      setSavingPreferences(false)
     }
   }
 
@@ -1215,6 +1323,273 @@ export default function ProfilePage() {
                 </button>
               </div>
             ))}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-6">
+        <div className="flex justify-between items-center mb-5">
+          <h2 className="text-base font-medium text-white">Career Preferences</h2>
+          {editingPreferences ? (
+            <div className="flex gap-2">
+              <button
+                onClick={cancelEditPreferences}
+                disabled={savingPreferences}
+                className="text-sm px-4 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={savePreferences}
+                disabled={savingPreferences}
+                className="text-sm px-4 py-1.5 bg-[#2f81f4] text-white rounded hover:bg-blue-600 transition-colors disabled:opacity-50"
+              >
+                {savingPreferences ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => {
+                setPreferencesErrors({})
+                setPreferencesGeneralError('')
+                setEditingPreferences(true)
+              }}
+              className="text-sm px-4 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors"
+            >
+              Edit
+            </button>
+          )}
+        </div>
+
+        {loadingPreferences ? (
+          <p className="text-sm text-[#8b949e]">Loading career preferences...</p>
+        ) : !preferences && !editingPreferences ? (
+          <p className="text-sm text-[#8b949e]">No career preferences added yet.</p>
+        ) : (
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#8b949e]">Target Roles</label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {preferencesForm.targetRoles.map((role, i) => (
+                  <span
+                    key={`${role}-${i}`}
+                    className="flex items-center gap-1 bg-[#1f3d6e] text-[#58a6ff] text-xs px-2 py-1 rounded-full"
+                  >
+                    {role}
+                    {editingPreferences && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPreferencesForm(prev => ({
+                            ...prev,
+                            targetRoles: prev.targetRoles.filter(
+                              (_, index) => index !== i,
+                            ),
+                          }))
+                        }
+                        className="hover:text-white"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </span>
+                ))}
+                {!editingPreferences && preferencesForm.targetRoles.length === 0 && (
+                  <span className="text-xs text-[#484f58]">Not filled in yet</span>
+                )}
+              </div>
+              {editingPreferences && (
+                <div className="flex gap-2">
+                  <input
+                    value={targetRoleInput}
+                    onChange={e => setTargetRoleInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && targetRoleInput.trim()) {
+                        e.preventDefault()
+                        setPreferencesForm(prev => ({
+                          ...prev,
+                          targetRoles: [...prev.targetRoles, targetRoleInput.trim()],
+                        }))
+                        setTargetRoleInput('')
+                      }
+                    }}
+                    placeholder="e.g. Frontend Developer"
+                    className="flex-1 bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white placeholder-[#484f58] focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (targetRoleInput.trim()) {
+                        setPreferencesForm(prev => ({
+                          ...prev,
+                          targetRoles: [...prev.targetRoles, targetRoleInput.trim()],
+                        }))
+                        setTargetRoleInput('')
+                      }
+                    }}
+                    className="text-sm px-3 py-2 bg-[#2f81f4] text-white rounded hover:bg-blue-600 transition-colors"
+                  >
+                    Add
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#8b949e]">Preferred Locations</label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {preferencesForm.preferredLocations.map((location, i) => (
+                  <span
+                    key={`${location}-${i}`}
+                    className="flex items-center gap-1 bg-[#1f3d6e] text-[#58a6ff] text-xs px-2 py-1 rounded-full"
+                  >
+                    {location}
+                    {editingPreferences && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPreferencesForm(prev => ({
+                            ...prev,
+                            preferredLocations: prev.preferredLocations.filter(
+                              (_, index) => index !== i,
+                            ),
+                          }))
+                        }
+                        className="hover:text-white"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </span>
+                ))}
+                {!editingPreferences && preferencesForm.preferredLocations.length === 0 && (
+                  <span className="text-xs text-[#484f58]">Not filled in yet</span>
+                )}
+              </div>
+              {editingPreferences && (
+                <div className="flex gap-2">
+                  <input
+                    value={locationInput}
+                    onChange={e => setLocationInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && locationInput.trim()) {
+                        e.preventDefault()
+                        setPreferencesForm(prev => ({
+                          ...prev,
+                          preferredLocations: [
+                            ...prev.preferredLocations,
+                            locationInput.trim(),
+                          ],
+                        }))
+                        setLocationInput('')
+                      }
+                    }}
+                    placeholder="e.g. Remote, New York, NY"
+                    className="flex-1 bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white placeholder-[#484f58] focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (locationInput.trim()) {
+                        setPreferencesForm(prev => ({
+                          ...prev,
+                          preferredLocations: [
+                            ...prev.preferredLocations,
+                            locationInput.trim(),
+                          ],
+                        }))
+                        setLocationInput('')
+                      }
+                    }}
+                    className="text-sm px-3 py-2 bg-[#2f81f4] text-white rounded hover:bg-blue-600 transition-colors"
+                  >
+                    Add
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#8b949e]">Work Mode</label>
+              <div style={{ position: 'relative' }}>
+                <select
+                  value={preferencesForm.workMode}
+                  onChange={e =>
+                    setPreferencesForm(prev => ({ ...prev, workMode: e.target.value }))
+                  }
+                  disabled={!editingPreferences}
+                  style={{
+                    width: '100%',
+                    appearance: 'none',
+                    background: '#0d1117',
+                    border: '1px solid #30363d',
+                    borderRadius: '6px',
+                    padding: '8px 32px 8px 12px',
+                    fontSize: '13px',
+                    color: '#e6edf3',
+                    outline: 'none',
+                    opacity: editingPreferences ? 1 : 0.6,
+                  }}
+                >
+                  <option value="">Select work mode</option>
+                  <option value="Remote">Remote</option>
+                  <option value="Hybrid">Hybrid</option>
+                  <option value="On-site">On-site</option>
+                </select>
+                <span
+                  style={{
+                    position: 'absolute',
+                    right: '10px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: '#8b949e',
+                    pointerEvents: 'none',
+                    fontSize: '12px',
+                  }}
+                >
+                  ▾
+                </span>
+              </div>
+            </div>
+
+            <div className="flex gap-4">
+              <div className="flex flex-col gap-1 flex-1">
+                <label className="text-xs text-[#8b949e]">Minimum Salary</label>
+                <input
+                  type="number"
+                  value={preferencesForm.salaryMin}
+                  onChange={e =>
+                    setPreferencesForm(prev => ({ ...prev, salaryMin: e.target.value }))
+                  }
+                  readOnly={!editingPreferences}
+                  placeholder="e.g. 60000"
+                  className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white placeholder-[#484f58] focus:border-[#2f81f4] outline-none read-only:opacity-60"
+                />
+                {preferencesErrors.salaryMin && (
+                  <p className="text-xs text-[#f85149]">{preferencesErrors.salaryMin}</p>
+                )}
+              </div>
+              <div className="flex flex-col gap-1 flex-1">
+                <label className="text-xs text-[#8b949e]">Maximum Salary</label>
+                <input
+                  type="number"
+                  value={preferencesForm.salaryMax}
+                  onChange={e =>
+                    setPreferencesForm(prev => ({ ...prev, salaryMax: e.target.value }))
+                  }
+                  readOnly={!editingPreferences}
+                  placeholder="e.g. 90000"
+                  className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white placeholder-[#484f58] focus:border-[#2f81f4] outline-none read-only:opacity-60"
+                />
+                {preferencesErrors.salaryMax && (
+                  <p className="text-xs text-[#f85149]">{preferencesErrors.salaryMax}</p>
+                )}
+              </div>
+            </div>
+
+            {preferencesGeneralError && (
+              <p className="text-xs text-[#f85149]">{preferencesGeneralError}</p>
+            )}
           </div>
         )}
       </div>
