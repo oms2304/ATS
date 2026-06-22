@@ -23,6 +23,7 @@ model User {
     jobs         Job[]
     documents    Document[]
     experiences  Experience[]
+    educations   Education[]
 }
 
 model Profile {
@@ -146,4 +147,20 @@ model Experience {
     order       Int       @default(0)
     createdAt   DateTime  @default(now())
     updatedAt   DateTime  @updatedAt
+}
+
+model Education {
+    id           String    @id @default(cuid())
+    userId       String
+    user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+    school       String
+    degree       String
+    fieldOfStudy String?
+    startDate    DateTime
+    endDate      DateTime?
+    isCurrent    Boolean   @default(false)
+    gpa          String?
+    order        Int       @default(0)
+    createdAt    DateTime  @default(now())
+    updatedAt    DateTime  @updatedAt
 }
