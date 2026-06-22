@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 
-type PrismaModel = 'job' | 'document' | 'profile' | 'experience' | 'education';
+type PrismaModel = 'job' | 'document' | 'profile' | 'experience' | 'education' | 'skill';
 
 export function checkOwnership(model: PrismaModel, paramName: string = 'id') {
   return async (req: Request, res: Response, next: NextFunction) => {
