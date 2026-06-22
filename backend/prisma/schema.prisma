@@ -19,12 +19,13 @@ model User {
     createdAt          DateTime  @default(now())
     updatedAt          DateTime  @updatedAt
 
-    profile      Profile?
-    jobs         Job[]
-    documents    Document[]
-    experiences  Experience[]
-    educations   Education[]
-    skills       Skill[]
+    profile            Profile?
+    jobs               Job[]
+    documents          Document[]
+    experiences        Experience[]
+    educations         Education[]
+    skills             Skill[]
+    careerPreferences  CareerPreferences?
 }
 
 model Profile {
@@ -178,4 +179,17 @@ model Skill {
     updatedAt   DateTime @updatedAt
 
     @@unique([userId, name])
+}
+
+model CareerPreferences {
+    id                 String   @id @default(cuid())
+    userId             String   @unique
+    user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    targetRoles        String[]
+    preferredLocations String[]
+    workMode           String?
+    salaryMin          Int?
+    salaryMax          Int?
+    createdAt          DateTime @default(now())
+    updatedAt          DateTime @updatedAt
 }
