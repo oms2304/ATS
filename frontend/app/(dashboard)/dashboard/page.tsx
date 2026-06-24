@@ -1,9 +1,9 @@
 ﻿'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
 import { apiFetch } from '@/lib/api'
 import { JobModal } from '@/components/forms/job-modal'
+import { JobCard } from '@/components/ui/job-card' 
 
 type Job = {
   id: string
@@ -16,35 +16,6 @@ type Job = {
 }
 
 const STAGES = ['Interested', 'Applied', 'Interview', 'Offer', 'Rejected', 'Archived']
-
-const STAGE_BADGE: Record<string, { bg: string; text: string }> = {
-  Interested: { bg: '#21262d', text: '#8b949e' },
-  Applied: { bg: '#1f3d6e', text: '#58a6ff' },
-  Interview: { bg: '#2d1f6e', text: '#bc8cff' },
-  Offer: { bg: '#1a3d2b', text: '#3fb950' },
-  Rejected: { bg: '#3d1f1f', text: '#f85149' },
-  Archived: { bg: '#21262d', text: '#8b949e' },
-}
-
-const STAGE_PROGRESS: Record<string, number> = {
-  Interested: 15,
-  Applied: 40,
-  Interview: 70,
-  Offer: 100,
-  Rejected: 100,
-  Archived: 100,
-}
-
-function formatDate(value: string) {
-  if (!value) return ''
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  return date.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
 
 export default function DashboardPage() {
   const [jobs, setJobs] = useState<Job[]>([])
@@ -172,49 +143,18 @@ export default function DashboardPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredJobs.map((job) => {
-            const badge = STAGE_BADGE[job.stage] ?? STAGE_BADGE.Interested
-            const progress = STAGE_PROGRESS[job.stage] ?? 0
             return (
-              <Link
-                key={job.id}
-                href={`/jobs/${job.id}`}
-                className="bg-[#161b22] border border-[#30363d] rounded-lg p-4 hover:border-[#2f81f4] transition-colors cursor-pointer block"
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <p className="text-xs text-[#8b949e]">{job.company}</p>
-                  <span
-                    className="text-xs px-2 py-1 rounded"
-                    style={{ backgroundColor: badge.bg, color: badge.text }}
-                  >
-                    {job.stage}
-                  </span>
-                </div>
-                <h3 className="text-white font-medium mb-1">{job.title}</h3>
-                <p className="text-xs text-[#8b949e] mb-3">
-                  Updated {formatDate(job.updatedAt)}
-                </p>
-                <div className="h-1.5 w-full rounded-full bg-[#21262d] mb-4">
-                  <div
-                    className="h-1.5 rounded-full bg-[#2f81f4] transition-all"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-                <div className="flex justify-end gap-2 pt-2 border-t border-[#30363d]">
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      handleEditJob(job)
-                    }}
-                    className="text-xs px-3 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors"
-                  >
-                    Edit
-                  </button>
-                  <span className="text-xs px-3 py-1.5 text-[#8b949e] rounded">
-                    View
-                  </span>
-                </div>
-              </Link>
+                <JobCard
+                  key={job.id}
+                  job={{
+                  id: job.id,
+                  title: job.title,
+                  company: job.company,
+                  stage: job.stage,
+                  updatedAt: job.updatedAt,
+                  }}
+                  onEdit={(cardJob) => handleEditJob(jobs.find(j => j.id === cardJob.id)!)}
+                />
             )
           })}
         </div>
