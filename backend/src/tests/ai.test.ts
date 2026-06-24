@@ -72,7 +72,7 @@ vi.mock('openai', () => {
 })
 
 import { prisma } from '../lib/prisma'
-import { generateResume } from '../controllers/ai.controller'
+import { generateResume, generateCoverLetter, rewriteDraft } from '../controllers/ai.controller'
 import { authMiddleware } from '../middleware/auth.middleware'
 
 const mockRes = () => {
@@ -107,6 +107,8 @@ function makeToken(userId = 'user-123', email = 'test@test.com') {
 const app = express()
 app.use(express.json())
 app.post('/api/ai/generate-resume', authMiddleware, generateResume)
+app.post('/api/ai/generate-cover-letter', authMiddleware, generateCoverLetter)
+app.post('/api/ai/rewrite', authMiddleware, rewriteDraft)
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -238,6 +240,298 @@ describe('POST /api/ai/generate-resume (full route)', () => {
     expect(res.body).toEqual({
       success: true,
       data: { draft: 'Tailored resume content' },
+    })
+  })
+})
+
+describe('generateCoverLetter (controller)', () => {
+  it('returns 200 with a non-empty draft string for a valid job owned by the user', async () => {
+    const req = mockReq({ body: { jobId: 'job-1' } })
+    const res = mockRes()
+    vi.mocked(prisma.job.findUnique).mockResolvedValue(fakeJob as any)
+    openaiCreateMock.mockResolvedValue({
+      choices: [{ message: { content: 'Generated cover letter draft here' } }],
+    })
+
+    await generateCoverLetter(req, res)
+
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      data: { draft: 'Generated cover letter draft here' },
+    })
+  })
+
+  it('returns 400 with "jobId is required" when jobId is missing', async () => {
+    const req = mockReq({ body: {} })
+    const res = mockRes()
+
+    await generateCoverLetter(req, res)
+
+    expect(res.status).toHaveBeenCalledWith(400)
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      error: 'jobId is required',
+    })
+  })
+
+  it('returns 404 with "Job not found" when the job does not exist', async () => {
+    const req = mockReq({ body: { jobId: 'job-999' } })
+    const res = mockRes()
+    vi.mocked(prisma.job.findUnique).mockResolvedValue(null)
+
+    await generateCoverLetter(req, res)
+
+    expect(res.status).toHaveBeenCalledWith(404)
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      error: 'Job not found',
+    })
+  })
+
+  it('returns 403 with "Access denied" when the job is owned by another user', async () => {
+    const req = mockReq({ body: { jobId: 'job-1' } })
+    const res = mockRes()
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({
+      ...fakeJob,
+      user_id: 'someone-else',
+    } as any)
+
+    await generateCoverLetter(req, res)
+
+    expect(res.status).toHaveBeenCalledWith(403)
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      error: 'Access denied',
+    })
+  })
+
+  it('returns 500 with "AI did not return a response" when OpenAI returns empty content', async () => {
+    const req = mockReq({ body: { jobId: 'job-1' } })
+    const res = mockRes()
+    vi.mocked(prisma.job.findUnique).mockResolvedValue(fakeJob as any)
+    openaiCreateMock.mockResolvedValue({
+      choices: [{ message: { content: '' } }],
+    })
+
+    await generateCoverLetter(req, res)
+
+    expect(res.status).toHaveBeenCalledWith(500)
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      error: 'AI did not return a response',
+    })
+  })
+
+  it('returns 500 with "AI did not return a response" when OpenAI returns no choices', async () => {
+    const req = mockReq({ body: { jobId: 'job-1' } })
+    const res = mockRes()
+    vi.mocked(prisma.job.findUnique).mockResolvedValue(fakeJob as any)
+    openaiCreateMock.mockResolvedValue({ choices: [] })
+
+    await generateCoverLetter(req, res)
+
+    expect(res.status).toHaveBeenCalledWith(500)
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      error: 'AI did not return a response',
+    })
+  })
+})
+
+describe('POST /api/ai/generate-cover-letter (full route)', () => {
+  it('returns 401 when no Authorization header is provided', async () => {
+    const res = await request(app)
+      .post('/api/ai/generate-cover-letter')
+      .send({ jobId: 'job-1' })
+
+    expect(res.status).toBe(401)
+    expect(res.body).toEqual({ success: false, error: 'No token provided' })
+  })
+
+  it('returns 200 with draft for a valid token and job', async () => {
+    vi.mocked(prisma.job.findUnique).mockResolvedValue(fakeJob as any)
+    openaiCreateMock.mockResolvedValue({
+      choices: [{ message: { content: 'Tailored cover letter content' } }],
+    })
+
+    const token = makeToken()
+    const res = await request(app)
+      .post('/api/ai/generate-cover-letter')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ jobId: 'job-1' })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({
+      success: true,
+      data: { draft: 'Tailored cover letter content' },
+    })
+  })
+})
+
+describe('rewriteDraft (controller)', () => {
+  it('returns 200 with a non-empty draft string for valid content and instruction', async () => {
+    const req = mockReq({
+      body: { content: 'This is my current draft paragraph.', instruction: 'Make it more formal' },
+    })
+    const res = mockRes()
+    openaiCreateMock.mockResolvedValue({
+      choices: [{ message: { content: 'Rewritten and improved draft content' } }],
+    })
+
+    await rewriteDraft(req, res)
+
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      data: { draft: 'Rewritten and improved draft content' },
+    })
+  })
+
+  it('returns 400 with field error on content when content is missing', async () => {
+    const req = mockReq({ body: { instruction: 'Make it more formal' } })
+    const res = mockRes()
+
+    await rewriteDraft(req, res)
+
+    expect(res.status).toHaveBeenCalledWith(400)
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      error: 'Validation failed',
+      fields: { content: ['Content is required'] },
+    })
+  })
+
+  it('returns 400 with field error on content when content is an empty string', async () => {
+    const req = mockReq({ body: { content: '', instruction: 'Make it more formal' } })
+    const res = mockRes()
+
+    await rewriteDraft(req, res)
+
+    expect(res.status).toHaveBeenCalledWith(400)
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      error: 'Validation failed',
+      fields: { content: ['Content is required'] },
+    })
+  })
+
+  it('returns 400 with field error on content when content is only whitespace', async () => {
+    const req = mockReq({ body: { content: '   \n  ', instruction: 'Make it more formal' } })
+    const res = mockRes()
+
+    await rewriteDraft(req, res)
+
+    expect(res.status).toHaveBeenCalledWith(400)
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      error: 'Validation failed',
+      fields: { content: ['Content is required'] },
+    })
+  })
+
+  it('returns 400 with field error on instruction when instruction is missing', async () => {
+    const req = mockReq({ body: { content: 'Some draft content here' } })
+    const res = mockRes()
+
+    await rewriteDraft(req, res)
+
+    expect(res.status).toHaveBeenCalledWith(400)
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      error: 'Validation failed',
+      fields: { instruction: ['Instruction is required'] },
+    })
+  })
+
+  it('returns 400 with field error on instruction when instruction is an empty string', async () => {
+    const req = mockReq({ body: { content: 'Some draft content here', instruction: '' } })
+    const res = mockRes()
+
+    await rewriteDraft(req, res)
+
+    expect(res.status).toHaveBeenCalledWith(400)
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      error: 'Validation failed',
+      fields: { instruction: ['Instruction is required'] },
+    })
+  })
+
+  it('returns 400 with field error on instruction when instruction is only whitespace', async () => {
+    const req = mockReq({ body: { content: 'Some draft content here', instruction: '   ' } })
+    const res = mockRes()
+
+    await rewriteDraft(req, res)
+
+    expect(res.status).toHaveBeenCalledWith(400)
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      error: 'Validation failed',
+      fields: { instruction: ['Instruction is required'] },
+    })
+  })
+
+  it('returns 200 with a draft for very long content', async () => {
+    const longContent = 'This is a sentence. '.repeat(500).trim()
+    const req = mockReq({
+      body: { content: longContent, instruction: 'Summarize it' },
+    })
+    const res = mockRes()
+    openaiCreateMock.mockResolvedValue({
+      choices: [{ message: { content: 'Summary of the long content' } }],
+    })
+
+    await rewriteDraft(req, res)
+
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      data: { draft: 'Summary of the long content' },
+    })
+  })
+
+  it('returns 500 with "AI did not return a response" when OpenAI returns empty content', async () => {
+    const req = mockReq({
+      body: { content: 'Some draft content here', instruction: 'Make it better' },
+    })
+    const res = mockRes()
+    openaiCreateMock.mockResolvedValue({
+      choices: [{ message: { content: '' } }],
+    })
+
+    await rewriteDraft(req, res)
+
+    expect(res.status).toHaveBeenCalledWith(500)
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      error: 'AI did not return a response',
+    })
+  })
+})
+
+describe('POST /api/ai/rewrite (full route)', () => {
+  it('returns 401 when no Authorization header is provided', async () => {
+    const res = await request(app)
+      .post('/api/ai/rewrite')
+      .send({ content: 'Some draft', instruction: 'Improve it' })
+
+    expect(res.status).toBe(401)
+    expect(res.body).toEqual({ success: false, error: 'No token provided' })
+  })
+
+  it('returns 200 with draft for a valid token and body', async () => {
+    openaiCreateMock.mockResolvedValue({
+      choices: [{ message: { content: 'Improved draft content' } }],
+    })
+
+    const token = makeToken()
+    const res = await request(app)
+      .post('/api/ai/rewrite')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ content: 'Original draft content', instruction: 'Make it more concise' })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({
+      success: true,
+      data: { draft: 'Improved draft content' },
     })
   })
 })

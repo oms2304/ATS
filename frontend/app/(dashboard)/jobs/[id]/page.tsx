@@ -109,6 +109,14 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [generatingCoverLetter, setGeneratingCoverLetter] = useState(false)
   const [coverLetterError, setCoverLetterError] = useState('')
 
+  // AI rewrite
+  const [rewriteInstruction, setRewriteInstruction] = useState('')
+  const [rewriting, setRewriting] = useState(false)
+  const [rewriteError, setRewriteError] = useState('')
+  const [originalDraft, setOriginalDraft] = useState('')
+  const [showComparison, setShowComparison] = useState(false)
+  const [activeRewriteTarget, setActiveRewriteTarget] = useState<'resume' | 'coverLetter' | null>(null)
+
   async function handleGenerateResume() {
     setGeneratingResume(true)
     setResumeError('')
@@ -145,6 +153,61 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       setCoverLetterError('Something went wrong. Please try again.')
     }
     setGeneratingCoverLetter(false)
+  }
+
+  async function handleRewrite(target: 'resume' | 'coverLetter') {
+    const content = target === 'resume' ? resumeDraft : coverLetterDraft
+
+    if (!rewriteInstruction.trim()) {
+      setRewriteError('Please enter an instruction first')
+      return
+    }
+
+    setRewriting(true)
+    setRewriteError('')
+    setActiveRewriteTarget(target)
+
+    try {
+      const res = await apiFetch('/api/ai/rewrite', {
+        method: 'POST',
+        body: JSON.stringify({ content, instruction: rewriteInstruction }),
+      })
+
+      if (res.success) {
+        setOriginalDraft(content)
+        if (target === 'resume') {
+          setResumeDraft(res.data.draft)
+        } else {
+          setCoverLetterDraft(res.data.draft)
+        }
+        setShowComparison(true)
+      } else {
+        setRewriteError(res.error || 'Failed to rewrite')
+      }
+    } catch {
+      setRewriteError('Something went wrong. Please try again.')
+    }
+
+    setRewriting(false)
+  }
+
+  function handleKeepOriginal() {
+    if (activeRewriteTarget === 'resume') {
+      setResumeDraft(originalDraft)
+    } else if (activeRewriteTarget === 'coverLetter') {
+      setCoverLetterDraft(originalDraft)
+    }
+    setShowComparison(false)
+    setOriginalDraft('')
+    setActiveRewriteTarget(null)
+    setRewriteInstruction('')
+  }
+
+  function handleKeepRewrite() {
+    setShowComparison(false)
+    setOriginalDraft('')
+    setActiveRewriteTarget(null)
+    setRewriteInstruction('')
   }
 
   useEffect(() => {
@@ -515,6 +578,85 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                 rows={12}
                 className="w-full bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none resize-y"
               />
+            </div>
+          )}
+
+          {(resumeDraft || coverLetterDraft) && (
+            <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-6 mt-2">
+              <h3 className="text-sm font-medium text-white mb-3">
+                Rewrite or Improve
+              </h3>
+
+              <div className="flex gap-2 mb-3">
+                <input
+                  value={rewriteInstruction}
+                  onChange={e => setRewriteInstruction(e.target.value)}
+                  placeholder="e.g. make it more concise, use stronger action verbs, make it more formal"
+                  className="flex-1 bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white placeholder-[#484f58] focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none"
+                />
+                {resumeDraft && (
+                  <button
+                    onClick={() => handleRewrite('resume')}
+                    disabled={rewriting}
+                    className="text-sm px-4 py-2 bg-[#2f81f4] text-white rounded hover:bg-blue-600 transition-colors disabled:opacity-50 whitespace-nowrap"
+                  >
+                    {rewriting && activeRewriteTarget === 'resume' ? 'Rewriting...' : 'Rewrite Resume'}
+                  </button>
+                )}
+                {coverLetterDraft && (
+                  <button
+                    onClick={() => handleRewrite('coverLetter')}
+                    disabled={rewriting}
+                    className="text-sm px-4 py-2 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors disabled:opacity-50 whitespace-nowrap"
+                  >
+                    {rewriting && activeRewriteTarget === 'coverLetter' ? 'Rewriting...' : 'Rewrite Cover Letter'}
+                  </button>
+                )}
+              </div>
+
+              {rewriteError && (
+                <p className="text-sm text-[#f85149] mb-3">{rewriteError}</p>
+              )}
+
+              {showComparison && originalDraft && (
+                <div className="mt-4">
+                  <p className="text-xs text-[#8b949e] mb-3">
+                    Compare the original and rewritten version. Pick which one to keep.
+                  </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-2">
+                      <p className="text-xs font-medium text-[#8b949e]">Original</p>
+                      <textarea
+                        value={originalDraft}
+                        readOnly
+                        rows={10}
+                        className="w-full bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-[#8b949e] outline-none resize-none opacity-70"
+                      />
+                      <button
+                        onClick={handleKeepOriginal}
+                        className="text-sm px-4 py-2 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors"
+                      >
+                        Keep Original
+                      </button>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <p className="text-xs font-medium text-[#3fb950]">Rewritten</p>
+                      <textarea
+                        value={activeRewriteTarget === 'resume' ? resumeDraft : coverLetterDraft}
+                        readOnly
+                        rows={10}
+                        className="w-full bg-[#0d1117] border border-[#3fb950]/30 rounded px-3 py-2 text-sm text-white outline-none resize-none"
+                      />
+                      <button
+                        onClick={handleKeepRewrite}
+                        className="text-sm px-4 py-2 bg-[#2f81f4] text-white rounded hover:bg-blue-600 transition-colors"
+                      >
+                        Keep Rewrite
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
