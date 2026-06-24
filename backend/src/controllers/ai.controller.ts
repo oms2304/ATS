@@ -1,6 +1,17 @@
 import { Request, Response } from 'express'
 import { prisma } from '../lib/prisma'
-import { openai, RESUME_MODEL, COVER_LETTER_MODEL } from '../lib/openai'
+import OpenAI from 'openai'
+
+const apiKey = process.env.OPENAI_API_KEY
+const isOpenRouter = !!apiKey && apiKey.startsWith('sk-or-')
+
+const openai = new OpenAI({
+  apiKey,
+  baseURL: isOpenRouter ? 'https://openrouter.ai/api/v1' : undefined,
+})
+
+const RESUME_MODEL =
+  process.env.AI_MODEL ?? (isOpenRouter ? 'openai/gpt-4o' : 'gpt-4o')
 
 async function getFullProfile(userId: string) {
   const [profile, experiences, educations, skills, preferences] = await Promise.all([
@@ -113,68 +124,5 @@ Write a complete resume with these sections: Summary, Work Experience, Education
   } catch (error) {
     console.error('generateResume error:', error)
     return res.status(500).json({ success: false, error: 'Failed to generate resume' })
-  }
-}
-
-export async function generateCoverLetter(req: Request, res: Response) {
-  try {
-    const { jobId } = req.body
-
-    if (!jobId) {
-      return res.status(400).json({ success: false, error: 'jobId is required' })
-    }
-
-    const job = await prisma.job.findUnique({ where: { id: jobId } })
-
-    if (!job) {
-      return res.status(404).json({ success: false, error: 'Job not found' })
-    }
-
-    if (job.user_id !== req.user!.userId) {
-      return res.status(403).json({ success: false, error: 'Access denied' })
-    }
-
-    const profileData = await getFullProfile(req.user!.userId)
-    const profileText = buildProfileText(profileData)
-
-    const completion = await openai.chat.completions.create({
-      model: COVER_LETTER_MODEL,
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a professional cover letter writer. Write compelling, concise, and tailored cover letters. Keep it to 3 paragraphs. Sound human and genuine.',
-        },
-        {
-          role: 'user',
-          content: `Write a tailored cover letter for this candidate applying to the following job.
-
-CANDIDATE PROFILE:
-${profileText}
-
-JOB POSTING:
-${job.jobPostingBody}
-
-Write a professional cover letter with 3 paragraphs:
-1. Opening that shows enthusiasm and mentions the role
-2. Middle that highlights relevant experience and skills matching the job
-3. Closing with a call to action
-
-Do not include the date, address, or signature lines. Just the body paragraphs.`,
-        },
-      ],
-      max_tokens: 800,
-      temperature: 0.7,
-    })
-
-    const draft = completion.choices[0]?.message?.content
-
-    if (!draft) {
-      return res.status(500).json({ success: false, error: 'AI did not return a response' })
-    }
-
-    return res.json({ success: true, data: { draft } })
-  } catch (error) {
-    console.error('generateCoverLetter error:', error)
-    return res.status(500).json({ success: false, error: 'Failed to generate cover letter' })
   }
 }

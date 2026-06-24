@@ -104,10 +104,24 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [generatingResume, setGeneratingResume] = useState(false)
   const [resumeError, setResumeError] = useState('')
 
-  // AI cover letter draft
-  const [coverLetterDraft, setCoverLetterDraft] = useState('')
-  const [generatingCoverLetter, setGeneratingCoverLetter] = useState(false)
-  const [coverLetterError, setCoverLetterError] = useState('')
+  async function handleGenerateResume() {
+    setGeneratingResume(true)
+    setResumeError('')
+    try {
+      const res = await apiFetch('/api/ai/generate-resume', {
+        method: 'POST',
+        body: JSON.stringify({ jobId: id }),
+      })
+      if (res.success) {
+        setResumeDraft(res.data.draft)
+      } else {
+        setResumeError(res.error || 'Failed to generate resume')
+      }
+    } catch {
+      setResumeError('Something went wrong. Please try again.')
+    }
+    setGeneratingResume(false)
+  }
 
   useEffect(() => {
     async function fetchAll() {
@@ -463,53 +477,31 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
           </div>
         </div>
 
-        {/* AI Resume & Cover Letter */}
+        {/* AI Generation */}
         <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-6">
-          <h2 className="text-sm font-semibold text-white mb-4">AI Drafts</h2>
+          <h2 className="text-sm font-semibold text-white mb-4">AI Generation</h2>
 
           <button
             onClick={handleGenerateResume}
             disabled={generatingResume}
-            className="text-sm px-4 py-2 bg-[#2f81f4] text-white rounded hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-4"
+            className="text-xs px-3 py-1.5 bg-[#2f81f4] text-white rounded hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-4"
           >
             {generatingResume ? 'Generating...' : 'Generate Resume with AI'}
           </button>
 
           {resumeError && (
-            <p className="text-sm text-[#f85149] mb-4">{resumeError}</p>
+            <p className="text-xs text-[#f85149] mb-4">{resumeError}</p>
           )}
 
           {resumeDraft && (
-            <div className="flex flex-col gap-2 mb-6">
-              <label className="text-xs text-[#8b949e]">Resume Draft — edit before saving</label>
+            <div className="flex flex-col gap-2">
+              <label className="text-xs text-[#8b949e]">
+                Resume Draft — edit before saving
+              </label>
               <textarea
                 value={resumeDraft}
                 onChange={(e) => setResumeDraft(e.target.value)}
-                rows={14}
-                className="w-full bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none resize-y"
-              />
-            </div>
-          )}
-
-          <button
-            onClick={handleGenerateCoverLetter}
-            disabled={generatingCoverLetter}
-            className="text-sm px-4 py-2 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-4"
-          >
-            {generatingCoverLetter ? 'Generating...' : 'Generate Cover Letter with AI'}
-          </button>
-
-          {coverLetterError && (
-            <p className="text-sm text-[#f85149] mb-4">{coverLetterError}</p>
-          )}
-
-          {coverLetterDraft && (
-            <div className="flex flex-col gap-2 mt-4">
-              <label className="text-xs text-[#8b949e]">Cover Letter Draft — edit before saving</label>
-              <textarea
-                value={coverLetterDraft}
-                onChange={(e) => setCoverLetterDraft(e.target.value)}
-                rows={12}
+                rows={20}
                 className="w-full bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none resize-y"
               />
             </div>
