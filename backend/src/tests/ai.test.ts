@@ -72,7 +72,7 @@ vi.mock('openai', () => {
 })
 
 import { prisma } from '../lib/prisma'
-import { generateResume, generateCoverLetter } from '../controllers/ai.controller'
+import { generateResume, generateCoverLetter, rewriteDraft } from '../controllers/ai.controller'
 import { authMiddleware } from '../middleware/auth.middleware'
 
 const mockRes = () => {
