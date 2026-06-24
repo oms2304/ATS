@@ -99,6 +99,30 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [savingFollowUp, setSavingFollowUp] = useState(false)
   const [editingFollowUp, setEditingFollowUp] = useState<FollowUp | null>(null)
 
+  // AI resume draft
+  const [resumeDraft, setResumeDraft] = useState('')
+  const [generatingResume, setGeneratingResume] = useState(false)
+  const [resumeError, setResumeError] = useState('')
+
+  async function handleGenerateResume() {
+    setGeneratingResume(true)
+    setResumeError('')
+    try {
+      const res = await apiFetch('/api/ai/generate-resume', {
+        method: 'POST',
+        body: JSON.stringify({ jobId: id }),
+      })
+      if (res.success) {
+        setResumeDraft(res.data.draft)
+      } else {
+        setResumeError(res.error || 'Failed to generate resume')
+      }
+    } catch {
+      setResumeError('Something went wrong. Please try again.')
+    }
+    setGeneratingResume(false)
+  }
+
   useEffect(() => {
     async function fetchAll() {
       const [jobRes, interviewRes, followUpRes] = await Promise.all([
@@ -412,6 +436,37 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
               Edit
             </button>
           </div>
+        </div>
+
+        {/* AI Generation */}
+        <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-6">
+          <h2 className="text-sm font-semibold text-white mb-4">AI Generation</h2>
+
+          <button
+            onClick={handleGenerateResume}
+            disabled={generatingResume}
+            className="text-xs px-3 py-1.5 bg-[#2f81f4] text-white rounded hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-4"
+          >
+            {generatingResume ? 'Generating...' : 'Generate Resume with AI'}
+          </button>
+
+          {resumeError && (
+            <p className="text-xs text-[#f85149] mb-4">{resumeError}</p>
+          )}
+
+          {resumeDraft && (
+            <div className="flex flex-col gap-2">
+              <label className="text-xs text-[#8b949e]">
+                Resume Draft — edit before saving
+              </label>
+              <textarea
+                value={resumeDraft}
+                onChange={(e) => setResumeDraft(e.target.value)}
+                rows={20}
+                className="w-full bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none resize-y"
+              />
+            </div>
+          )}
         </div>
 
         {/* Interviews */}
