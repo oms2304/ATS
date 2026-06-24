@@ -53,6 +53,7 @@ export default function DashboardPage() {
   const [editingJob, setEditingJob] = useState<Job | null>(null)
   const [search, setSearch] = useState('')
   const [stageFilter, setStageFilter] = useState('All')
+  const [sortBy, setSortBy] = useState('updatedAt')
 
   useEffect(() => {
     async function fetchJobs() {
@@ -65,7 +66,7 @@ export default function DashboardPage() {
 
   const filteredJobs = useMemo(() => {
     const term = search.trim().toLowerCase()
-    return jobs.filter((job) => {
+    const filtered = jobs.filter((job) => {
       const matchesStage = stageFilter === 'All' || job.stage === stageFilter
       const matchesSearch =
         !term ||
@@ -74,7 +75,18 @@ export default function DashboardPage() {
         job.jobPostingBody.toLowerCase().includes(term)
       return matchesStage && matchesSearch
     })
-  }, [jobs, search, stageFilter])
+
+    return [...filtered].sort((a, b) => {
+     if (sortBy === 'company') {
+       return a.company.localeCompare(b.company)
+      }
+      if (sortBy === 'createdAt') {
+       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      }
+       // default: updatedAt (last activity)
+     return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+   })
+  }, [jobs, search, stageFilter, sortBy])
 
   function handleAddJob() {
     setEditingJob(null)
@@ -118,6 +130,17 @@ export default function DashboardPage() {
               </option>
             ))}
           </select>
+
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all appearance-none"
+>
+            <option value="updatedAt">Last Activity</option>
+            <option value="createdAt">Date Added</option>
+            <option value="company">Company</option>
+          </select>
+
           <button
             onClick={handleAddJob}
             className="flex items-center gap-2 bg-[#2f81f4] text-white px-4 py-2 rounded text-sm hover:bg-blue-600 transition-colors"
