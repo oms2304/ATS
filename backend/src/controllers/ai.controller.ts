@@ -2,7 +2,16 @@ import { Request, Response } from 'express'
 import { prisma } from '../lib/prisma'
 import OpenAI from 'openai'
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+const apiKey = process.env.OPENAI_API_KEY
+const isOpenRouter = !!apiKey && apiKey.startsWith('sk-or-')
+
+const openai = new OpenAI({
+  apiKey,
+  baseURL: isOpenRouter ? 'https://openrouter.ai/api/v1' : undefined,
+})
+
+const RESUME_MODEL =
+  process.env.AI_MODEL ?? (isOpenRouter ? 'openai/gpt-4o' : 'gpt-4o')
 
 async function getFullProfile(userId: string) {
   const [profile, experiences, educations, skills, preferences] = await Promise.all([
@@ -82,7 +91,7 @@ export async function generateResume(req: Request, res: Response) {
     const profileText = buildProfileText(profileData)
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: RESUME_MODEL,
       messages: [
         {
           role: 'system',
