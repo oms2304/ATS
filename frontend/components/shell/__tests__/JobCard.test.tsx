@@ -16,7 +16,7 @@ const mockJob = {
   title: 'Frontend Developer',
   company: 'Acme Corp',
   stage: 'Applied',
-  updatedAt: '2024-01-02T00:00:00Z',
+  updatedAt: new Date().toISOString(), // today = not stale
 };
 
 describe('JobCard', () => {
@@ -65,4 +65,42 @@ describe('JobCard', () => {
     render(<JobCard job={jobWithBadDate} onEdit={jest.fn()} />);
     expect(screen.getByTestId('job-card')).toBeInTheDocument();
   });
+
+  // S2-004 Stage Indicator Tests
+it('shows stale indicator when job not updated for 7+ days', () => {
+  const staleJob = {
+    ...mockJob,
+    stage: 'Applied',
+    updatedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
+  };
+  render(<JobCard job={staleJob} onEdit={jest.fn()} />);
+  expect(screen.getByTestId('job-stale')).toBeInTheDocument();
+  expect(screen.getByTestId('job-stale')).toHaveTextContent('Stale');
+});
+
+it('does not show stale indicator for recently updated job', () => {
+  render(<JobCard job={mockJob} onEdit={jest.fn()} />);
+  expect(screen.queryByTestId('job-stale')).not.toBeInTheDocument();
+});
+
+it('does not show stale indicator for Rejected jobs', () => {
+  const rejectedJob = {
+    ...mockJob,
+    stage: 'Rejected',
+    updatedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+  };
+  render(<JobCard job={rejectedJob} onEdit={jest.fn()} />);
+  expect(screen.queryByTestId('job-stale')).not.toBeInTheDocument();
+});
+
+it('does not show stale indicator for Archived jobs', () => {
+  const archivedJob = {
+    ...mockJob,
+    stage: 'Archived',
+    updatedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+  };
+  render(<JobCard job={archivedJob} onEdit={jest.fn()} />);
+  expect(screen.queryByTestId('job-stale')).not.toBeInTheDocument();
+});
+
 });
