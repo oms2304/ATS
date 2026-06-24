@@ -16,6 +16,7 @@ export const createJobSchema = z.object({
   stage: z.enum(STAGES).default('Interested'),
   deadline: z.string().datetime().optional().nullable(),
   recruiterNotes: z.string().optional().nullable(),
+  outcomeNote: z.string().optional().nullable(),
 });
 
 export const updateJobSchema = createJobSchema.partial();

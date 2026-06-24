@@ -14,6 +14,7 @@ type Job = {
   stage: string
   deadline: string | null
   recruiterNotes: string | null
+  outcomeNote: string | null
   createdAt: string
   updatedAt: string
 }
@@ -98,6 +99,11 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [followUpForm, setFollowUpForm] = useState({ title: '', dueDate: '' })
   const [savingFollowUp, setSavingFollowUp] = useState(false)
   const [editingFollowUp, setEditingFollowUp] = useState<FollowUp | null>(null)
+  
+  // outcome
+  const [outcomeInput, setOutcomeInput] = useState('')
+  const [savingOutcome, setSavingOutcome] = useState(false)
+  const [editingOutcome, setEditingOutcome] = useState(false)
 
   // AI resume draft
   const [resumeDraft, setResumeDraft] = useState('')
@@ -223,6 +229,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         setJob(jobRes.data)
         setDeadlineInput(jobRes.data.deadline ? formatDateTimeLocal(jobRes.data.deadline) : '')
         setRecruiterInput(jobRes.data.recruiterNotes ?? '')
+	setOutcomeInput(jobRes.data.outcomeNote ?? '')
       }
       if (interviewRes?.data) setInterviews(interviewRes.data)
       if (followUpRes?.data) setFollowUps(followUpRes.data)
@@ -263,6 +270,21 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     }
     setSavingMeta(false)
   }
+  async function handleSaveOutcome() {
+  if (!job) return
+  setSavingOutcome(true)
+  try {
+    const res = await apiFetch(`/api/jobs/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ outcomeNote: outcomeInput || null }),
+    })
+    setJob(res.data)
+    setEditingOutcome(false)
+  } catch {
+    // keep form open
+  }
+  setSavingOutcome(false)
+}
 
   async function handleDelete() {
     if (deleting) return
@@ -823,6 +845,56 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
             </div>
           )}
         </div>
+	{/* Outcome */}
+{['Offer', 'Rejected', 'Archived'].includes(job.stage) && (
+  <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-6">
+    <div className="flex justify-between items-center mb-4">
+      <h2 className="text-sm font-semibold text-white">Outcome</h2>
+      {!editingOutcome && (
+        <button
+          onClick={() => setEditingOutcome(true)}
+          className="text-xs text-[#2f81f4] hover:underline"
+        >
+          {job.outcomeNote ? 'Edit' : 'Add note'}
+        </button>
+      )}
+    </div>
+    {editingOutcome ? (
+      <div className="space-y-3">
+        <textarea
+          value={outcomeInput}
+          onChange={(e) => setOutcomeInput(e.target.value)}
+          rows={3}
+          className="w-full bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] outline-none resize-none"
+          placeholder="e.g. Received offer, negotiating salary... or Rejected after final round..."
+        />
+        <div className="flex gap-2">
+          <button
+            onClick={handleSaveOutcome}
+            disabled={savingOutcome}
+            className="text-xs px-3 py-1.5 bg-[#2f81f4] text-white rounded hover:bg-blue-600 disabled:opacity-50"
+          >
+            {savingOutcome ? 'Saving...' : 'Save'}
+          </button>
+          <button
+            onClick={() => {
+              setEditingOutcome(false)
+              setOutcomeInput(job.outcomeNote ?? '')
+            }}
+            className="text-xs px-3 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    ) : (
+      <p className="text-sm text-white whitespace-pre-wrap">
+        {job.outcomeNote || <span className="text-[#8b949e] italic">No outcome note yet.</span>}
+      </p>
+    )}
+  </div>
+)}
+
       </div>
 
       <JobModal
