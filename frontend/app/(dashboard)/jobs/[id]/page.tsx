@@ -104,6 +104,11 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [generatingResume, setGeneratingResume] = useState(false)
   const [resumeError, setResumeError] = useState('')
 
+  // AI cover letter draft
+  const [coverLetterDraft, setCoverLetterDraft] = useState('')
+  const [generatingCoverLetter, setGeneratingCoverLetter] = useState(false)
+  const [coverLetterError, setCoverLetterError] = useState('')
+
   async function handleGenerateResume() {
     setGeneratingResume(true)
     setResumeError('')
@@ -121,6 +126,25 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       setResumeError('Something went wrong. Please try again.')
     }
     setGeneratingResume(false)
+  }
+
+  async function handleGenerateCoverLetter() {
+    setGeneratingCoverLetter(true)
+    setCoverLetterError('')
+    try {
+      const res = await apiFetch('/api/ai/generate-cover-letter', {
+        method: 'POST',
+        body: JSON.stringify({ jobId: id }),
+      })
+      if (res.success) {
+        setCoverLetterDraft(res.data.draft)
+      } else {
+        setCoverLetterError(res.error || 'Failed to generate cover letter')
+      }
+    } catch {
+      setCoverLetterError('Something went wrong. Please try again.')
+    }
+    setGeneratingCoverLetter(false)
   }
 
   useEffect(() => {
@@ -285,45 +309,6 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     setShowFollowUpForm(true)
   }
 
-  // AI handlers
-  async function handleGenerateResume() {
-    setGeneratingResume(true)
-    setResumeError('')
-    try {
-      const res = await apiFetch('/api/ai/generate-resume', {
-        method: 'POST',
-        body: JSON.stringify({ jobId: id }),
-      })
-      if (res.success) {
-        setResumeDraft(res.data.draft)
-      } else {
-        setResumeError(res.error || 'Failed to generate resume')
-      }
-    } catch {
-      setResumeError('Something went wrong. Please try again.')
-    }
-    setGeneratingResume(false)
-  }
-
-  async function handleGenerateCoverLetter() {
-    setGeneratingCoverLetter(true)
-    setCoverLetterError('')
-    try {
-      const res = await apiFetch('/api/ai/generate-cover-letter', {
-        method: 'POST',
-        body: JSON.stringify({ jobId: id }),
-      })
-      if (res.success) {
-        setCoverLetterDraft(res.data.draft)
-      } else {
-        setCoverLetterError(res.error || 'Failed to generate cover letter')
-      }
-    } catch {
-      setCoverLetterError('Something went wrong. Please try again.')
-    }
-    setGeneratingCoverLetter(false)
-  }
-
   if (loading) return <div className="min-h-screen bg-[#0d1117] p-6 text-[#8b949e]">Loading...</div>
 
   if (notFound || !job) {
@@ -477,9 +462,9 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
           </div>
         </div>
 
-        {/* AI Generation */}
+        {/* AI Drafts */}
         <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-6">
-          <h2 className="text-sm font-semibold text-white mb-4">AI Generation</h2>
+          <h2 className="text-sm font-semibold text-white mb-4">AI Drafts</h2>
 
           <button
             onClick={handleGenerateResume}
@@ -502,6 +487,32 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                 value={resumeDraft}
                 onChange={(e) => setResumeDraft(e.target.value)}
                 rows={20}
+                className="w-full bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none resize-y"
+              />
+            </div>
+          )}
+
+          <button
+            onClick={handleGenerateCoverLetter}
+            disabled={generatingCoverLetter}
+            className="text-sm px-4 py-2 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-6 mb-4"
+          >
+            {generatingCoverLetter ? 'Generating...' : 'Generate Cover Letter with AI'}
+          </button>
+
+          {coverLetterError && (
+            <p className="text-sm text-[#f85149] mb-4">{coverLetterError}</p>
+          )}
+
+          {coverLetterDraft && (
+            <div className="flex flex-col gap-2 mt-4">
+              <label className="text-xs text-[#8b949e]">
+                Cover Letter Draft — edit before saving
+              </label>
+              <textarea
+                value={coverLetterDraft}
+                onChange={(e) => setCoverLetterDraft(e.target.value)}
+                rows={12}
                 className="w-full bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none resize-y"
               />
             </div>
