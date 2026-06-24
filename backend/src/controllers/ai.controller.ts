@@ -185,3 +185,58 @@ Write a cover letter addressed generically (e.g. "Dear Hiring Team,"). Do not in
     return res.status(500).json({ success: false, error: 'Failed to generate cover letter' })
   }
 }
+
+export async function rewriteDraft(req: Request, res: Response) {
+  try {
+    const { content, instruction } = req.body
+
+    if (!content || !content.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        fields: { content: ['Content is required'] },
+      })
+    }
+
+    if (!instruction || !instruction.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        fields: { instruction: ['Instruction is required'] },
+      })
+    }
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a professional writing assistant. Rewrite and improve documents based on user instructions. Keep the same general content and intent but improve based on the instruction.',
+        },
+        {
+          role: 'user',
+          content: `Here is the current draft:
+
+${content}
+
+Instruction: ${instruction}
+
+Rewrite the draft following the instruction above. Return only the rewritten content with no additional commentary.`,
+        },
+      ],
+      max_tokens: 1500,
+      temperature: 0.7,
+    })
+
+    const draft = completion.choices[0]?.message?.content
+
+    if (!draft) {
+      return res.status(500).json({ success: false, error: 'AI did not return a response' })
+    }
+
+    return res.json({ success: true, data: { draft } })
+  } catch (error) {
+    console.error('rewriteDraft error:', error)
+    return res.status(500).json({ success: false, error: 'Failed to rewrite draft' })
+  }
+}
