@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { StageSelect } from './stage-select'
 
 type Job = {
   id: string
@@ -56,9 +57,10 @@ function getDaysSinceUpdate(updatedAt: string): number {
 interface JobCardProps {
   job: Job
   onEdit: (job: Job) => void
+  onStageChange?: (jobId: string, nextStage: string) => void
 }
 
-export function JobCard({ job, onEdit }: JobCardProps) {
+export function JobCard({ job, onEdit, onStageChange }: JobCardProps) {
   const badge = STAGE_BADGE[job.stage] ?? STAGE_BADGE.Interested
   const progress = STAGE_PROGRESS[job.stage] ?? 0
   const progressColor = STAGE_PROGRESS_COLOR[job.stage] ?? '#2f81f4'
@@ -90,13 +92,20 @@ export function JobCard({ job, onEdit }: JobCardProps) {
               Stale
             </span>
           )}
-          <span
-            className="text-xs px-2 py-1 rounded"
-            style={{ backgroundColor: badge.bg, color: badge.text }}
-            data-testid="job-stage"
-          >
-            {job.stage}
-          </span>
+          {onStageChange ? (
+            <StageSelect
+              value={job.stage}
+              onChange={(next) => onStageChange(job.id, next)}
+            />
+          ) : (
+            <span
+              className="text-xs px-2 py-1 rounded"
+              style={{ backgroundColor: badge.bg, color: badge.text }}
+              data-testid="job-stage"
+            >
+              {job.stage}
+            </span>
+          )}
         </div>
       </div>
       <h3 className="text-white font-medium mb-1" data-testid="job-title">{job.title}</h3>

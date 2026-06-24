@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { apiFetch } from '@/lib/api'
 import { JobModal } from '@/components/forms/job-modal'
-import { JobCard } from '@/components/ui/job-card' 
+import { JobCard } from '@/components/ui/job-card'
+import { updateJobStage } from '@/components/ui/stage-select'
 
 type Job = {
   id: string
@@ -74,6 +75,17 @@ export default function DashboardPage() {
       const exists = prev.some((j) => j.id === job.id)
       return exists ? prev.map((j) => (j.id === job.id ? job : j)) : [job, ...prev]
     })
+  }
+
+  async function handleStageChange(jobId: string, nextStage: string) {
+    const prev = jobs.find((j) => j.id === jobId)?.stage
+    if (!prev || prev === nextStage) return
+    setJobs((js) => js.map((j) => (j.id === jobId ? { ...j, stage: nextStage } : j)))  // optimistic
+    try {
+      await updateJobStage(jobId, nextStage)
+    } catch {
+      setJobs((js) => js.map((j) => (j.id === jobId ? { ...j, stage: prev } : j)))     // rollback
+    }
   }
 
   if (loading) return <div className="p-6 text-[#8b949e]">Loading...</div>
@@ -154,6 +166,7 @@ export default function DashboardPage() {
                   updatedAt: job.updatedAt,
                   }}
                   onEdit={(cardJob) => handleEditJob(jobs.find(j => j.id === cardJob.id)!)}
+                  onStageChange={handleStageChange}
                 />
             )
           })}
