@@ -131,17 +131,18 @@ describe('DashboardPage - S2-001 Job Search', () => {
   });
 
   // S2-002 Filter Tests
+// Fix filter tests - use getByDisplayValue instead
 it('renders stage filter dropdown', async () => {
   (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: mockJobs });
   renderWithAuth();
-  expect(await screen.findByRole('combobox')).toBeInTheDocument();
+  expect(await screen.findByDisplayValue('All stages')).toBeInTheDocument();
 });
 
 it('filters jobs by stage', async () => {
   (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: mockJobs });
   renderWithAuth();
   await screen.findByPlaceholderText('Search jobs...');
-  fireEvent.change(screen.getByRole('combobox'), {
+  fireEvent.change(screen.getByDisplayValue('All stages'), {
     target: { value: 'Applied' },
   });
   expect(screen.getByText('Frontend Developer')).toBeInTheDocument();
@@ -152,7 +153,7 @@ it('shows all jobs when All stages selected', async () => {
   (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: mockJobs });
   renderWithAuth();
   await screen.findByPlaceholderText('Search jobs...');
-  fireEvent.change(screen.getByRole('combobox'), {
+  fireEvent.change(screen.getByDisplayValue('All stages'), {
     target: { value: 'All' },
   });
   expect(screen.getByText('Frontend Developer')).toBeInTheDocument();
@@ -163,9 +164,37 @@ it('shows no match when stage has no jobs', async () => {
   (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: mockJobs });
   renderWithAuth();
   await screen.findByPlaceholderText('Search jobs...');
-  fireEvent.change(screen.getByRole('combobox'), {
+  fireEvent.change(screen.getByDisplayValue('All stages'), {
     target: { value: 'Offer' },
   });
   expect(screen.getByText('No jobs match your filters')).toBeInTheDocument();
+});
+
+// S2-003 Sort Tests
+it('renders sort dropdown', async () => {
+  (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: mockJobs });
+  renderWithAuth();
+  expect(await screen.findByDisplayValue('Last Activity')).toBeInTheDocument();
+});
+
+it('sorts jobs by company alphabetically', async () => {
+  (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: mockJobs });
+  renderWithAuth();
+  await screen.findByPlaceholderText('Search jobs...');
+  fireEvent.change(screen.getByDisplayValue('Last Activity'), {
+    target: { value: 'company' },
+  });
+  const titles = screen.getAllByRole('heading', { level: 3 });
+  expect(titles[0]).toHaveTextContent('Frontend Developer');
+  expect(titles[1]).toHaveTextContent('Backend Engineer');
+});
+
+it('sorts jobs by last activity by default', async () => {
+  (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: mockJobs });
+  renderWithAuth();
+  await screen.findByPlaceholderText('Search jobs...');
+  const titles = screen.getAllByRole('heading', { level: 3 });
+  expect(titles[0]).toHaveTextContent('Backend Engineer');
+  expect(titles[1]).toHaveTextContent('Frontend Developer');
 });
 });
