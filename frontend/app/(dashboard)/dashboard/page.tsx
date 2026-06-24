@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { apiFetch } from '@/lib/api'
 import { JobModal } from '@/components/forms/job-modal'
+import { StageSelect, updateJobStage } from '@/components/ui/stage-select'
 
 type Job = {
   id: string
@@ -45,6 +46,8 @@ function formatDate(value: string) {
     year: 'numeric',
   })
 }
+
+
 
 export default function DashboardPage() {
   const [jobs, setJobs] = useState<Job[]>([])
@@ -103,6 +106,17 @@ export default function DashboardPage() {
       const exists = prev.some((j) => j.id === job.id)
       return exists ? prev.map((j) => (j.id === job.id ? job : j)) : [job, ...prev]
     })
+  }
+
+  async function handleStageChange(jobId: string, nextStage: string) {
+    const prev = jobs.find((j) => j.id === jobId)?.stage
+    if (!prev || prev === nextStage) return
+    setJobs((js) => js.map((j) => (j.id === jobId ? { ...j, stage: nextStage } : j)))  // optimistic
+    try {
+      await updateJobStage(jobId, nextStage)
+    } catch {
+      setJobs((js) => js.map((j) => (j.id === jobId ? { ...j, stage: prev } : j)))     // rollback
+    }
   }
 
   if (loading) return <div className="p-6 text-[#8b949e]">Loading...</div>
@@ -182,12 +196,10 @@ export default function DashboardPage() {
               >
                 <div className="flex justify-between items-start mb-2">
                   <p className="text-xs text-[#8b949e]">{job.company}</p>
-                  <span
-                    className="text-xs px-2 py-1 rounded"
-                    style={{ backgroundColor: badge.bg, color: badge.text }}
-                  >
-                    {job.stage}
-                  </span>
+                  <StageSelect
+                    value={job.stage}
+                    onChange={(next) => handleStageChange(job.id, next)}
+                  />
                 </div>
                 <h3 className="text-white font-medium mb-1">{job.title}</h3>
                 <p className="text-xs text-[#8b949e] mb-3">
