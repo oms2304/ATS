@@ -126,3 +126,62 @@ Write a complete resume with these sections: Summary, Work Experience, Education
     return res.status(500).json({ success: false, error: 'Failed to generate resume' })
   }
 }
+
+export async function generateCoverLetter(req: Request, res: Response) {
+  try {
+    const { jobId } = req.body
+
+    if (!jobId) {
+      return res.status(400).json({ success: false, error: 'jobId is required' })
+    }
+
+    const job = await prisma.job.findUnique({ where: { id: jobId } })
+
+    if (!job) {
+      return res.status(404).json({ success: false, error: 'Job not found' })
+    }
+
+    if (job.user_id !== req.user!.userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' })
+    }
+
+    const profileData = await getFullProfile(req.user!.userId)
+    const profileText = buildProfileText(profileData)
+
+    const completion = await openai.chat.completions.create({
+      model: RESUME_MODEL,
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are a professional cover letter writer. Write concise, tailored cover letters (3 short paragraphs) that connect the candidate\'s experience to the job, sound authentic, and avoid clichés.',
+        },
+        {
+          role: 'user',
+          content: `Write a tailored cover letter for this candidate applying to the following job.
+
+CANDIDATE PROFILE:
+${profileText}
+
+JOB POSTING:
+${job.jobPostingBody}
+
+Write a cover letter addressed generically (e.g. "Dear Hiring Team,"). Do not invent placeholder names, contact info, or company facts. Do not include a subject line or the candidate's address block. Keep it under approximately 250 words and focus on 1-2 concrete experiences from the candidate's profile that match the job requirements.`,
+        },
+      ],
+      max_tokens: 700,
+      temperature: 0.7,
+    })
+
+    const draft = completion.choices[0]?.message?.content
+
+    if (!draft) {
+      return res.status(500).json({ success: false, error: 'AI did not return a response' })
+    }
+
+    return res.json({ success: true, data: { draft } })
+  } catch (error) {
+    console.error('generateCoverLetter error:', error)
+    return res.status(500).json({ success: false, error: 'Failed to generate cover letter' })
+  }
+}
