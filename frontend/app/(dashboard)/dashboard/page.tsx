@@ -27,13 +27,26 @@ export default function DashboardPage() {
   const [stageFilter, setStageFilter] = useState('All')
   const [sortBy, setSortBy] = useState('updatedAt')
 
+  const [metrics, setMetrics] = useState<{
+    stageCounts: Record<string, number>
+    totalJobs: number
+    totalApplied: number
+    totalResponded: number
+    responseRate: number
+  } | null>(null)
+
   useEffect(() => {
     async function fetchJobs() {
       const res = await apiFetch('/api/jobs')
       if (res.success) setJobs(res.data)
       setLoading(false)
     }
+    async function fetchMetrics() {
+      const res = await apiFetch('/api/metrics')
+      if (res.success) setMetrics(res.data)
+    }
     fetchJobs()
+    fetchMetrics()
   }, [])
 
   const filteredJobs = useMemo(() => {
@@ -133,6 +146,28 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Metrics Section */}
+      {metrics && (
+        <div data-testid="metrics-section" className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-4 text-center">
+          <p data-testid="metric-total-jobs" className="text-2xl font-bold text-white">{metrics.totalJobs}</p>
+          <p className="text-xs text-[#8b949e] mt-1">Total Jobs</p>
+        </div>
+        <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-4 text-center">
+          <p data-testid="metric-applied" className="text-2xl font-bold text-[#58a6ff]">{metrics.totalApplied}</p>
+          <p className="text-xs text-[#8b949e] mt-1">Applied</p>
+        </div>
+        <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-4 text-center">
+          <p data-testid="metric-responses" className="text-2xl font-bold text-[#bc8cff]">{metrics.totalResponded}</p>
+          <p className="text-xs text-[#8b949e] mt-1">Responses</p>
+        </div>
+        <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-4 text-center">
+          <p data-testid="metric-response-rate" className="text-2xl font-bold text-[#3fb950]">{metrics.responseRate}%</p>
+          <p className="text-xs text-[#8b949e] mt-1">Response Rate</p>
+        </div>
+      </div>
+      )}
+
       {filteredJobs.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <p className="text-[#8b949e] text-lg mb-2">
@@ -152,6 +187,7 @@ export default function DashboardPage() {
             </button>
           )}
         </div>
+
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredJobs.map((job) => {
