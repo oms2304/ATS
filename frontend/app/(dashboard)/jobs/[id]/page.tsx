@@ -33,8 +33,13 @@ type FollowUp = {
   completed: boolean
 }
 
-const STAGES = ['Interested', 'Applied', 'Interview', 'Offer', 'Rejected', 'Archived'] as const
+type TimelineEvent = {
+  type: string
+  date: string
+  note: string
+}
 
+const STAGES = ['Interested', 'Applied', 'Interview', 'Offer', 'Rejected', 'Archived'] as const
 const ROUND_TYPES = ['Phone Screen', 'Technical', 'Behavioral', 'System Design', 'HR', 'Final', 'Other'] as const
 
 const STAGE_BADGE: Record<string, { bg: string; text: string }> = {
@@ -80,7 +85,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [deleting, setDeleting] = useState(false)
   const [updatingStage, setUpdatingStage] = useState(false)
 
-  // deadline + recruiter notes edit state
+  // deadline + recruiter notes
   const [editingMeta, setEditingMeta] = useState(false)
   const [deadlineInput, setDeadlineInput] = useState('')
   const [recruiterInput, setRecruiterInput] = useState('')
@@ -99,11 +104,14 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [followUpForm, setFollowUpForm] = useState({ title: '', dueDate: '' })
   const [savingFollowUp, setSavingFollowUp] = useState(false)
   const [editingFollowUp, setEditingFollowUp] = useState<FollowUp | null>(null)
-  
+
   // outcome
   const [outcomeInput, setOutcomeInput] = useState('')
   const [savingOutcome, setSavingOutcome] = useState(false)
   const [editingOutcome, setEditingOutcome] = useState(false)
+
+  // timeline
+  const [timeline, setTimeline] = useState<TimelineEvent[]>([])
 
   // AI resume draft
   const [resumeDraft, setResumeDraft] = useState('')
@@ -163,22 +171,18 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
 
   async function handleRewrite(target: 'resume' | 'coverLetter') {
     const content = target === 'resume' ? resumeDraft : coverLetterDraft
-
     if (!rewriteInstruction.trim()) {
       setRewriteError('Please enter an instruction first')
       return
     }
-
     setRewriting(true)
     setRewriteError('')
     setActiveRewriteTarget(target)
-
     try {
       const res = await apiFetch('/api/ai/rewrite', {
         method: 'POST',
         body: JSON.stringify({ content, instruction: rewriteInstruction }),
       })
-
       if (res.success) {
         setOriginalDraft(content)
         if (target === 'resume') {
@@ -193,7 +197,6 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     } catch {
       setRewriteError('Something went wrong. Please try again.')
     }
-
     setRewriting(false)
   }
 
@@ -218,10 +221,11 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
 
   useEffect(() => {
     async function fetchAll() {
-      const [jobRes, interviewRes, followUpRes] = await Promise.all([
+      const [jobRes, interviewRes, followUpRes, timelineRes] = await Promise.all([
         apiFetch(`/api/jobs/${id}`).catch(() => null),
         apiFetch(`/api/jobs/${id}/interviews`).catch(() => ({ data: [] })),
         apiFetch(`/api/jobs/${id}/followups`).catch(() => ({ data: [] })),
+        apiFetch(`/api/jobs/${id}/timeline`).catch(() => ({ data: [] })),
       ])
       if (!jobRes || !jobRes.success) {
         setNotFound(true)
@@ -229,10 +233,11 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         setJob(jobRes.data)
         setDeadlineInput(jobRes.data.deadline ? formatDateTimeLocal(jobRes.data.deadline) : '')
         setRecruiterInput(jobRes.data.recruiterNotes ?? '')
-	setOutcomeInput(jobRes.data.outcomeNote ?? '')
+        setOutcomeInput(jobRes.data.outcomeNote ?? '')
       }
       if (interviewRes?.data) setInterviews(interviewRes.data)
       if (followUpRes?.data) setFollowUps(followUpRes.data)
+      if (timelineRes?.data) setTimeline(timelineRes.data)
       setLoading(false)
     }
     fetchAll()
@@ -246,6 +251,8 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     setJob({ ...job, stage: nextStage })
     try {
       await apiFetch(`/api/jobs/${id}`, { method: 'PATCH', body: JSON.stringify({ stage: nextStage }) })
+      const timelineRes = await apiFetch(`/api/jobs/${id}/timeline`).catch(() => ({ data: [] }))
+      if (timelineRes?.data) setTimeline(timelineRes.data)
     } catch {
       setJob({ ...job, stage: prev })
     }
@@ -266,25 +273,26 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       setJob(res.data)
       setEditingMeta(false)
     } catch {
-      // keep form open on error
+      // keep form open
     }
     setSavingMeta(false)
   }
+
   async function handleSaveOutcome() {
-  if (!job) return
-  setSavingOutcome(true)
-  try {
-    const res = await apiFetch(`/api/jobs/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ outcomeNote: outcomeInput || null }),
-    })
-    setJob(res.data)
-    setEditingOutcome(false)
-  } catch {
-    // keep form open
+    if (!job) return
+    setSavingOutcome(true)
+    try {
+      const res = await apiFetch(`/api/jobs/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ outcomeNote: outcomeInput || null }),
+      })
+      setJob(res.data)
+      setEditingOutcome(false)
+    } catch {
+      // keep form open
+    }
+    setSavingOutcome(false)
   }
-  setSavingOutcome(false)
-}
 
   async function handleDelete() {
     if (deleting) return
@@ -298,7 +306,6 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     }
   }
 
-  // Interview handlers
   async function handleSaveInterview() {
     if (!interviewForm.date) return
     setSavingInterview(true)
@@ -316,6 +323,8 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         })
         setInterviews((prev) => [...prev, res.data])
       }
+      const timelineRes = await apiFetch(`/api/jobs/${id}/timeline`).catch(() => ({ data: [] }))
+      if (timelineRes?.data) setTimeline(timelineRes.data)
       setShowInterviewForm(false)
       setEditingInterview(null)
       setInterviewForm({ roundType: 'Phone Screen', date: '', notes: '' })
@@ -330,6 +339,8 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     try {
       await apiFetch(`/api/interviews/${interviewId}`, { method: 'DELETE' })
       setInterviews((prev) => prev.filter((i) => i.id !== interviewId))
+      const timelineRes = await apiFetch(`/api/jobs/${id}/timeline`).catch(() => ({ data: [] }))
+      if (timelineRes?.data) setTimeline(timelineRes.data)
     } catch { /* ignore */ }
   }
 
@@ -343,7 +354,6 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     setShowInterviewForm(true)
   }
 
-  // Follow-up handlers
   async function handleSaveFollowUp() {
     if (!followUpForm.title || !followUpForm.dueDate) return
     setSavingFollowUp(true)
@@ -361,6 +371,8 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         })
         setFollowUps((prev) => [...prev, res.data])
       }
+      const timelineRes = await apiFetch(`/api/jobs/${id}/timeline`).catch(() => ({ data: [] }))
+      if (timelineRes?.data) setTimeline(timelineRes.data)
       setShowFollowUpForm(false)
       setEditingFollowUp(null)
       setFollowUpForm({ title: '', dueDate: '' })
@@ -377,6 +389,8 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         body: JSON.stringify({ completed: !followUp.completed }),
       })
       setFollowUps((prev) => prev.map((f) => (f.id === followUp.id ? res.data : f)))
+      const timelineRes = await apiFetch(`/api/jobs/${id}/timeline`).catch(() => ({ data: [] }))
+      if (timelineRes?.data) setTimeline(timelineRes.data)
     } catch { /* ignore */ }
   }
 
@@ -385,6 +399,8 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     try {
       await apiFetch(`/api/followups/${followUpId}`, { method: 'DELETE' })
       setFollowUps((prev) => prev.filter((f) => f.id !== followUpId))
+      const timelineRes = await apiFetch(`/api/jobs/${id}/timeline`).catch(() => ({ data: [] }))
+      if (timelineRes?.data) setTimeline(timelineRes.data)
     } catch { /* ignore */ }
   }
 
@@ -459,12 +475,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
             <div className="flex justify-between items-center mb-3">
               <h2 className="text-sm font-semibold text-white">Details</h2>
               {!editingMeta && (
-                <button
-                  onClick={() => setEditingMeta(true)}
-                  className="text-xs text-[#2f81f4] hover:underline"
-                >
-                  Edit
-                </button>
+                <button onClick={() => setEditingMeta(true)} className="text-xs text-[#2f81f4] hover:underline">Edit</button>
               )}
             </div>
             {editingMeta ? (
@@ -489,11 +500,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                   />
                 </div>
                 <div className="flex gap-2">
-                  <button
-                    onClick={handleSaveMeta}
-                    disabled={savingMeta}
-                    className="text-xs px-3 py-1.5 bg-[#2f81f4] text-white rounded hover:bg-blue-600 transition-colors disabled:opacity-50"
-                  >
+                  <button onClick={handleSaveMeta} disabled={savingMeta} className="text-xs px-3 py-1.5 bg-[#2f81f4] text-white rounded hover:bg-blue-600 disabled:opacity-50">
                     {savingMeta ? 'Saving...' : 'Save'}
                   </button>
                   <button
@@ -531,150 +538,103 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
           </div>
 
           <div className="flex justify-end gap-2 pt-6 mt-6 border-t border-[#30363d]">
-            <button
-              onClick={handleDelete}
-              disabled={deleting}
-              className="text-xs px-3 py-1.5 border border-[#30363d] text-[#f85149] rounded hover:border-[#f85149] transition-colors disabled:opacity-50"
-            >
+            <button onClick={handleDelete} disabled={deleting} className="text-xs px-3 py-1.5 border border-[#30363d] text-[#f85149] rounded hover:border-[#f85149] transition-colors disabled:opacity-50">
               {deleting ? 'Deleting...' : 'Delete'}
             </button>
-            <button
-              onClick={() => setModalOpen(true)}
-              className="text-xs px-3 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors"
-            >
+            <button onClick={() => setModalOpen(true)} className="text-xs px-3 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors">
               Edit
             </button>
           </div>
         </div>
 
+        {/* Timeline */}
+        <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-6">
+          <h2 className="text-sm font-semibold text-white mb-4">Activity Timeline</h2>
+          {timeline.length === 0 ? (
+            <p className="text-sm text-[#8b949e]">No activity yet.</p>
+          ) : (
+            <div className="relative">
+              <div className="absolute left-2 top-0 bottom-0 w-px bg-[#30363d]" />
+              <div className="space-y-4">
+                {timeline.map((event, i) => {
+                  const colors: Record<string, string> = {
+                    created: '#3fb950',
+                    stage_change: '#2f81f4',
+                    interview: '#bc8cff',
+                    followup: '#f0883e',
+                  }
+                  const color = colors[event.type] ?? '#8b949e'
+                  return (
+                    <div key={i} className="flex gap-4 pl-6 relative">
+                      <div
+                        className="absolute left-0 w-4 h-4 rounded-full border-2 border-[#0d1117] mt-0.5"
+                        style={{ backgroundColor: color }}
+                      />
+                      <div>
+                        <p className="text-sm text-white">{event.note}</p>
+                        <p className="text-xs text-[#8b949e] mt-0.5">{formatDate(event.date)}</p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* AI Drafts */}
         <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-6">
           <h2 className="text-sm font-semibold text-white mb-4">AI Drafts</h2>
-
-          <button
-            onClick={handleGenerateResume}
-            disabled={generatingResume}
-            className="text-xs px-3 py-1.5 bg-[#2f81f4] text-white rounded hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-4"
-          >
+          <button onClick={handleGenerateResume} disabled={generatingResume} className="text-xs px-3 py-1.5 bg-[#2f81f4] text-white rounded hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-4">
             {generatingResume ? 'Generating...' : 'Generate Resume with AI'}
           </button>
-
-          {resumeError && (
-            <p className="text-xs text-[#f85149] mb-4">{resumeError}</p>
-          )}
-
+          {resumeError && <p className="text-xs text-[#f85149] mb-4">{resumeError}</p>}
           {resumeDraft && (
             <div className="flex flex-col gap-2">
-              <label className="text-xs text-[#8b949e]">
-                Resume Draft — edit before saving
-              </label>
-              <textarea
-                value={resumeDraft}
-                onChange={(e) => setResumeDraft(e.target.value)}
-                rows={20}
-                className="w-full bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none resize-y"
-              />
+              <label className="text-xs text-[#8b949e]">Resume Draft — edit before saving</label>
+              <textarea value={resumeDraft} onChange={(e) => setResumeDraft(e.target.value)} rows={20} className="w-full bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none resize-y" />
             </div>
           )}
-
-          <button
-            onClick={handleGenerateCoverLetter}
-            disabled={generatingCoverLetter}
-            className="text-sm px-4 py-2 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-6 mb-4"
-          >
+          <button onClick={handleGenerateCoverLetter} disabled={generatingCoverLetter} className="text-sm px-4 py-2 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-6 mb-4">
             {generatingCoverLetter ? 'Generating...' : 'Generate Cover Letter with AI'}
           </button>
-
-          {coverLetterError && (
-            <p className="text-sm text-[#f85149] mb-4">{coverLetterError}</p>
-          )}
-
+          {coverLetterError && <p className="text-sm text-[#f85149] mb-4">{coverLetterError}</p>}
           {coverLetterDraft && (
             <div className="flex flex-col gap-2 mt-4">
-              <label className="text-xs text-[#8b949e]">
-                Cover Letter Draft — edit before saving
-              </label>
-              <textarea
-                value={coverLetterDraft}
-                onChange={(e) => setCoverLetterDraft(e.target.value)}
-                rows={12}
-                className="w-full bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none resize-y"
-              />
+              <label className="text-xs text-[#8b949e]">Cover Letter Draft — edit before saving</label>
+              <textarea value={coverLetterDraft} onChange={(e) => setCoverLetterDraft(e.target.value)} rows={12} className="w-full bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none resize-y" />
             </div>
           )}
-
           {(resumeDraft || coverLetterDraft) && (
             <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-6 mt-2">
-              <h3 className="text-sm font-medium text-white mb-3">
-                Rewrite or Improve
-              </h3>
-
+              <h3 className="text-sm font-medium text-white mb-3">Rewrite or Improve</h3>
               <div className="flex gap-2 mb-3">
-                <input
-                  value={rewriteInstruction}
-                  onChange={e => setRewriteInstruction(e.target.value)}
-                  placeholder="e.g. make it more concise, use stronger action verbs, make it more formal"
-                  className="flex-1 bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white placeholder-[#484f58] focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none"
-                />
+                <input value={rewriteInstruction} onChange={e => setRewriteInstruction(e.target.value)} placeholder="e.g. make it more concise, use stronger action verbs, make it more formal" className="flex-1 bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white placeholder-[#484f58] focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none" />
                 {resumeDraft && (
-                  <button
-                    onClick={() => handleRewrite('resume')}
-                    disabled={rewriting}
-                    className="text-sm px-4 py-2 bg-[#2f81f4] text-white rounded hover:bg-blue-600 transition-colors disabled:opacity-50 whitespace-nowrap"
-                  >
+                  <button onClick={() => handleRewrite('resume')} disabled={rewriting} className="text-sm px-4 py-2 bg-[#2f81f4] text-white rounded hover:bg-blue-600 transition-colors disabled:opacity-50 whitespace-nowrap">
                     {rewriting && activeRewriteTarget === 'resume' ? 'Rewriting...' : 'Rewrite Resume'}
                   </button>
                 )}
                 {coverLetterDraft && (
-                  <button
-                    onClick={() => handleRewrite('coverLetter')}
-                    disabled={rewriting}
-                    className="text-sm px-4 py-2 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors disabled:opacity-50 whitespace-nowrap"
-                  >
+                  <button onClick={() => handleRewrite('coverLetter')} disabled={rewriting} className="text-sm px-4 py-2 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors disabled:opacity-50 whitespace-nowrap">
                     {rewriting && activeRewriteTarget === 'coverLetter' ? 'Rewriting...' : 'Rewrite Cover Letter'}
                   </button>
                 )}
               </div>
-
-              {rewriteError && (
-                <p className="text-sm text-[#f85149] mb-3">{rewriteError}</p>
-              )}
-
+              {rewriteError && <p className="text-sm text-[#f85149] mb-3">{rewriteError}</p>}
               {showComparison && originalDraft && (
                 <div className="mt-4">
-                  <p className="text-xs text-[#8b949e] mb-3">
-                    Compare the original and rewritten version. Pick which one to keep.
-                  </p>
+                  <p className="text-xs text-[#8b949e] mb-3">Compare the original and rewritten version. Pick which one to keep.</p>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex flex-col gap-2">
                       <p className="text-xs font-medium text-[#8b949e]">Original</p>
-                      <textarea
-                        value={originalDraft}
-                        readOnly
-                        rows={10}
-                        className="w-full bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-[#8b949e] outline-none resize-none opacity-70"
-                      />
-                      <button
-                        onClick={handleKeepOriginal}
-                        className="text-sm px-4 py-2 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors"
-                      >
-                        Keep Original
-                      </button>
+                      <textarea value={originalDraft} readOnly rows={10} className="w-full bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-[#8b949e] outline-none resize-none opacity-70" />
+                      <button onClick={handleKeepOriginal} className="text-sm px-4 py-2 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors">Keep Original</button>
                     </div>
                     <div className="flex flex-col gap-2">
                       <p className="text-xs font-medium text-[#3fb950]">Rewritten</p>
-                      <textarea
-                        value={activeRewriteTarget === 'resume' ? resumeDraft : coverLetterDraft}
-                        readOnly
-                        rows={10}
-                        className="w-full bg-[#0d1117] border border-[#3fb950]/30 rounded px-3 py-2 text-sm text-white outline-none resize-none"
-                      />
-                      <button
-                        onClick={handleKeepRewrite}
-                        className="text-sm px-4 py-2 bg-[#2f81f4] text-white rounded hover:bg-blue-600 transition-colors"
-                      >
-                        Keep Rewrite
-                      </button>
+                      <textarea value={activeRewriteTarget === 'resume' ? resumeDraft : coverLetterDraft} readOnly rows={10} className="w-full bg-[#0d1117] border border-[#3fb950]/30 rounded px-3 py-2 text-sm text-white outline-none resize-none" />
+                      <button onClick={handleKeepRewrite} className="text-sm px-4 py-2 bg-[#2f81f4] text-white rounded hover:bg-blue-600 transition-colors">Keep Rewrite</button>
                     </div>
                   </div>
                 </div>
@@ -687,63 +647,32 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-sm font-semibold text-white">Interviews</h2>
-            <button
-              onClick={() => { setEditingInterview(null); setInterviewForm({ roundType: 'Phone Screen', date: '', notes: '' }); setShowInterviewForm(true) }}
-              className="text-xs px-3 py-1.5 bg-[#2f81f4] text-white rounded hover:bg-blue-600 transition-colors"
-            >
-              + Add
-            </button>
+            <button onClick={() => { setEditingInterview(null); setInterviewForm({ roundType: 'Phone Screen', date: '', notes: '' }); setShowInterviewForm(true) }} className="text-xs px-3 py-1.5 bg-[#2f81f4] text-white rounded hover:bg-blue-600 transition-colors">+ Add</button>
           </div>
-
           {showInterviewForm && (
             <div className="bg-[#0d1117] border border-[#30363d] rounded-lg p-4 mb-4 space-y-3">
               <div>
                 <label className="text-xs text-[#8b949e] block mb-1">Round Type</label>
-                <select
-                  value={interviewForm.roundType}
-                  onChange={(e) => setInterviewForm({ ...interviewForm, roundType: e.target.value })}
-                  className="w-full bg-[#161b22] border border-[#30363d] rounded px-3 py-2 text-sm text-white outline-none focus:border-[#2f81f4]"
-                >
+                <select value={interviewForm.roundType} onChange={(e) => setInterviewForm({ ...interviewForm, roundType: e.target.value })} className="w-full bg-[#161b22] border border-[#30363d] rounded px-3 py-2 text-sm text-white outline-none focus:border-[#2f81f4]">
                   {ROUND_TYPES.map((r) => <option key={r} value={r}>{r}</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-xs text-[#8b949e] block mb-1">Date & Time</label>
-                <input
-                  type="datetime-local"
-                  value={interviewForm.date}
-                  onChange={(e) => setInterviewForm({ ...interviewForm, date: e.target.value })}
-                  className="w-full bg-[#161b22] border border-[#30363d] rounded px-3 py-2 text-sm text-white outline-none focus:border-[#2f81f4]"
-                />
+                <input type="datetime-local" value={interviewForm.date} onChange={(e) => setInterviewForm({ ...interviewForm, date: e.target.value })} className="w-full bg-[#161b22] border border-[#30363d] rounded px-3 py-2 text-sm text-white outline-none focus:border-[#2f81f4]" />
               </div>
               <div>
                 <label className="text-xs text-[#8b949e] block mb-1">Notes</label>
-                <textarea
-                  value={interviewForm.notes}
-                  onChange={(e) => setInterviewForm({ ...interviewForm, notes: e.target.value })}
-                  rows={2}
-                  className="w-full bg-[#161b22] border border-[#30363d] rounded px-3 py-2 text-sm text-white outline-none focus:border-[#2f81f4] resize-none"
-                  placeholder="Interviewer name, topics, prep notes..."
-                />
+                <textarea value={interviewForm.notes} onChange={(e) => setInterviewForm({ ...interviewForm, notes: e.target.value })} rows={2} className="w-full bg-[#161b22] border border-[#30363d] rounded px-3 py-2 text-sm text-white outline-none focus:border-[#2f81f4] resize-none" placeholder="Interviewer name, topics, prep notes..." />
               </div>
               <div className="flex gap-2">
-                <button
-                  onClick={handleSaveInterview}
-                  disabled={savingInterview || !interviewForm.date}
-                  className="text-xs px-3 py-1.5 bg-[#2f81f4] text-white rounded hover:bg-blue-600 disabled:opacity-50"
-                >
+                <button onClick={handleSaveInterview} disabled={savingInterview || !interviewForm.date} className="text-xs px-3 py-1.5 bg-[#2f81f4] text-white rounded hover:bg-blue-600 disabled:opacity-50">
                   {savingInterview ? 'Saving...' : editingInterview ? 'Update' : 'Add'}
                 </button>
-                <button
-                  onClick={() => { setShowInterviewForm(false); setEditingInterview(null) }}
-                  className="text-xs px-3 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white transition-colors"
-                >
-                  Cancel
-                </button>
+                <button onClick={() => { setShowInterviewForm(false); setEditingInterview(null) }} className="text-xs px-3 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white transition-colors">Cancel</button>
               </div>
             </div>
           )}
-
           {interviews.length === 0 && !showInterviewForm ? (
             <p className="text-sm text-[#8b949e]">No interviews logged yet.</p>
           ) : (
@@ -771,53 +700,26 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-sm font-semibold text-white">Follow-ups & Reminders</h2>
-            <button
-              onClick={() => { setEditingFollowUp(null); setFollowUpForm({ title: '', dueDate: '' }); setShowFollowUpForm(true) }}
-              className="text-xs px-3 py-1.5 bg-[#2f81f4] text-white rounded hover:bg-blue-600 transition-colors"
-            >
-              + Add
-            </button>
+            <button onClick={() => { setEditingFollowUp(null); setFollowUpForm({ title: '', dueDate: '' }); setShowFollowUpForm(true) }} className="text-xs px-3 py-1.5 bg-[#2f81f4] text-white rounded hover:bg-blue-600 transition-colors">+ Add</button>
           </div>
-
           {showFollowUpForm && (
             <div className="bg-[#0d1117] border border-[#30363d] rounded-lg p-4 mb-4 space-y-3">
               <div>
                 <label className="text-xs text-[#8b949e] block mb-1">Title</label>
-                <input
-                  type="text"
-                  value={followUpForm.title}
-                  onChange={(e) => setFollowUpForm({ ...followUpForm, title: e.target.value })}
-                  className="w-full bg-[#161b22] border border-[#30363d] rounded px-3 py-2 text-sm text-white outline-none focus:border-[#2f81f4]"
-                  placeholder="e.g. Send thank you email, Follow up on offer..."
-                />
+                <input type="text" value={followUpForm.title} onChange={(e) => setFollowUpForm({ ...followUpForm, title: e.target.value })} className="w-full bg-[#161b22] border border-[#30363d] rounded px-3 py-2 text-sm text-white outline-none focus:border-[#2f81f4]" placeholder="e.g. Send thank you email, Follow up on offer..." />
               </div>
               <div>
                 <label className="text-xs text-[#8b949e] block mb-1">Due Date</label>
-                <input
-                  type="datetime-local"
-                  value={followUpForm.dueDate}
-                  onChange={(e) => setFollowUpForm({ ...followUpForm, dueDate: e.target.value })}
-                  className="w-full bg-[#161b22] border border-[#30363d] rounded px-3 py-2 text-sm text-white outline-none focus:border-[#2f81f4]"
-                />
+                <input type="datetime-local" value={followUpForm.dueDate} onChange={(e) => setFollowUpForm({ ...followUpForm, dueDate: e.target.value })} className="w-full bg-[#161b22] border border-[#30363d] rounded px-3 py-2 text-sm text-white outline-none focus:border-[#2f81f4]" />
               </div>
               <div className="flex gap-2">
-                <button
-                  onClick={handleSaveFollowUp}
-                  disabled={savingFollowUp || !followUpForm.title || !followUpForm.dueDate}
-                  className="text-xs px-3 py-1.5 bg-[#2f81f4] text-white rounded hover:bg-blue-600 disabled:opacity-50"
-                >
+                <button onClick={handleSaveFollowUp} disabled={savingFollowUp || !followUpForm.title || !followUpForm.dueDate} className="text-xs px-3 py-1.5 bg-[#2f81f4] text-white rounded hover:bg-blue-600 disabled:opacity-50">
                   {savingFollowUp ? 'Saving...' : editingFollowUp ? 'Update' : 'Add'}
                 </button>
-                <button
-                  onClick={() => { setShowFollowUpForm(false); setEditingFollowUp(null) }}
-                  className="text-xs px-3 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white transition-colors"
-                >
-                  Cancel
-                </button>
+                <button onClick={() => { setShowFollowUpForm(false); setEditingFollowUp(null) }} className="text-xs px-3 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white transition-colors">Cancel</button>
               </div>
             </div>
           )}
-
           {followUps.length === 0 && !showFollowUpForm ? (
             <p className="text-sm text-[#8b949e]">No follow-ups yet.</p>
           ) : (
@@ -825,12 +727,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
               {followUps.map((f) => (
                 <div key={f.id} className={`border rounded-lg p-3 flex justify-between items-start ${f.completed ? 'border-[#30363d] opacity-60' : 'border-[#30363d]'}`}>
                   <div className="flex items-start gap-3">
-                    <input
-                      type="checkbox"
-                      checked={f.completed}
-                      onChange={() => handleToggleFollowUp(f)}
-                      className="mt-0.5 accent-[#2f81f4]"
-                    />
+                    <input type="checkbox" checked={f.completed} onChange={() => handleToggleFollowUp(f)} className="mt-0.5 accent-[#2f81f4]" />
                     <div>
                       <p className={`text-sm ${f.completed ? 'line-through text-[#8b949e]' : 'text-white'}`}>{f.title}</p>
                       <p className="text-xs text-[#8b949e] mt-0.5">Due {formatDate(f.dueDate)}</p>
@@ -845,56 +742,43 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
             </div>
           )}
         </div>
-	{/* Outcome */}
-{['Offer', 'Rejected', 'Archived'].includes(job.stage) && (
-  <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-6">
-    <div className="flex justify-between items-center mb-4">
-      <h2 className="text-sm font-semibold text-white">Outcome</h2>
-      {!editingOutcome && (
-        <button
-          onClick={() => setEditingOutcome(true)}
-          className="text-xs text-[#2f81f4] hover:underline"
-        >
-          {job.outcomeNote ? 'Edit' : 'Add note'}
-        </button>
-      )}
-    </div>
-    {editingOutcome ? (
-      <div className="space-y-3">
-        <textarea
-          value={outcomeInput}
-          onChange={(e) => setOutcomeInput(e.target.value)}
-          rows={3}
-          className="w-full bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] outline-none resize-none"
-          placeholder="e.g. Received offer, negotiating salary... or Rejected after final round..."
-        />
-        <div className="flex gap-2">
-          <button
-            onClick={handleSaveOutcome}
-            disabled={savingOutcome}
-            className="text-xs px-3 py-1.5 bg-[#2f81f4] text-white rounded hover:bg-blue-600 disabled:opacity-50"
-          >
-            {savingOutcome ? 'Saving...' : 'Save'}
-          </button>
-          <button
-            onClick={() => {
-              setEditingOutcome(false)
-              setOutcomeInput(job.outcomeNote ?? '')
-            }}
-            className="text-xs px-3 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white transition-colors"
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    ) : (
-      <p className="text-sm text-white whitespace-pre-wrap">
-        {job.outcomeNote || <span className="text-[#8b949e] italic">No outcome note yet.</span>}
-      </p>
-    )}
-  </div>
-)}
 
+        {/* Outcome */}
+        {['Offer', 'Rejected', 'Archived'].includes(job.stage) && (
+          <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-sm font-semibold text-white">Outcome</h2>
+              {!editingOutcome && (
+                <button onClick={() => setEditingOutcome(true)} className="text-xs text-[#2f81f4] hover:underline">
+                  {job.outcomeNote ? 'Edit' : 'Add note'}
+                </button>
+              )}
+            </div>
+            {editingOutcome ? (
+              <div className="space-y-3">
+                <textarea
+                  value={outcomeInput}
+                  onChange={(e) => setOutcomeInput(e.target.value)}
+                  rows={3}
+                  className="w-full bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] outline-none resize-none"
+                  placeholder="e.g. Received offer, negotiating salary... or Rejected after final round..."
+                />
+                <div className="flex gap-2">
+                  <button onClick={handleSaveOutcome} disabled={savingOutcome} className="text-xs px-3 py-1.5 bg-[#2f81f4] text-white rounded hover:bg-blue-600 disabled:opacity-50">
+                    {savingOutcome ? 'Saving...' : 'Save'}
+                  </button>
+                  <button onClick={() => { setEditingOutcome(false); setOutcomeInput(job.outcomeNote ?? '') }} className="text-xs px-3 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white transition-colors">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-white whitespace-pre-wrap">
+                {job.outcomeNote || <span className="text-[#8b949e] italic">No outcome note yet.</span>}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       <JobModal
