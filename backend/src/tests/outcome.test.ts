@@ -8,6 +8,9 @@ vi.mock('../lib/prisma', () => ({
       findUnique: vi.fn(),
       update: vi.fn(),
     },
+    jobActivity: {
+      create: vi.fn(),
+    },
   },
 }));
 

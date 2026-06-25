@@ -12,9 +12,11 @@ vi.mock('../lib/prisma', () => ({
       update: vi.fn(),
       delete: vi.fn(),
     },
+    jobActivity: {
+      create: vi.fn(),
+    },
   },
 }));
-
 import prisma from '../lib/prisma';
 
 const mockRes = () => {

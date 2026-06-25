@@ -1,4 +1,4 @@
-﻿import { Request, Response } from 'express';
+import { Request, Response } from 'express';
 import prisma from '../lib/prisma';
 import { createJobSchema, updateJobSchema } from '../schemas/job.schema';
 
@@ -55,10 +55,12 @@ export const updateJob = async (req: Request, res: Response) => {
   try {
     const user_id = req.user?.userId;
     if (!user_id) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
     const existing = await prisma.job.findUnique({
       where: { id: req.params.id as string },
     });
     if (!existing) return res.status(404).json({ success: false, error: 'Job not found' });
+
     const parsed = updateJobSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -67,10 +69,22 @@ export const updateJob = async (req: Request, res: Response) => {
         fields: parsed.error.flatten().fieldErrors,
       });
     }
+
     const job = await prisma.job.update({
       where: { id: req.params.id as string },
       data: { ...parsed.data, updatedAt: new Date() },
     });
+
+    if (parsed.data.stage && parsed.data.stage !== existing.stage) {
+      await prisma.jobActivity.create({
+        data: {
+          job_id: job.id,
+          type: 'stage_change',
+          note: `Stage changed from ${existing.stage} to ${parsed.data.stage}`,
+        },
+      });
+    }
+
     return res.status(200).json({ success: true, data: job });
   } catch {
     return res.status(500).json({ success: false, error: 'Failed to update job' });
