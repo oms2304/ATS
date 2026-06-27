@@ -1,196 +1,207 @@
 generator client {
-    provider = "prisma-client-js"
+  provider = "prisma-client-js"
 }
 
 datasource db {
-    provider = "postgresql"
-
+  provider = "postgresql"
 }
 
 model User {
-    id                 String    @id @default(cuid())
-    name               String
-    email              String    @unique
-    password           String
-    is_verified        Boolean   @default(false)
-    ver_token          String?
-    reset_token        String?
-    reset_token_expire DateTime?
-    createdAt          DateTime  @default(now())
-    updatedAt          DateTime  @updatedAt
+  id                 String    @id @default(cuid())
+  name               String
+  email              String    @unique
+  password           String
+  is_verified        Boolean   @default(false)
+  ver_token          String?
+  reset_token        String?
+  reset_token_expire DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
-    profile            Profile?
-    jobs               Job[]
-    documents          Document[]
-    experiences        Experience[]
-    educations         Education[]
-    skills             Skill[]
-    careerPreferences  CareerPreferences?
+  profile           Profile?
+  jobs              Job[]
+  documents         Document[]
+  experiences       Experience[]
+  educations        Education[]
+  skills            Skill[]
+  careerPreferences CareerPreferences?
 }
 
 model Profile {
-    id              String   @id @default(cuid())
-    userId          String   @unique @map("user_id")
-    user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-    firstName       String?  @map("first_name")
-    lastName        String?  @map("last_name")
-    phone           String?
-    location        String?
-    linkedIn        String?
-    summary         String?
-    completionScore Int      @default(0) @map("completion_score")
-    createdAt       DateTime @default(now())
-    updatedAt       DateTime @updatedAt
+  id              String   @id @default(cuid())
+  userId          String   @unique @map("user_id")
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firstName       String?  @map("first_name")
+  lastName        String?  @map("last_name")
+  phone           String?
+  location        String?
+  linkedIn        String?
+  summary         String?
+  completionScore Int      @default(0) @map("completion_score")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 model Job {
-    id              String   @id @default(cuid())
-    user_id         String
-    user            User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-    title           String
-    company         String
-    jobPostingBody  String   @map("job_posting_body")
-    stage           String   @default("Interested")
-    deadline        DateTime?
-    recruiterNotes  String?  @map("recruiter_notes")
-    outcomeNote     String?  @map("outcome_note")
-    createdAt       DateTime @default(now())
-    updatedAt       DateTime @updatedAt
+  id             String    @id @default(cuid())
+  user_id        String
+  user           User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  title          String
+  company        String
+  jobPostingBody String    @map("job_posting_body")
+  stage          String    @default("Interested")
+  deadline       DateTime?
+  recruiterNotes String?   @map("recruiter_notes")
+  outcomeNote    String?   @map("outcome_note")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-    activities  JobActivity[]
-    documents   JobDocumentLink[]
-    interviews  Interview[]
-    followUps   FollowUp[]
+  activities       JobActivity[]
+  documents        JobDocumentLink[]
+  interviews       Interview[]
+  followUps        FollowUp[]
+  stageTransitions StageTransition[]
 }
+
 model JobActivity {
-    id        String   @id @default(cuid())
-    job_id    String
-    job       Job      @relation(fields: [job_id], references: [id], onDelete: Cascade)
-    type      String
-    note      String?
-    createdAt DateTime @default(now())
+  id        String   @id @default(cuid())
+  job_id    String
+  job       Job      @relation(fields: [job_id], references: [id], onDelete: Cascade)
+  type      String
+  note      String?
+  createdAt DateTime @default(now())
 }
 
 model Document {
-    id        String   @id @default(cuid())
-    user_id   String
-    user      User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-    type      String
-    title     String
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+  id        String   @id @default(cuid())
+  user_id   String
+  user      User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  type      String
+  title     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-    versions DocumentVersion[]
-    jobs     JobDocumentLink[]
+  versions DocumentVersion[]
+  jobs     JobDocumentLink[]
 }
 
 model DocumentVersion {
-    id             String   @id @default(cuid())
-    document_id    String
-    document       Document @relation(fields: [document_id], references: [id], onDelete: Cascade)
-    version_number Int
-    fileUrl        String
-    is_archived    Boolean  @default(false)
-    createdAt      DateTime @default(now())
+  id             String   @id @default(cuid())
+  document_id    String
+  document       Document @relation(fields: [document_id], references: [id], onDelete: Cascade)
+  version_number Int
+  fileUrl        String
+  is_archived    Boolean  @default(false)
+  createdAt      DateTime @default(now())
 
-    job_links JobDocumentLink[]
+  job_links JobDocumentLink[]
 }
 
 model JobDocumentLink {
-    id                  String          @id @default(cuid())
-    job_id              String
-    job                 Job             @relation(fields: [job_id], references: [id], onDelete: Cascade)
-    document_id         String
-    document            Document        @relation(fields: [document_id], references: [id], onDelete: Cascade)
-    document_version_id String
-    document_version    DocumentVersion @relation(fields: [document_version_id], references: [id], onDelete: Cascade)
-    type                String
-    createdAt           DateTime        @default(now())
+  id                  String          @id @default(cuid())
+  job_id              String
+  job                 Job             @relation(fields: [job_id], references: [id], onDelete: Cascade)
+  document_id         String
+  document            Document        @relation(fields: [document_id], references: [id], onDelete: Cascade)
+  document_version_id String
+  document_version    DocumentVersion @relation(fields: [document_version_id], references: [id], onDelete: Cascade)
+  type                String
+  createdAt           DateTime        @default(now())
 
-    @@unique([job_id, type])
+  @@unique([job_id, type])
 }
 
 model RevokedToken {
-    token     String   @id
-    expiresAt DateTime
-    createdAt DateTime @default(now())
+  token     String   @id
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }
+
 model Interview {
-    id        String   @id @default(cuid())
-    job_id    String
-    job       Job      @relation(fields: [job_id], references: [id], onDelete: Cascade)
-    roundType String   @map("round_type")
-    date      DateTime
-    notes     String?
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+  id        String   @id @default(cuid())
+  job_id    String
+  job       Job      @relation(fields: [job_id], references: [id], onDelete: Cascade)
+  roundType String   @map("round_type")
+  date      DateTime
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model FollowUp {
-    id          String    @id @default(cuid())
-    job_id      String
-    job         Job       @relation(fields: [job_id], references: [id], onDelete: Cascade)
-    title       String
-    dueDate     DateTime  @map("due_date")
-    completed   Boolean   @default(false)
-    createdAt   DateTime  @default(now())
-    updatedAt   DateTime  @updatedAt
+  id        String   @id @default(cuid())
+  job_id    String
+  job       Job      @relation(fields: [job_id], references: [id], onDelete: Cascade)
+  title     String
+  dueDate   DateTime @map("due_date")
+  completed Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Experience {
-    id          String    @id @default(cuid())
-    userId      String
-    user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-    title       String
-    company     String
-    startDate   DateTime
-    endDate     DateTime?
-    isCurrent   Boolean   @default(false)
-    description String?
-    order       Int       @default(0)
-    createdAt   DateTime  @default(now())
-    updatedAt   DateTime  @updatedAt
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  company     String
+  startDate   DateTime
+  endDate     DateTime?
+  isCurrent   Boolean   @default(false)
+  description String?
+  order       Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 model Education {
-    id           String    @id @default(cuid())
-    userId       String
-    user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-    school       String
-    degree       String
-    fieldOfStudy String?
-    startDate    DateTime
-    endDate      DateTime?
-    isCurrent    Boolean   @default(false)
-    gpa          String?
-    order        Int       @default(0)
-    createdAt    DateTime  @default(now())
-    updatedAt    DateTime  @updatedAt
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  school       String
+  degree       String
+  fieldOfStudy String?
+  startDate    DateTime
+  endDate      DateTime?
+  isCurrent    Boolean   @default(false)
+  gpa          String?
+  order        Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }
 
 model Skill {
-    id          String   @id @default(cuid())
-    userId      String
-    user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-    name        String
-    category    String?
-    proficiency String?
-    order       Int      @default(0)
-    createdAt   DateTime @default(now())
-    updatedAt   DateTime @updatedAt
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  category    String?
+  proficiency String?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-    @@unique([userId, name])
+  @@unique([userId, name])
 }
 
 model CareerPreferences {
-    id                 String   @id @default(cuid())
-    userId             String   @unique
-    user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-    targetRoles        String[]
-    preferredLocations String[]
-    workMode           String?
-    salaryMin          Int?
-    salaryMax          Int?
-    createdAt          DateTime @default(now())
-    updatedAt          DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  targetRoles        String[]
+  preferredLocations String[]
+  workMode           String?
+  salaryMin          Int?
+  salaryMax          Int?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model StageTransition {
+  id        String   @id @default(cuid())
+  job_id    String
+  job       Job      @relation(fields: [job_id], references: [id], onDelete: Cascade)
+  fromStage String?  @map("from_stage")
+  toStage   String   @map("to_stage")
+  changedAt DateTime @default(now()) @map("changed_at")
 }

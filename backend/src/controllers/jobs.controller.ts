@@ -75,7 +75,15 @@ export const updateJob = async (req: Request, res: Response) => {
       data: { ...parsed.data, updatedAt: new Date() },
     });
 
-    if (parsed.data.stage && parsed.data.stage !== existing.stage) {
+          if (parsed.data.stage && parsed.data.stage !== existing.stage) {
+      await prisma.stageTransition.create({
+        data: {
+          job_id: job.id,
+          fromStage: existing.stage,
+          toStage: parsed.data.stage,
+        },
+      });
+
       await prisma.jobActivity.create({
         data: {
           job_id: job.id,

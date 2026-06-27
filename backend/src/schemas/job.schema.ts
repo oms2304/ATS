@@ -19,7 +19,9 @@ export const createJobSchema = z.object({
   outcomeNote: z.string().optional().nullable(),
 });
 
-export const updateJobSchema = createJobSchema.partial();
+export const updateJobSchema = createJobSchema.partial().extend({
+  stage: z.enum(STAGES).optional(),
+});
 
 export type CreateJobInput = z.infer<typeof createJobSchema>;
 export type UpdateJobInput = z.infer<typeof updateJobSchema>;
