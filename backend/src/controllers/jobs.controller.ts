@@ -27,10 +27,17 @@ export const getJobs = async (req: Request, res: Response) => {
   try {
     const user_id = req.user?.userId;
     if (!user_id) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    const showArchived = req.query.archived === 'true';
+
     const jobs = await prisma.job.findMany({
-      where: { user_id },
+      where: {
+        user_id,
+        archivedAt: showArchived ? { not: null } : null,
+      },
       orderBy: { updatedAt: 'desc' },
     });
+
     return res.status(200).json({ success: true, data: jobs });
   } catch {
     return res.status(500).json({ success: false, error: 'Failed to fetch jobs' });
@@ -111,5 +118,53 @@ export const deleteJob = async (req: Request, res: Response) => {
     return res.status(204).send();
   } catch {
     return res.status(500).json({ success: false, error: 'Failed to delete job' });
+  }
+};
+
+// archive
+export const archiveJob = async (req: Request, res: Response) => {
+  try {
+    const user_id = req.user?.userId;
+    if (!user_id) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    const existing = await prisma.job.findFirst({
+      where: { id: req.params.id as string, user_id },
+    });
+    if (!existing) return res.status(404).json({ success: false, error: 'Job not found' });
+    if (existing.archivedAt)
+      return res.status(409).json({ success: false, error: 'Job is already archived' });
+
+    const job = await prisma.job.update({
+      where: { id: req.params.id as string },
+      data: { archivedAt: new Date() },
+    });
+
+    return res.status(200).json({ success: true, data: job });
+  } catch {
+    return res.status(500).json({ success: false, error: 'Failed to archive job' });
+  }
+};
+
+// restore
+export const restoreJob = async (req: Request, res: Response) => {
+  try {
+    const user_id = req.user?.userId;
+    if (!user_id) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    const existing = await prisma.job.findFirst({
+      where: { id: req.params.id as string, user_id },
+    });
+    if (!existing) return res.status(404).json({ success: false, error: 'Job not found' });
+    if (!existing.archivedAt)
+      return res.status(409).json({ success: false, error: 'Job is not archived' });
+
+    const job = await prisma.job.update({
+      where: { id: req.params.id as string },
+      data: { archivedAt: null },
+    });
+
+    return res.status(200).json({ success: true, data: job });
+  } catch {
+    return res.status(500).json({ success: false, error: 'Failed to restore job' });
   }
 };

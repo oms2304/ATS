@@ -1,7 +1,7 @@
 ﻿'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { apiFetch } from '@/lib/api'
+import { apiFetch, archiveJob, restoreJob } from '@/lib/api'
 import { JobModal } from '@/components/forms/job-modal'
 import { JobCard } from '@/components/ui/job-card'
 import { updateJobStage } from '@/components/ui/stage-select'
@@ -14,9 +14,11 @@ type Job = {
   stage: string
   createdAt: string
   updatedAt: string
+  archivedAt?: string | null
 }
 
-const STAGES = ['Interested', 'Applied', 'Interview', 'Offer', 'Rejected', 'Archived']
+// Archived is not a transition stage (S2-BR-005); it's a separate view.
+const STAGES = ['Interested', 'Applied', 'Interview', 'Offer', 'Rejected']
 
 export default function DashboardPage() {
   const [jobs, setJobs] = useState<Job[]>([])
@@ -26,6 +28,7 @@ export default function DashboardPage() {
   const [search, setSearch] = useState('')
   const [stageFilter, setStageFilter] = useState('All')
   const [sortBy, setSortBy] = useState('updatedAt')
+  const [showArchived, setShowArchived] = useState(false)
 
   const [metrics, setMetrics] = useState<{
     stageCounts: Record<string, number>
@@ -35,24 +38,32 @@ export default function DashboardPage() {
     responseRate: number
   } | null>(null)
 
+  // Refetch jobs whenever the archived view is toggled.
   useEffect(() => {
     async function fetchJobs() {
-      const res = await apiFetch('/api/jobs')
+      setLoading(true)
+      const res = await apiFetch(`/api/jobs${showArchived ? '?archived=true' : ''}`)
       if (res.success) setJobs(res.data)
       setLoading(false)
     }
+    fetchJobs()
+  }, [showArchived])
+
+  // Metrics are independent of the archived toggle.
+  useEffect(() => {
     async function fetchMetrics() {
       const res = await apiFetch('/api/metrics')
       if (res.success) setMetrics(res.data)
     }
-    fetchJobs()
     fetchMetrics()
   }, [])
 
   const filteredJobs = useMemo(() => {
     const term = search.trim().toLowerCase()
     const filtered = jobs.filter((job) => {
-      const matchesStage = stageFilter === 'All' || job.stage === stageFilter
+      // When viewing archived, the backend already returned the right set;
+      // skip the stage filter so it doesn't hide them.
+      const matchesStage = showArchived || stageFilter === 'All' || job.stage === stageFilter
       const matchesSearch =
         !term ||
         job.title.toLowerCase().includes(term) ||
@@ -71,7 +82,7 @@ export default function DashboardPage() {
        // default: updatedAt (last activity)
      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
    })
-  }, [jobs, search, stageFilter, sortBy])
+  }, [jobs, search, stageFilter, sortBy, showArchived])
 
   function handleAddJob() {
     setEditingJob(null)
@@ -101,12 +112,34 @@ export default function DashboardPage() {
     }
   }
 
+  async function handleArchive(jobId: string) {
+    const snapshot = jobs
+    setJobs((js) => js.filter((j) => j.id !== jobId))  // optimistic remove from active list
+    try {
+      await archiveJob(jobId)
+    } catch {
+      setJobs(snapshot)  // rollback on failure
+    }
+  }
+
+  async function handleRestore(jobId: string) {
+    const snapshot = jobs
+    setJobs((js) => js.filter((j) => j.id !== jobId))  // optimistic remove from archived view
+    try {
+      await restoreJob(jobId)
+    } catch {
+      setJobs(snapshot)  // rollback on failure
+    }
+  }
+
   if (loading) return <div className="p-6 text-[#8b949e]">Loading...</div>
 
   return (
     <div className="min-h-screen bg-[#0d1117] p-6 text-[#e6edf3]">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
-        <h1 className="text-2xl font-semibold text-white">Dashboard</h1>
+        <h1 className="text-2xl font-semibold text-white">
+          {showArchived ? 'Archived Jobs' : 'Dashboard'}
+        </h1>
         <div className="flex flex-wrap items-center gap-2">
           <input
             value={search}
@@ -117,7 +150,8 @@ export default function DashboardPage() {
           <select
             value={stageFilter}
             onChange={(e) => setStageFilter(e.target.value)}
-            className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all appearance-none"
+            disabled={showArchived}
+            className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all appearance-none disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <option value="All">All stages</option>
             {STAGES.map((stage) => (
@@ -138,6 +172,18 @@ export default function DashboardPage() {
           </select>
 
           <button
+            onClick={() => setShowArchived((v) => !v)}
+            data-testid="toggle-archived"
+            className={`text-sm px-4 py-2 rounded border transition-colors ${
+              showArchived
+                ? 'bg-[#21262d] border-[#444c56] text-white'
+                : 'bg-[#0d1117] border-[#30363d] text-[#8b949e] hover:text-white hover:border-[#444c56]'
+            }`}
+          >
+            {showArchived ? 'Show active' : 'Show archived'}
+          </button>
+
+          <button
             onClick={handleAddJob}
             className="flex items-center gap-2 bg-[#2f81f4] text-white px-4 py-2 rounded text-sm hover:bg-blue-600 transition-colors"
           >
@@ -146,8 +192,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Metrics Section */}
-      {metrics && (
+      {/* Metrics Section — hidden in archived view since metrics reflect active flow */}
+      {metrics && !showArchived && (
         <div data-testid="metrics-section" className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-4 text-center">
           <p data-testid="metric-total-jobs" className="text-2xl font-bold text-white">{metrics.totalJobs}</p>
@@ -171,14 +217,20 @@ export default function DashboardPage() {
       {filteredJobs.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <p className="text-[#8b949e] text-lg mb-2">
-            {jobs.length === 0 ? 'No jobs yet' : 'No jobs match your filters'}
+            {showArchived
+              ? 'No archived jobs'
+              : jobs.length === 0
+              ? 'No jobs yet'
+              : 'No jobs match your filters'}
           </p>
           <p className="text-[#8b949e]/70 text-sm mb-6">
-            {jobs.length === 0
+            {showArchived
+              ? 'Jobs you archive will appear here'
+              : jobs.length === 0
               ? 'Add your first job to get started'
               : 'Try adjusting your search or stage filter'}
           </p>
-          {jobs.length === 0 && (
+          {!showArchived && jobs.length === 0 && (
             <button
               onClick={handleAddJob}
               className="bg-[#2f81f4] text-white px-6 py-2 rounded text-sm hover:bg-blue-600 transition-colors"
@@ -200,9 +252,12 @@ export default function DashboardPage() {
                   company: job.company,
                   stage: job.stage,
                   updatedAt: job.updatedAt,
+                  archivedAt: job.archivedAt,
                   }}
                   onEdit={(cardJob) => handleEditJob(jobs.find(j => j.id === cardJob.id)!)}
                   onStageChange={handleStageChange}
+                  onArchive={handleArchive}
+                  onRestore={handleRestore}
                 />
             )
           })}

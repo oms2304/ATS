@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Request, Response, NextFunction } from 'express';
-import { createJob, getJobs, getJobById, updateJob, deleteJob } from '../controllers/jobs.controller';
+import { createJob, getJobs, getJobById, updateJob, deleteJob, archiveJob, restoreJob } from '../controllers/jobs.controller';
 import { checkOwnership } from '../middleware/ownership.middleware';
 
 vi.mock('../lib/prisma', () => ({
@@ -9,6 +9,7 @@ vi.mock('../lib/prisma', () => ({
       create: vi.fn(),
       findMany: vi.fn(),
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
     },
@@ -32,6 +33,7 @@ const mockReq = (overrides = {}) =>
     user: { userId: 'user-123', email: 'test@test.com' },
     body: {},
     params: {},
+    query: {},
     ...overrides,
   }) as any as Request;
 
@@ -97,6 +99,8 @@ describe('createJob', () => {
       })
     );
   });
+
+  
 
   it('should return 400 with a field error if jobPostingBody is missing', async () => {
     const req = mockReq({ body: { title: 'Engineer', company: 'Acme' } });
@@ -311,3 +315,137 @@ describe('deleteJob', () => {
     expect(res.status).toHaveBeenCalledWith(401);
   });
 });
+
+
+describe('archiveJob', () => {
+  const mockNext = () => vi.fn() as unknown as NextFunction;
+
+  // Forward workflow: archiving an active job succeeds and sets archivedAt
+  it('should archive a job and set archivedAt', async () => {
+    const req = mockReq({ params: { id: 'job-1' } });
+    const res = mockRes();
+    const next = mockNext();
+    const existing = { id: 'job-1', user_id: 'user-123', archivedAt: null };
+    const archived = { id: 'job-1', user_id: 'user-123', archivedAt: new Date() };
+    vi.mocked(prisma.job.findFirst).mockResolvedValue(existing as any);
+    vi.mocked(prisma.job.update).mockResolvedValue(archived as any);
+
+    await archiveJob(req, res);
+
+    expect(prisma.job.update).toHaveBeenCalledWith({
+      where: { id: 'job-1' },
+      data: { archivedAt: expect.any(Date) },
+    });
+    expect(res.json).toHaveBeenCalledWith({ success: true, data: archived });
+  });
+
+  // Negative path: archiving an already-archived job returns 409
+  it('should return 409 if the job is already archived', async () => {
+    const req = mockReq({ params: { id: 'job-1' } });
+    const res = mockRes();
+    const next = mockNext();
+    vi.mocked(prisma.job.findFirst).mockResolvedValue({
+      id: 'job-1',
+      user_id: 'user-123',
+      archivedAt: new Date(),
+    } as any);
+
+    await archiveJob(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(prisma.job.update).not.toHaveBeenCalled();
+  });
+
+  it('should return 404 if job not found', async () => {
+    const req = mockReq({ params: { id: 'job-999' } });
+    const res = mockRes();
+    const next = mockNext();
+    vi.mocked(prisma.job.findFirst).mockResolvedValue(null);
+
+    await archiveJob(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  it('should return 401 if user is not authenticated', async () => {
+    const req = mockReq({ user: undefined, params: { id: 'job-1' } });
+    const res = mockRes();
+    const next = mockNext();
+
+    await archiveJob(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+  });
+});
+
+describe('restoreJob', () => {
+  const mockNext = () => vi.fn() as unknown as NextFunction;
+
+  // Forward workflow: restoring an archived job clears archivedAt
+  it('should restore a job and clear archivedAt', async () => {
+    const req = mockReq({ params: { id: 'job-1' } });
+    const res = mockRes();
+    const next = mockNext();
+    const existing = { id: 'job-1', user_id: 'user-123', archivedAt: new Date() };
+    const restored = { id: 'job-1', user_id: 'user-123', archivedAt: null };
+    vi.mocked(prisma.job.findFirst).mockResolvedValue(existing as any);
+    vi.mocked(prisma.job.update).mockResolvedValue(restored as any);
+
+    await restoreJob(req, res);
+
+    expect(prisma.job.update).toHaveBeenCalledWith({
+      where: { id: 'job-1' },
+      data: { archivedAt: null },
+    });
+    expect(res.json).toHaveBeenCalledWith({ success: true, data: restored });
+  });
+
+  // Negative path: restoring a job that isn't archived returns 409
+  it('should return 409 if the job is not archived', async () => {
+    const req = mockReq({ params: { id: 'job-1' } });
+    const res = mockRes();
+    const next = mockNext();
+    vi.mocked(prisma.job.findFirst).mockResolvedValue({
+      id: 'job-1',
+      user_id: 'user-123',
+      archivedAt: null,
+    } as any);
+
+    await restoreJob(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(prisma.job.update).not.toHaveBeenCalled();
+  });
+});
+
+// Persistence reflected in dependent views: archived jobs excluded from the active list
+describe('getJobs archive filtering', () => {
+  it('should exclude archived jobs from the default list', async () => {
+    const req = mockReq();   // no ?archived=true
+    const res = mockRes();
+    vi.mocked(prisma.job.findMany).mockResolvedValue([] as any);
+
+    await getJobs(req, res);
+
+    expect(prisma.job.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ archivedAt: null }),
+      })
+    );
+  });
+
+  it('should return only archived jobs when archived=true', async () => {
+    const req = mockReq({ query: { archived: 'true' } });
+    const res = mockRes();
+    vi.mocked(prisma.job.findMany).mockResolvedValue([] as any);
+
+    await getJobs(req, res);
+
+    expect(prisma.job.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ archivedAt: { not: null } }),
+      })
+    );
+  });
+});
+

@@ -36,3 +36,8 @@ export async function apiFetch(path: string, options?: RequestInit) {
 
   return data
 }
+
+export const archiveJob = (id: string) =>
+  apiFetch(`/api/jobs/${id}/archive`, { method: 'PATCH' })
+export const restoreJob = (id: string) =>
+  apiFetch(`/api/jobs/${id}/restore`, { method: 'PATCH' })

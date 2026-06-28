@@ -25,6 +25,7 @@ export const STAGES = [
     stage: Stage
     createdAt: string
     updatedAt: string
+    archivedAt: string | null;
   }
   
   export type Profile = {

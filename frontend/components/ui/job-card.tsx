@@ -7,6 +7,7 @@ type Job = {
   company: string
   stage: string
   updatedAt: string
+  archivedAt?: string | null
 }
 
 const STAGE_BADGE: Record<string, { bg: string; text: string }> = {
@@ -58,9 +59,11 @@ interface JobCardProps {
   job: Job
   onEdit: (job: Job) => void
   onStageChange?: (jobId: string, nextStage: string) => void
+  onArchive: (jobId: string) => void
+  onRestore: (jobId: string) => void
 }
 
-export function JobCard({ job, onEdit, onStageChange }: JobCardProps) {
+export function JobCard({ job, onEdit, onStageChange, onArchive, onRestore }: JobCardProps) {
   const badge = STAGE_BADGE[job.stage] ?? STAGE_BADGE.Interested
   const progress = STAGE_PROGRESS[job.stage] ?? 0
   const progressColor = STAGE_PROGRESS_COLOR[job.stage] ?? '#2f81f4'
@@ -130,6 +133,31 @@ export function JobCard({ job, onEdit, onStageChange }: JobCardProps) {
         >
           Edit
         </button>
+
+        {job.archivedAt ? (
+          <button
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              onRestore(job.id)
+            }}
+            className="text-xs px-3 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors"
+          >
+            Restore
+          </button>
+        ) : (
+          <button
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              onArchive(job.id)
+            }}
+            className="text-xs px-3 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors"
+          >
+            Archive
+          </button>
+        )}
+
         <span className="text-xs px-3 py-1.5 text-[#8b949e] rounded">
           View
         </span>
