@@ -147,4 +147,37 @@ describe('Stage transition persistence (S2-026, S2-BR-009)', () => {
     expect(prisma.stageTransition.create).toHaveBeenCalled();
     expect(prisma.jobActivity.create).toHaveBeenCalled();
   });
+
+  // Regression: confirmedOverride is a request-side flag, not a Job column.
+  // If the controller spreads parsed.data into prisma.job.update, real DB
+  // traffic 500s with "Unknown argument `confirmedOverride`". Strip it before
+  // the write.
+  it('does not pass confirmedOverride into prisma.job.update (forward path)', async () => {
+    const req = mockReq({ body: { stage: 'Applied' } });
+    const res = mockRes();
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123', stage: 'Interested' } as any);
+    vi.mocked(prisma.job.update).mockResolvedValue({ id: 'job-1', user_id: 'user-123', stage: 'Applied' } as any);
+
+    await updateJob(req, res);
+
+    expect(prisma.job.update).toHaveBeenCalledTimes(1);
+    const updateArgs = (prisma.job.update as any).mock.calls[0][0];
+    expect(updateArgs.data).not.toHaveProperty('confirmedOverride');
+    expect(updateArgs.data).toMatchObject({ stage: 'Applied' });
+  });
+
+  it('does not pass confirmedOverride into prisma.job.update (override path)', async () => {
+    const req = mockReq({ body: { stage: 'Applied', confirmedOverride: true } });
+    const res = mockRes();
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123', stage: 'Interview' } as any);
+    vi.mocked(prisma.job.update).mockResolvedValue({ id: 'job-1', user_id: 'user-123', stage: 'Applied' } as any);
+
+    await updateJob(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(prisma.job.update).toHaveBeenCalledTimes(1);
+    const updateArgs = (prisma.job.update as any).mock.calls[0][0];
+    expect(updateArgs.data).not.toHaveProperty('confirmedOverride');
+    expect(updateArgs.data).toMatchObject({ stage: 'Applied' });
+  });
 });

@@ -93,9 +93,19 @@ export const updateJob = async (req: Request, res: Response) => {
       });
     }
 
+    // Pick only the Job columns we actually want to write. `confirmedOverride`
+    // is a request-side flag (S2-BR-007 / C12), not a Job column — spreading
+    // it into prisma.job.update triggers an "Unknown argument" error on the
+    // real DB and silently 500s. We read it from `parsed.data` for the
+    // forward-transition guard below, then exclude it from the update.
+    const {
+      confirmedOverride: _confirmedOverride,
+      ...jobFields
+    } = parsed.data;
+
     const job = await prisma.job.update({
       where: { id: req.params.id as string },
-      data: { ...parsed.data, updatedAt: new Date() },
+      data: { ...jobFields, updatedAt: new Date() },
     });
 
           if (parsed.data.stage && parsed.data.stage !== existing.stage) {
