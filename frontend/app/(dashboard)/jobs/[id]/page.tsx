@@ -51,6 +51,17 @@ type SavedDoc = {
 const STAGES = ['Interested', 'Applied', 'Interview', 'Offer', 'Rejected', 'Archived'] as const
 const ROUND_TYPES = ['Phone Screen', 'Technical', 'Behavioral', 'System Design', 'HR', 'Final', 'Other'] as const
 
+// Mirrors backend/src/controllers/jobs.controller.ts FORWARD_TRANSITIONS.
+// Drives the non-forward warning dialog (S2-BR-007).
+const FORWARD_TRANSITIONS: Record<string, string[]> = {
+  Interested: ['Applied', 'Rejected'],
+  Applied: ['Interview', 'Rejected'],
+  Interview: ['Offer', 'Rejected'],
+  Offer: ['Archived', 'Rejected'],
+  Rejected: [],
+  Archived: [],
+}
+
 const STAGE_BADGE: Record<string, { bg: string; text: string }> = {
   Interested: { bg: '#21262d', text: '#8b949e' },
   Applied: { bg: '#1f3d6e', text: '#58a6ff' },
@@ -118,6 +129,10 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [outcomeInput, setOutcomeInput] = useState('')
   const [savingOutcome, setSavingOutcome] = useState(false)
   const [editingOutcome, setEditingOutcome] = useState(false)
+
+  // stage transition warning (S2-BR-007 / C12)
+  const [pendingStage, setPendingStage] = useState<string | null>(null)
+  const [showTransitionWarning, setShowTransitionWarning] = useState(false)
 
   // timeline
   const [timeline, setTimeline] = useState<TimelineEvent[]>([])
@@ -309,8 +324,22 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   }, [id])
 
   async function handleStageChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const nextStage = e.target.value
-    if (!job || nextStage === job.stage || updatingStage) return
+    handleStageSelect(e.target.value)
+  }
+
+  function handleStageSelect(newStage: string) {
+    if (!job || newStage === job.stage || updatingStage) return
+    const allowed = FORWARD_TRANSITIONS[job.stage] ?? []
+    if (!allowed.includes(newStage)) {
+      setPendingStage(newStage)
+      setShowTransitionWarning(true)
+      return
+    }
+    void applyStageChange(newStage)
+  }
+
+  async function applyStageChange(nextStage: string) {
+    if (!job) return
     setUpdatingStage(true)
     const prev = job.stage
     setJob({ ...job, stage: nextStage })
@@ -322,6 +351,18 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       setJob({ ...job, stage: prev })
     }
     setUpdatingStage(false)
+  }
+
+  function cancelStageTransition() {
+    setShowTransitionWarning(false)
+    setPendingStage(null)
+  }
+
+  function confirmStageTransition() {
+    setShowTransitionWarning(false)
+    const next = pendingStage
+    setPendingStage(null)
+    if (next) void applyStageChange(next)
   }
 
   async function handleSaveMeta() {
@@ -901,6 +942,85 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         initialData={{ title: job.title, company: job.company, jobPostingBody: job.jobPostingBody, stage: job.stage }}
         onSuccess={(updated) => setJob({ ...job, ...(updated as Job) })}
       />
+
+      {showTransitionWarning && pendingStage && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="stage-warning-title"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+          }}
+        >
+          <div
+            style={{
+              background: '#161b22',
+              border: '1px solid #f85149',
+              borderRadius: '8px',
+              padding: '24px',
+              maxWidth: '400px',
+              width: '100%',
+            }}
+          >
+            <h3
+              id="stage-warning-title"
+              style={{ color: '#f85149', fontSize: '16px', fontWeight: 600, marginBottom: '8px' }}
+            >
+              Non-Forward Transition
+            </h3>
+            <p style={{ color: '#8b949e', fontSize: '14px', marginBottom: '8px' }}>
+              Moving from <strong style={{ color: '#e6edf3' }}>{job.stage}</strong> to{' '}
+              <strong style={{ color: '#e6edf3' }}>{pendingStage}</strong> is not a standard
+              forward transition.
+            </p>
+            <p style={{ color: '#8b949e', fontSize: '13px', marginBottom: '20px' }}>
+              Valid next stages from {job.stage}:{' '}
+              <strong style={{ color: '#58a6ff' }}>
+                {(FORWARD_TRANSITIONS[job.stage] ?? []).join(', ') ||
+                  'None (terminal stage)'}
+              </strong>
+            </p>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={cancelStageTransition}
+                style={{
+                  padding: '8px 16px',
+                  border: '1px solid #30363d',
+                  background: 'transparent',
+                  color: '#8b949e',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmStageTransition}
+                style={{
+                  padding: '8px 16px',
+                  background: '#f85149',
+                  border: 'none',
+                  color: '#ffffff',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                }}
+              >
+                Override Anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
