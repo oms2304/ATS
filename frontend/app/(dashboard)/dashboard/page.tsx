@@ -4,7 +4,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { apiFetch, archiveJob, restoreJob } from '@/lib/api'
 import { JobModal } from '@/components/forms/job-modal'
 import { JobCard } from '@/components/ui/job-card'
-import { updateJobStage } from '@/components/ui/stage-select'
+
+// Mirrors backend/src/controllers/jobs.controller.ts FORWARD_TRANSITIONS.
+// Drives the non-forward warning prompt on the dashboard card stage dropdown
+// (S2-BR-007 / C12).
+const FORWARD_TRANSITIONS: Record<string, string[]> = {
+  Interested: ['Applied', 'Rejected'],
+  Applied: ['Interview', 'Rejected'],
+  Interview: ['Offer', 'Rejected'],
+  Offer: ['Archived', 'Rejected'],
+  Rejected: [],
+  Archived: [],
+}
 
 type Job = {
   id: string
@@ -112,11 +123,31 @@ export default function DashboardPage() {
   }
 
   async function handleStageChange(jobId: string, nextStage: string) {
-    const prev = jobs.find((j) => j.id === jobId)?.stage
-    if (!prev || prev === nextStage) return
+    const job = jobs.find((j) => j.id === jobId)
+    if (!job || job.stage === nextStage) return
+
+    const allowed = FORWARD_TRANSITIONS[job.stage] ?? []
+    const isForward = allowed.includes(nextStage)
+
+    if (!isForward) {
+      const confirmed = window.confirm(
+        `Moving from ${job.stage} to ${nextStage} is not a standard forward transition.\n\n` +
+        `Allowed next stages: ${allowed.join(', ') || 'None (terminal stage)'}\n\n` +
+        `Override anyway?`
+      )
+      if (!confirmed) return
+    }
+
+    const prev = job.stage
     setJobs((js) => js.map((j) => (j.id === jobId ? { ...j, stage: nextStage } : j)))  // optimistic
     try {
-      await updateJobStage(jobId, nextStage)
+      await apiFetch(`/api/jobs/${jobId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          stage: nextStage,
+          confirmedOverride: !isForward,
+        }),
+      })
       fetchMetrics().catch(() => { /* stats stay; non-blocking */ })
     } catch {
       setJobs((js) => js.map((j) => (j.id === jobId ? { ...j, stage: prev } : j)))     // rollback
