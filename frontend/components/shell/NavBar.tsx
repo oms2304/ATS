@@ -7,7 +7,7 @@ import UserMenu from './UserMenu';
 
 const NAV_ITEMS = [
   { label: 'Dashboard', href: '/dashboard' },
-  // { label: 'Documents', href: '/documents' },
+  { label: 'Documents', href: '/documents' },
   { label: 'Profile',   href: '/profile'   },
   { label: 'Settings',  href: '/settings'  },
 ];

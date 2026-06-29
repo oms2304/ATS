@@ -176,4 +176,28 @@ describe('getDocuments (S2-024)', () => {
     expect(res.status).toHaveBeenCalledWith(403);
     expect(prisma.jobDocumentLink.findMany).not.toHaveBeenCalled();
   });
+
+  it('lists all of the user\'s documents with content and linked job when no jobId is given', async () => {
+    const req = mockReq();
+    const res = mockRes();
+    vi.mocked(prisma.document.findMany).mockResolvedValue([
+      {
+        id: 'doc-1',
+        type: 'cover_letter',
+        title: 'Cover Letter',
+        updatedAt: new Date(),
+        versions: [{ content: 'Dear Hiring Team', version_number: 1 }],
+        jobs: [{ job: { id: 'job-1', title: 'Engineer', company: 'Acme' } }],
+      },
+    ] as any);
+
+    await getDocuments(req, res);
+
+    expect(prisma.document.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { user_id: 'user-123' } })
+    );
+    const payload = (res.json as any).mock.calls[0][0];
+    expect(payload.data[0].content).toBe('Dear Hiring Team');
+    expect(payload.data[0].job).toEqual({ id: 'job-1', title: 'Engineer', company: 'Acme' });
+  });
 });
