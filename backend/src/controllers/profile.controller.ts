@@ -4,7 +4,7 @@ import { profileSchema } from '../schemas/profile.schema';
 
 const BASELINE_FIELDS = ['firstName', 'lastName', 'phone', 'location', 'summary'] as const;
 
-function calculateCompletionScore(profile: Partial<Record<string, unknown>>): number {
+export function calculateCompletionScore(profile: Partial<Record<string, unknown>>): number {
   const completed = BASELINE_FIELDS.filter(
     (field) => profile[field] !== null && profile[field] !== undefined && profile[field] !== ''
   ).length;
