@@ -6,7 +6,9 @@ export async function getDashboardMetrics(req: Request, res: Response) {
     const userId = req.user?.userId
     if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' })
 
-    const jobs = await prisma.job.findMany({ where: { user_id: userId } })
+    const jobs = await prisma.job.findMany({
+  where: { user_id: userId, archivedAt: null },   // exclude archived from metrics
+})
 
     // Stage counts
     const stageCounts: Record<string, number> = {

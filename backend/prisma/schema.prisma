@@ -53,6 +53,7 @@ model Job {
   deadline       DateTime?
   recruiterNotes String?   @map("recruiter_notes")
   outcomeNote    String?   @map("outcome_note")
+  archivedAt     DateTime? @map("archived_at")
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -61,6 +62,8 @@ model Job {
   interviews       Interview[]
   followUps        FollowUp[]
   stageTransitions StageTransition[]
+
+  @@index([user_id, archivedAt])
 }
 
 model JobActivity {
