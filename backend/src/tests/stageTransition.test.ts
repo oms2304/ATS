@@ -49,17 +49,41 @@ describe('Stage transition persistence (S2-026, S2-BR-009)', () => {
     });
   });
 
-  it('records a transition for a non-forward (override) change as well', async () => {
-    const req = mockReq({ body: { stage: 'Interested' } });
+  it('returns 422 on a backward (non-forward) transition (S2-BR-007 / C12)', async () => {
+    const req = mockReq({ body: { stage: 'Applied' } });
     const res = mockRes();
-    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123', stage: 'Offer' } as any);
-    vi.mocked(prisma.job.update).mockResolvedValue({ id: 'job-1', user_id: 'user-123', stage: 'Interested' } as any);
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123', stage: 'Interview' } as any);
 
     await updateJob(req, res);
 
-    expect(prisma.stageTransition.create).toHaveBeenCalledWith({
-      data: { job_id: 'job-1', fromStage: 'Offer', toStage: 'Interested' },
+    expect(res.status).toHaveBeenCalledWith(422);
+    const body = (res.json as any).mock.calls[0][0];
+    expect(body).toMatchObject({
+      success: false,
+      error: 'Invalid stage transition',
+      details: expect.objectContaining({
+        from: 'Interview',
+        to: 'Applied',
+        allowed: ['Offer', 'Rejected'],
+        requiresConfirmation: true,
+      }),
     });
+    expect(prisma.stageTransition.create).not.toHaveBeenCalled();
+    expect(prisma.jobActivity.create).not.toHaveBeenCalled();
+  });
+
+  it('returns 422 with an empty allowed list when the current stage is terminal (Rejected)', async () => {
+    const req = mockReq({ body: { stage: 'Interview' } });
+    const res = mockRes();
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123', stage: 'Rejected' } as any);
+
+    await updateJob(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(422);
+    const body = (res.json as any).mock.calls[0][0];
+    expect(body.details.allowed).toEqual([]);
+    expect(prisma.stageTransition.create).not.toHaveBeenCalled();
+    expect(prisma.jobActivity.create).not.toHaveBeenCalled();
   });
 
   it('does NOT record a transition when the stage is unchanged', async () => {
