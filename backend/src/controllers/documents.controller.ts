@@ -36,8 +36,27 @@ export async function getDocuments(req: Request, res: Response) {
     const documents = await prisma.document.findMany({
       where: { user_id: userId },
       orderBy: { updatedAt: 'desc' },
+      include: {
+        versions: { orderBy: { version_number: 'desc' }, take: 1 },
+        jobs: { include: { job: true } },
+      },
     });
-    return res.status(200).json({ success: true, data: documents });
+    const data = documents.map((doc) => {
+      const latest = doc.versions[0];
+      const link = doc.jobs[0];
+      return {
+        id: doc.id,
+        type: doc.type,
+        title: doc.title,
+        content: latest?.content ?? null,
+        versionNumber: latest?.version_number ?? 1,
+        updatedAt: doc.updatedAt,
+        job: link?.job
+          ? { id: link.job.id, title: link.job.title, company: link.job.company }
+          : null,
+      };
+    });
+    return res.status(200).json({ success: true, data });
   } catch {
     return res.status(500).json({ success: false, error: 'Failed to fetch documents' });
   }

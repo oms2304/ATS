@@ -39,6 +39,15 @@ type TimelineEvent = {
   note: string
 }
 
+type SavedDoc = {
+  id: string
+  type: string
+  title: string
+  content: string | null
+  versionNumber: number
+  updatedAt: string
+}
+
 const STAGES = ['Interested', 'Applied', 'Interview', 'Offer', 'Rejected', 'Archived'] as const
 const ROUND_TYPES = ['Phone Screen', 'Technical', 'Behavioral', 'System Design', 'HR', 'Final', 'Other'] as const
 
@@ -136,6 +145,22 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [docSavedMessage, setDocSavedMessage] = useState('')
   const [docError, setDocError] = useState('')
 
+  // Saved documents linked to this job
+  const [savedDocs, setSavedDocs] = useState<SavedDoc[]>([])
+  const [loadingDocs, setLoadingDocs] = useState(true)
+  const [expandedDocId, setExpandedDocId] = useState<string | null>(null)
+
+  async function refreshDocs() {
+    try {
+      const res = await apiFetch(`/api/documents?jobId=${id}`)
+      if (res.success && Array.isArray(res.data)) setSavedDocs(res.data)
+    } catch {
+      // leave the existing list in place on a transient failure
+    } finally {
+      setLoadingDocs(false)
+    }
+  }
+
   async function handleSaveDocument(target: 'resume' | 'coverLetter') {
     const isResume = target === 'resume'
     const content = isResume ? resumeDraft : coverLetterDraft
@@ -156,6 +181,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       if (res.success) {
         setDocSavedMessage(isResume ? 'Resume saved' : 'Cover letter saved')
         setTimeout(() => setDocSavedMessage(''), 2500)
+        refreshDocs()
       } else {
         setDocError(res.error || 'Failed to save document')
       }
@@ -257,11 +283,12 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
 
   useEffect(() => {
     async function fetchAll() {
-      const [jobRes, interviewRes, followUpRes, timelineRes] = await Promise.all([
+      const [jobRes, interviewRes, followUpRes, timelineRes, docsRes] = await Promise.all([
         apiFetch(`/api/jobs/${id}`).catch(() => null),
         apiFetch(`/api/jobs/${id}/interviews`).catch(() => ({ data: [] })),
         apiFetch(`/api/jobs/${id}/followups`).catch(() => ({ data: [] })),
         apiFetch(`/api/jobs/${id}/timeline`).catch(() => ({ data: [] })),
+        apiFetch(`/api/documents?jobId=${id}`).catch(() => ({ data: [] })),
       ])
       if (!jobRes || !jobRes.success) {
         setNotFound(true)
@@ -274,6 +301,8 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       if (interviewRes?.data) setInterviews(interviewRes.data)
       if (followUpRes?.data) setFollowUps(followUpRes.data)
       if (timelineRes?.data) setTimeline(timelineRes.data)
+      if (Array.isArray(docsRes?.data)) setSavedDocs(docsRes.data)
+      setLoadingDocs(false)
       setLoading(false)
     }
     fetchAll()
@@ -687,6 +716,42 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                   </div>
                 </div>
               )}
+            </div>
+          )}
+        </div>
+
+        {/* Saved Documents */}
+        <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-6">
+          <h2 className="text-sm font-semibold text-white mb-4">Saved Documents</h2>
+          {loadingDocs ? (
+            <p className="text-xs text-[#8b949e]">Loading...</p>
+          ) : savedDocs.length === 0 ? (
+            <p className="text-xs text-[#8b949e]">No saved documents yet. Generate a draft above and click Save.</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {savedDocs.map((doc) => (
+                <div key={doc.id} className="border border-[#30363d] rounded-lg p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm text-white">{doc.title}</p>
+                      <p className="text-xs text-[#8b949e]">
+                        {doc.type === 'cover_letter' ? 'Cover Letter' : 'Resume'} · v{doc.versionNumber}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setExpandedDocId(expandedDocId === doc.id ? null : doc.id)}
+                      className="text-xs px-3 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors shrink-0"
+                    >
+                      {expandedDocId === doc.id ? 'Hide' : 'View'}
+                    </button>
+                  </div>
+                  {expandedDocId === doc.id && (
+                    <pre className="mt-3 whitespace-pre-wrap font-sans text-sm text-[#c9d1d9] bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 max-h-96 overflow-y-auto">
+                      {doc.content}
+                    </pre>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </div>
