@@ -99,7 +99,9 @@ export const updateJob = async (req: Request, res: Response) => {
     });
 
           if (parsed.data.stage && parsed.data.stage !== existing.stage) {
-      if (!isForwardTransition(existing.stage, parsed.data.stage)) {
+      const isForward = isForwardTransition(existing.stage, parsed.data.stage);
+
+      if (!isForward && !parsed.data.confirmedOverride) {
         return res.status(422).json({
           success: false,
           error: 'Invalid stage transition',
@@ -111,6 +113,7 @@ export const updateJob = async (req: Request, res: Response) => {
           },
         });
       }
+
       await prisma.stageTransition.create({
         data: {
           job_id: job.id,

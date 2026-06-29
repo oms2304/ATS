@@ -21,6 +21,10 @@ export const createJobSchema = z.object({
 
 export const updateJobSchema = createJobSchema.partial().extend({
   stage: z.enum(STAGES).optional(),
+  // Acknowledgement flag for non-forward stage transitions (S2-BR-007 / C12).
+  // Frontend warning dialogs ask the user to confirm before sending this; the
+  // controller honors it to bypass the 422 forward-transition guard.
+  confirmedOverride: z.boolean().optional().default(false),
 });
 
 export type CreateJobInput = z.infer<typeof createJobSchema>;

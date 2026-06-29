@@ -108,4 +108,43 @@ describe('Stage transition persistence (S2-026, S2-BR-009)', () => {
     expect(res.status).toHaveBeenCalledWith(400);
     expect(prisma.stageTransition.create).not.toHaveBeenCalled();
   });
+
+  // Override path (S2-BR-007 / C12): when the frontend warning dialog has
+  // captured explicit user confirmation, the controller must accept the
+  // non-forward transition and still write the transition + activity rows.
+  it('accepts a non-forward transition when confirmedOverride is true and records the change', async () => {
+    const req = mockReq({ body: { stage: 'Applied', confirmedOverride: true } });
+    const res = mockRes();
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123', stage: 'Interview' } as any);
+    vi.mocked(prisma.job.update).mockResolvedValue({ id: 'job-1', user_id: 'user-123', stage: 'Applied' } as any);
+
+    await updateJob(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    const body = (res.json as any).mock.calls[0][0];
+    expect(body).toMatchObject({ success: true, data: { stage: 'Applied' } });
+    expect(prisma.stageTransition.create).toHaveBeenCalledWith({
+      data: { job_id: 'job-1', fromStage: 'Interview', toStage: 'Applied' },
+    });
+    expect(prisma.jobActivity.create).toHaveBeenCalledWith({
+      data: {
+        job_id: 'job-1',
+        type: 'stage_change',
+        note: 'Stage changed from Interview to Applied',
+      },
+    });
+  });
+
+  it('does not require confirmedOverride on a forward transition', async () => {
+    const req = mockReq({ body: { stage: 'Applied' } });
+    const res = mockRes();
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123', stage: 'Interested' } as any);
+    vi.mocked(prisma.job.update).mockResolvedValue({ id: 'job-1', user_id: 'user-123', stage: 'Applied' } as any);
+
+    await updateJob(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(prisma.stageTransition.create).toHaveBeenCalled();
+    expect(prisma.jobActivity.create).toHaveBeenCalled();
+  });
 });
