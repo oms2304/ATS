@@ -253,9 +253,19 @@ export default function ProfilePage() {
   }
 
   async function saveExperience() {
-    setSavingExperience(true)
     setExperienceErrors({})
     setExperienceGeneralError('')
+
+    // Frontend date validation (S2-BR-015)
+    if (experienceForm.startDate && experienceForm.endDate) {
+      if (new Date(experienceForm.endDate) < new Date(experienceForm.startDate)) {
+        setExperienceErrors({ endDate: 'End date cannot be before start date' })
+        return
+      }
+    }
+
+    setSavingExperience(true)
+
     const isEdit = editingExperience !== null
     const url = isEdit ? `/api/experience/${editingExperience!.id}` : '/api/experience'
     const method = isEdit ? 'PATCH' : 'POST'
@@ -879,6 +889,7 @@ export default function ProfilePage() {
               <input
                 value={experienceForm.title}
                 onChange={e => setExperienceForm(prev => ({ ...prev, title: e.target.value }))}
+                
                 placeholder="Enter job title"
                 className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white placeholder-[#484f58] focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all"
               />
@@ -924,7 +935,15 @@ export default function ProfilePage() {
                   <input
                     type="date"
                     value={experienceForm.endDate}
-                    onChange={e => setExperienceForm(prev => ({ ...prev, endDate: e.target.value }))}
+                    onChange={e => {
+                      const newEndDate = e.target.value
+                      setExperienceForm(prev => ({ ...prev, endDate: newEndDate }))
+                      if (experienceForm.startDate && newEndDate && new Date(newEndDate) < new Date(experienceForm.startDate)) {
+                        setExperienceErrors(prev => ({ ...prev, endDate: 'End date cannot be before start date' }))
+                      } else {
+                        setExperienceErrors(prev => ({ ...prev, endDate: '' }))
+                      }
+                    }}
                     className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white placeholder-[#484f58] focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all"
                   />
                   {experienceErrors.endDate && (
