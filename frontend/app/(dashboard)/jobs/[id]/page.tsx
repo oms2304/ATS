@@ -131,6 +131,42 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [showComparison, setShowComparison] = useState(false)
   const [activeRewriteTarget, setActiveRewriteTarget] = useState<'resume' | 'coverLetter' | null>(null)
 
+  // Save AI draft as a document linked to this job (S2-024)
+  const [savingDoc, setSavingDoc] = useState<'resume' | 'coverLetter' | null>(null)
+  const [docSavedMessage, setDocSavedMessage] = useState('')
+  const [docError, setDocError] = useState('')
+
+  async function handleSaveDocument(target: 'resume' | 'coverLetter') {
+    const isResume = target === 'resume'
+    const content = isResume ? resumeDraft : coverLetterDraft
+    if (!content.trim()) return
+    setSavingDoc(target)
+    setDocError('')
+    setDocSavedMessage('')
+    try {
+      const res = await apiFetch('/api/documents', {
+        method: 'POST',
+        body: JSON.stringify({
+          jobId: id,
+          type: isResume ? 'resume' : 'cover_letter',
+          title: isResume ? 'Resume' : 'Cover Letter',
+          content,
+        }),
+      })
+      if (res.success) {
+        setDocSavedMessage(isResume ? 'Resume saved' : 'Cover letter saved')
+        setTimeout(() => setDocSavedMessage(''), 2500)
+      } else {
+        setDocError(res.error || 'Failed to save document')
+      }
+    } catch (err) {
+      const data = (err as { data?: { error?: string } })?.data
+      setDocError(data?.error || 'Failed to save document. Please try again.')
+    } finally {
+      setSavingDoc(null)
+    }
+  }
+
   async function handleGenerateResume() {
     setGeneratingResume(true)
     setResumeError('')
@@ -585,6 +621,8 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         {/* AI Drafts */}
         <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-6">
           <h2 className="text-sm font-semibold text-white mb-4">AI Drafts</h2>
+          {docSavedMessage && <p className="text-xs text-[#3fb950] mb-3">{docSavedMessage}</p>}
+          {docError && <p className="text-xs text-[#f85149] mb-3">{docError}</p>}
           <button onClick={handleGenerateResume} disabled={generatingResume} className="text-xs px-3 py-1.5 bg-[#2f81f4] text-white rounded hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-4">
             {generatingResume ? 'Generating...' : 'Generate Resume with AI'}
           </button>
@@ -593,6 +631,11 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
             <div className="flex flex-col gap-2">
               <label className="text-xs text-[#8b949e]">Resume Draft — edit before saving</label>
               <textarea value={resumeDraft} onChange={(e) => setResumeDraft(e.target.value)} rows={20} className="w-full bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none resize-y" />
+              <div>
+                <button onClick={() => handleSaveDocument('resume')} disabled={savingDoc === 'resume'} className="text-xs px-3 py-1.5 bg-[#238636] text-white rounded hover:bg-[#2ea043] transition-colors disabled:opacity-50">
+                  {savingDoc === 'resume' ? 'Saving...' : 'Save Resume'}
+                </button>
+              </div>
             </div>
           )}
           <button onClick={handleGenerateCoverLetter} disabled={generatingCoverLetter} className="text-sm px-4 py-2 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-6 mb-4">
@@ -603,6 +646,11 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
             <div className="flex flex-col gap-2 mt-4">
               <label className="text-xs text-[#8b949e]">Cover Letter Draft — edit before saving</label>
               <textarea value={coverLetterDraft} onChange={(e) => setCoverLetterDraft(e.target.value)} rows={12} className="w-full bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none resize-y" />
+              <div>
+                <button onClick={() => handleSaveDocument('coverLetter')} disabled={savingDoc === 'coverLetter'} className="text-xs px-3 py-1.5 bg-[#238636] text-white rounded hover:bg-[#2ea043] transition-colors disabled:opacity-50">
+                  {savingDoc === 'coverLetter' ? 'Saving...' : 'Save Cover Letter'}
+                </button>
+              </div>
             </div>
           )}
           {(resumeDraft || coverLetterDraft) && (

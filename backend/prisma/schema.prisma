@@ -90,7 +90,8 @@ model DocumentVersion {
   document_id    String
   document       Document @relation(fields: [document_id], references: [id], onDelete: Cascade)
   version_number Int
-  fileUrl        String
+  fileUrl        String?
+  content        String?
   is_archived    Boolean  @default(false)
   createdAt      DateTime @default(now())
 
