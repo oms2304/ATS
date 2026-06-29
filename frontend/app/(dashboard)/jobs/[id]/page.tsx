@@ -338,13 +338,19 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     void applyStageChange(newStage)
   }
 
-  async function applyStageChange(nextStage: string) {
+  async function applyStageChange(nextStage: string, override = false) {
     if (!job) return
     setUpdatingStage(true)
     const prev = job.stage
     setJob({ ...job, stage: nextStage })
     try {
-      await apiFetch(`/api/jobs/${id}`, { method: 'PATCH', body: JSON.stringify({ stage: nextStage }) })
+      await apiFetch(`/api/jobs/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          stage: nextStage,
+          confirmedOverride: override,
+        }),
+      })
       const timelineRes = await apiFetch(`/api/jobs/${id}/timeline`).catch(() => ({ data: [] }))
       if (timelineRes?.data) setTimeline(timelineRes.data)
     } catch {
@@ -362,7 +368,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     setShowTransitionWarning(false)
     const next = pendingStage
     setPendingStage(null)
-    if (next) void applyStageChange(next)
+    if (next) void applyStageChange(next, true)
   }
 
   async function handleSaveMeta() {

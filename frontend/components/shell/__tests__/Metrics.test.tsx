@@ -1,8 +1,7 @@
 import '@testing-library/jest-dom';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import DashboardPage from '../../../app/(dashboard)/dashboard/page';
 import { AuthContext } from '@/context/AuthContext';
-import * as api from '@/lib/api';
 
 jest.mock('next/navigation', () => ({
   useRouter: jest.fn(() => ({ push: jest.fn(), replace: jest.fn() })),
@@ -21,8 +20,16 @@ jest.mock('@/components/forms/job-modal', () => ({
   JobModal: ({ open }: { open: boolean }) => open ? <div data-testid="job-modal">Modal</div> : null,
 }));
 
+const mockApiFetch = jest.fn();
+const mockArchiveJob = jest.fn((id: string) => mockApiFetch(`/api/jobs/${id}/archive`, { method: 'PATCH' }));
+const mockRestoreJob = jest.fn((id: string) => mockApiFetch(`/api/jobs/${id}/restore`, { method: 'PATCH' }));
+const mockUpdateJobStage = jest.fn((id: string, stage: string) => mockApiFetch(`/api/jobs/${id}/stage`, { method: 'PATCH', body: JSON.stringify({ stage }) }));
+
 jest.mock('@/lib/api', () => ({
-  apiFetch: jest.fn(),
+  apiFetch: (...args: unknown[]) => mockApiFetch(...args),
+  archiveJob: (...args: unknown[]) => mockArchiveJob(...args),
+  restoreJob: (...args: unknown[]) => mockRestoreJob(...args),
+  updateJobStage: (...args: unknown[]) => mockUpdateJobStage(...args),
 }));
 
 const mockUser = { userId: '1', name: 'Jane Doe', email: 'jane@example.com' };
@@ -51,7 +58,7 @@ const renderWithAuth = () => {
 describe('S2-025 - Dashboard Metrics', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (api.apiFetch as jest.Mock).mockImplementation((url: string) => {
+    mockApiFetch.mockImplementation((url: string) => {
       if (url === '/api/jobs') return Promise.resolve({ success: true, data: mockJobs });
       if (url === '/api/metrics') return Promise.resolve({ success: true, data: mockMetrics });
       return Promise.resolve({ success: true, data: [] });
@@ -66,15 +73,15 @@ describe('S2-025 - Dashboard Metrics', () => {
     expect(await screen.findByText('Response Rate')).toBeInTheDocument();
     });
 
-    it('displays correct metric values', async () => {
+  it('displays correct metric values', async () => {
     renderWithAuth();
     expect(await screen.findByTestId('metric-total-jobs')).toHaveTextContent('2');
     expect(await screen.findByTestId('metric-response-rate')).toHaveTextContent('50%');
-    });
+  });
 
   // NON-HAPPY PATH: metrics not shown when API fails
   it('does not show metrics when API returns no data', async () => {
-    (api.apiFetch as jest.Mock).mockImplementation((url: string) => {
+    mockApiFetch.mockImplementation((url: string) => {
       if (url === '/api/jobs') return Promise.resolve({ success: true, data: mockJobs });
       if (url === '/api/metrics') return Promise.resolve({ success: false });
       return Promise.resolve({ success: true, data: [] });
@@ -82,5 +89,40 @@ describe('S2-025 - Dashboard Metrics', () => {
     renderWithAuth();
     await screen.findByPlaceholderText('Search jobs...');
     expect(screen.queryByText('Total Jobs')).not.toBeInTheDocument();
+  });
+
+  // REGRESSION: dashboard stats must refresh after a mutation (archive).
+  it('refetches /api/metrics when a job is archived so the stats stay current', async () => {
+    let metricsCallCount = 0;
+    mockApiFetch.mockImplementation((url: string) => {
+      if (url === '/api/metrics') {
+        metricsCallCount += 1;
+        // 1st call: totalJobs=2; every subsequent call: totalJobs=1 (decremented once after archive)
+        return Promise.resolve({ success: true, data: { ...mockMetrics, totalJobs: metricsCallCount === 1 ? 2 : 1 } });
+      }
+      if (url === '/api/jobs') return Promise.resolve({ success: true, data: mockJobs });
+      if (url.includes('/archive')) return Promise.resolve({ success: true, data: { id: '1' } });
+      return Promise.resolve({ success: true, data: [] });
+    });
+
+    renderWithAuth();
+    // Wait for the initial fetch + first paint of the metrics card.
+    expect(await screen.findByTestId('metric-total-jobs')).toHaveTextContent('2');
+
+    // The first card's Archive button is the only "Archive" button scoped to that card.
+    const cards = await screen.findAllByTestId('job-card');
+    expect(cards.length).toBeGreaterThan(0);
+    const archiveButtons = within(cards[0]).getAllByRole('button', { name: /^archive$/i });
+    expect(archiveButtons.length).toBe(1);
+    archiveButtons[0].click();
+
+    // First confirm the refetch actually fired (proves fetchMetrics is wired).
+    await waitFor(() => {
+      expect(metricsCallCount).toBeGreaterThanOrEqual(2);
+    });
+    // Then confirm the metrics card now reflects the freshest mock data.
+    await waitFor(() => {
+      expect(screen.getByTestId('metric-total-jobs')).toHaveTextContent('1');
+    });
   });
 });

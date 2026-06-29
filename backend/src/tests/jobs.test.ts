@@ -321,12 +321,12 @@ describe('archiveJob', () => {
   const mockNext = () => vi.fn() as unknown as NextFunction;
 
   // Forward workflow: archiving an active job succeeds and sets archivedAt
-  it('should archive a job and set archivedAt', async () => {
+  it('should archive a job, set archivedAt and stage to Archived', async () => {
     const req = mockReq({ params: { id: 'job-1' } });
     const res = mockRes();
     const next = mockNext();
     const existing = { id: 'job-1', user_id: 'user-123', archivedAt: null };
-    const archived = { id: 'job-1', user_id: 'user-123', archivedAt: new Date() };
+    const archived = { id: 'job-1', user_id: 'user-123', archivedAt: new Date(), stage: 'Archived' };
     vi.mocked(prisma.job.findFirst).mockResolvedValue(existing as any);
     vi.mocked(prisma.job.update).mockResolvedValue(archived as any);
 
@@ -334,7 +334,7 @@ describe('archiveJob', () => {
 
     expect(prisma.job.update).toHaveBeenCalledWith({
       where: { id: 'job-1' },
-      data: { archivedAt: expect.any(Date) },
+      data: { archivedAt: expect.any(Date), stage: 'Archived' },
     });
     expect(res.json).toHaveBeenCalledWith({ success: true, data: archived });
   });
