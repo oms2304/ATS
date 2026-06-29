@@ -2,6 +2,22 @@ import { Request, Response } from 'express';
 import prisma from '../lib/prisma';
 import { createJobSchema, updateJobSchema } from '../schemas/job.schema';
 
+// Canonical forward-only workflow (S2-BR-005 / C12). Each value is the set of
+// stages a job is allowed to move to from the key stage. Rejected and Archived
+// are terminal — an empty array means no forward move is allowed.
+export const FORWARD_TRANSITIONS: Record<string, string[]> = {
+  Interested: ['Applied', 'Rejected'],
+  Applied: ['Interview', 'Rejected'],
+  Interview: ['Offer', 'Rejected'],
+  Offer: ['Archived', 'Rejected'],
+  Rejected: [],
+  Archived: [],
+};
+
+function isForwardTransition(from: string, to: string): boolean {
+  return FORWARD_TRANSITIONS[from]?.includes(to) ?? false;
+}
+
 export const createJob = async (req: Request, res: Response) => {
   try {
     const user_id = req.user?.userId;
@@ -83,6 +99,18 @@ export const updateJob = async (req: Request, res: Response) => {
     });
 
           if (parsed.data.stage && parsed.data.stage !== existing.stage) {
+      if (!isForwardTransition(existing.stage, parsed.data.stage)) {
+        return res.status(422).json({
+          success: false,
+          error: 'Invalid stage transition',
+          details: {
+            from: existing.stage,
+            to: parsed.data.stage,
+            allowed: FORWARD_TRANSITIONS[existing.stage] ?? [],
+            requiresConfirmation: true,
+          },
+        });
+      }
       await prisma.stageTransition.create({
         data: {
           job_id: job.id,
