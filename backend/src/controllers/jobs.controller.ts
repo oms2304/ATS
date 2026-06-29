@@ -164,7 +164,7 @@ export const archiveJob = async (req: Request, res: Response) => {
 
     const job = await prisma.job.update({
       where: { id: req.params.id as string },
-      data: { archivedAt: new Date() },
+      data: { archivedAt: new Date(), stage: 'Archived' },
     });
 
     return res.status(200).json({ success: true, data: job });
