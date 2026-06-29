@@ -155,8 +155,116 @@ async function main() {
     create: bobProfile,
   });
 
+  // Pre-seeded AI drafts so C20-C22 are demo-ready even if OpenAI is flaky.
+  // Two drafts are attached to Alice's "Marketing Coordinator" job:
+  //   - a tailored resume
+  //   - a tailored cover letter
+  const marketingJob = await prisma.job.findFirst({
+    where: { user_id: alice.id, title: 'Marketing Coordinator', company: 'BrandCo' },
+  });
+
+  if (marketingJob) {
+    const resumeContent = `ALICE ANDERSON
+Newark, NJ  |  alice@demo.test  |  +1-555-010-2233
+
+SUMMARY
+Compassionate, detail-oriented communicator with 6 years of experience
+coordinating multi-stakeholder programs in fast-paced clinical and
+team environments. Bringing the same coordination, empathy, and
+follow-through that I bring to patient care to brand, marketing, and
+event operations at BrandCo.
+
+EXPERIENCE
+City Hospital — Registered Nurse, Medical/Surgical
+  - Coordinated care for a 24-bed unit, partnering with physicians and
+    families to keep every patient on plan.
+  - Mentored new staff and ran handoffs across three shifts.
+  - Triaged fast-moving situations under tight deadlines.
+
+EDUCATION
+Nursing program with clinical rotations across Med/Surg, ICU, and
+patient education.
+
+SKILLS
+Patient education, stakeholder coordination, written communication,
+event-style scheduling, bilingual support.
+`;
+
+    const coverLetterContent = `Dear Hiring Team,
+
+I am excited to apply for the Marketing Coordinator role at BrandCo.
+My background as a Registered Nurse at City Hospital has given me a
+strong foundation in coordinating multi-stakeholder programs, writing
+clear patient-facing materials, and keeping multiple workstreams on
+schedule under tight deadlines.
+
+In my current role I coordinate care for a 24-bed medical/surgical unit,
+partnering with physicians, families, and ancillary teams to deliver a
+consistent experience. The same habits — clear written communication,
+calm triage of competing priorities, and disciplined follow-up — map
+directly to coordinating multi-channel marketing campaigns and event
+logistics in a consumer-brand environment.
+
+I would welcome the chance to bring that coordination mindset to BrandCo
+and to learn from your marketing team. Thank you for considering my
+application.
+
+Sincerely,
+Alice Anderson
+`;
+
+    const resumeDoc = await prisma.document.upsert({
+      where: { id: `seed-resume-${marketingJob.id}` },
+      update: { title: 'Resume — Marketing Coordinator (BrandCo)' },
+      create: {
+        id: `seed-resume-${marketingJob.id}`,
+        user_id: alice.id,
+        type: 'resume',
+        title: 'Resume — Marketing Coordinator (BrandCo)',
+      },
+    });
+    const resumeVersion = await prisma.documentVersion.create({
+      data: { document_id: resumeDoc.id, version_number: 1, content: resumeContent },
+    });
+
+    const coverDoc = await prisma.document.upsert({
+      where: { id: `seed-cover-${marketingJob.id}` },
+      update: { title: 'Cover Letter — Marketing Coordinator (BrandCo)' },
+      create: {
+        id: `seed-cover-${marketingJob.id}`,
+        user_id: alice.id,
+        type: 'cover_letter',
+        title: 'Cover Letter — Marketing Coordinator (BrandCo)',
+      },
+    });
+    const coverVersion = await prisma.documentVersion.create({
+      data: { document_id: coverDoc.id, version_number: 1, content: coverLetterContent },
+    });
+
+    await prisma.jobDocumentLink.upsert({
+      where: { job_id_type: { job_id: marketingJob.id, type: 'resume' } },
+      update: { document_version_id: resumeVersion.id },
+      create: {
+        job_id: marketingJob.id,
+        document_id: resumeDoc.id,
+        document_version_id: resumeVersion.id,
+        type: 'resume',
+      },
+    });
+    await prisma.jobDocumentLink.upsert({
+      where: { job_id_type: { job_id: marketingJob.id, type: 'cover_letter' } },
+      update: { document_version_id: coverVersion.id },
+      create: {
+        job_id: marketingJob.id,
+        document_id: coverDoc.id,
+        document_version_id: coverVersion.id,
+        type: 'cover_letter',
+      },
+    });
+  }
+
   console.log('Seed complete:');
-  console.log(`  alice@demo.test / Password123 (verified, full profile, ${aliceJobs.length} jobs)`);
+  console.log(`  alice@demo.test / Password123 (verified, full profile, ${aliceJobs.length} jobs, 2 seeded AI drafts)`);
   console.log('  bob@demo.test   / Password123 (verified, minimal profile)');
 }
 
