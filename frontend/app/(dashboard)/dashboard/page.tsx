@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { apiFetch, archiveJob, restoreJob } from '@/lib/api'
 import { JobModal } from '@/components/forms/job-modal'
 import { JobCard } from '@/components/ui/job-card'
@@ -49,14 +49,23 @@ export default function DashboardPage() {
     fetchJobs()
   }, [showArchived])
 
-  // Metrics are independent of the archived toggle.
-  useEffect(() => {
-    async function fetchMetrics() {
-      const res = await apiFetch('/api/metrics')
-      if (res.success) setMetrics(res.data)
-    }
-    fetchMetrics()
+  // Metrics are independent of the archived toggle; refetched after every mutation.
+  const fetchMetrics = useCallback(async () => {
+    const res = await apiFetch('/api/metrics')
+    if (res.success) setMetrics(res.data)
   }, [])
+
+  // Fire-and-forget initial fetch. We don't gate render on this; the metrics
+  // card simply renders once `metrics` is non-null. The refetch is idempotent
+  // so a second tick (e.g. from the mutation handlers) is harmless.
+  useEffect(() => {
+    // setState here happens inside the async callback, not synchronously after
+    // the effect body returns. The lint rule for `set-state-in-effect` is a
+    // false positive for "fetch-on-mount + refetch-on-mutation" patterns, which
+    // are exactly what `fetchMetrics` implements.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchMetrics()
+  }, [fetchMetrics])
 
   const filteredJobs = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -99,6 +108,7 @@ export default function DashboardPage() {
       const exists = prev.some((j) => j.id === job.id)
       return exists ? prev.map((j) => (j.id === job.id ? job : j)) : [job, ...prev]
     })
+    fetchMetrics().catch(() => { /* stats stay; non-blocking */ })
   }
 
   async function handleStageChange(jobId: string, nextStage: string) {
@@ -107,6 +117,7 @@ export default function DashboardPage() {
     setJobs((js) => js.map((j) => (j.id === jobId ? { ...j, stage: nextStage } : j)))  // optimistic
     try {
       await updateJobStage(jobId, nextStage)
+      fetchMetrics().catch(() => { /* stats stay; non-blocking */ })
     } catch {
       setJobs((js) => js.map((j) => (j.id === jobId ? { ...j, stage: prev } : j)))     // rollback
     }
@@ -117,6 +128,7 @@ export default function DashboardPage() {
     setJobs((js) => js.filter((j) => j.id !== jobId))  // optimistic remove from active list
     try {
       await archiveJob(jobId)
+      fetchMetrics().catch(() => { /* stats stay; non-blocking */ })
     } catch {
       setJobs(snapshot)  // rollback on failure
     }
@@ -127,6 +139,7 @@ export default function DashboardPage() {
     setJobs((js) => js.filter((j) => j.id !== jobId))  // optimistic remove from archived view
     try {
       await restoreJob(jobId)
+      fetchMetrics().catch(() => { /* stats stay; non-blocking */ })
     } catch {
       setJobs(snapshot)  // rollback on failure
     }
