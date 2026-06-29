@@ -111,6 +111,36 @@ function countWords(text: string) {
   return text.trim() === '' ? 0 : text.trim().split(/\s+/).length
 }
 
+// Pull field-level validation errors off a failed apiFetch call. apiFetch throws
+// on non-2xx and attaches the parsed body as err.data, so a 400 from a section
+// save carries { fields | errors: { field: [msg] } }. We flatten to one message
+// per field so each input can show its own error (S2-BR-017).
+function extractFieldErrors(err: unknown): {
+  fields: Record<string, string> | null
+  message: string
+} {
+  const data = (
+    err as {
+      data?: {
+        fields?: Record<string, unknown>
+        errors?: Record<string, unknown>
+        error?: string
+      }
+    }
+  )?.data
+  const raw = data?.fields ?? data?.errors
+  if (raw && typeof raw === 'object') {
+    const flat: Record<string, string> = {}
+    for (const key of Object.keys(raw)) {
+      const value = (raw as Record<string, unknown>)[key]
+      flat[key] = Array.isArray(value) ? String(value[0]) : String(value)
+    }
+    return { fields: flat, message: data?.error ?? 'Validation failed' }
+  }
+  const fallback = err instanceof Error ? err.message : ''
+  return { fields: null, message: data?.error ?? fallback ?? 'Something went wrong' }
+}
+
 export default function ProfilePage() {
   const { user: authUser, setUser: setAuthUser } = useAuth()
   const [profile, setProfile] = useState<Profile>({
@@ -129,6 +159,7 @@ export default function ProfilePage() {
   const [editingSummary, setEditingSummary] = useState(false)
   const [savedMessage, setSavedMessage] = useState('')
   const [identityErrors, setIdentityErrors] = useState<Record<string, string>>({})
+  const [identityError, setIdentityError] = useState('')
   const [summaryError, setSummaryError] = useState('')
   const [experiences, setExperiences] = useState<Experience[]>([])
   const [loadingExperiences, setLoadingExperiences] = useState(true)
@@ -249,8 +280,10 @@ export default function ProfilePage() {
           setExperienceGeneralError(res.error || 'Something went wrong')
         }
       }
-    } catch {
-      setExperienceGeneralError('Failed to save. Please try again.')
+    } catch (err) {
+      const { fields, message } = extractFieldErrors(err)
+      if (fields) setExperienceErrors(fields)
+      else setExperienceGeneralError(message)
     } finally {
       setSavingExperience(false)
     }
@@ -340,8 +373,10 @@ export default function ProfilePage() {
           setEducationGeneralError(res.error || 'Something went wrong')
         }
       }
-    } catch {
-      setEducationGeneralError('Failed to save. Please try again.')
+    } catch (err) {
+      const { fields, message } = extractFieldErrors(err)
+      if (fields) setEducationErrors(fields)
+      else setEducationGeneralError(message)
     } finally {
       setSavingEducation(false)
     }
@@ -427,8 +462,10 @@ export default function ProfilePage() {
           setSkillGeneralError(res.error || 'Something went wrong')
         }
       }
-    } catch {
-      setSkillGeneralError('Failed to save. Please try again.')
+    } catch (err) {
+      const { fields, message } = extractFieldErrors(err)
+      if (fields) setSkillErrors(fields)
+      else setSkillGeneralError(message)
     } finally {
       setSavingSkill(false)
     }
@@ -526,8 +563,10 @@ export default function ProfilePage() {
           setPreferencesGeneralError(res.error || 'Something went wrong')
         }
       }
-    } catch {
-      setPreferencesGeneralError('Failed to save. Please try again.')
+    } catch (err) {
+      const { fields, message } = extractFieldErrors(err)
+      if (fields) setPreferencesErrors(fields)
+      else setPreferencesGeneralError(message)
     } finally {
       setSavingPreferences(false)
     }
@@ -600,33 +639,41 @@ export default function ProfilePage() {
       return
     }
     setIdentityErrors({})
+    setIdentityError('')
     setSavingIdentity(true)
-    const res = await apiFetch('/api/profile', {
-      method: 'PATCH',
-      body: JSON.stringify(profile)
-    })
-    if (res.success && res.data) {
-      const updatedFirstName = res.data.firstName ?? profile.firstName
-      const updatedLastName = res.data.lastName ?? profile.lastName
-      setProfile({
-        firstName: updatedFirstName,
-        lastName: updatedLastName,
-        phone: res.data.phone ?? '',
-        location: res.data.location ?? '',
-        linkedIn: res.data.linkedIn ?? '',
-        summary: res.data.summary ?? '',
-        completionScore: res.data.completionScore ?? 0,
+    try {
+      const res = await apiFetch('/api/profile', {
+        method: 'PATCH',
+        body: JSON.stringify(profile)
       })
-      if (authUser) {
-        setAuthUser({
-          ...authUser,
-          name: `${updatedFirstName} ${updatedLastName}`.trim(),
+      if (res.success && res.data) {
+        const updatedFirstName = res.data.firstName ?? profile.firstName
+        const updatedLastName = res.data.lastName ?? profile.lastName
+        setProfile({
+          firstName: updatedFirstName,
+          lastName: updatedLastName,
+          phone: res.data.phone ?? '',
+          location: res.data.location ?? '',
+          linkedIn: res.data.linkedIn ?? '',
+          summary: res.data.summary ?? '',
+          completionScore: res.data.completionScore ?? 0,
         })
+        if (authUser) {
+          setAuthUser({
+            ...authUser,
+            name: `${updatedFirstName} ${updatedLastName}`.trim(),
+          })
+        }
+        setEditingIdentity(false)
+        showSaved('Identity saved')
       }
-      setEditingIdentity(false)
-      showSaved('Identity saved')
+    } catch (err) {
+      const { fields, message } = extractFieldErrors(err)
+      if (fields) setIdentityErrors(fields)
+      else setIdentityError(message)
+    } finally {
+      setSavingIdentity(false)
     }
-    setSavingIdentity(false)
   }
 
   async function saveSummary() {
@@ -637,24 +684,30 @@ export default function ProfilePage() {
     }
     setSummaryError('')
     setSavingSummary(true)
-    const res = await apiFetch('/api/profile', {
-      method: 'PATCH',
-      body: JSON.stringify(profile)
-    })
-    if (res.success && res.data) {
-      setProfile({
-        firstName: res.data.firstName ?? '',
-        lastName: res.data.lastName ?? '',
-        phone: res.data.phone ?? '',
-        location: res.data.location ?? '',
-        linkedIn: res.data.linkedIn ?? '',
-        summary: res.data.summary ?? '',
-        completionScore: res.data.completionScore ?? 0,
+    try {
+      const res = await apiFetch('/api/profile', {
+        method: 'PATCH',
+        body: JSON.stringify(profile)
       })
-      setEditingSummary(false)
-      showSaved('Summary saved')
+      if (res.success && res.data) {
+        setProfile({
+          firstName: res.data.firstName ?? '',
+          lastName: res.data.lastName ?? '',
+          phone: res.data.phone ?? '',
+          location: res.data.location ?? '',
+          linkedIn: res.data.linkedIn ?? '',
+          summary: res.data.summary ?? '',
+          completionScore: res.data.completionScore ?? 0,
+        })
+        setEditingSummary(false)
+        showSaved('Summary saved')
+      }
+    } catch (err) {
+      const { fields, message } = extractFieldErrors(err)
+      setSummaryError(fields?.summary ?? message)
+    } finally {
+      setSavingSummary(false)
     }
-    setSavingSummary(false)
   }
 
   const completion = calcCompletion(profile)
@@ -705,6 +758,7 @@ export default function ProfilePage() {
             <button
               onClick={() => {
                 setIdentityErrors({})
+                setIdentityError('')
                 setEditingIdentity(true)
               }}
               className="text-sm px-4 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors"
@@ -742,6 +796,9 @@ export default function ProfilePage() {
             </div>
           ))}
         </div>
+        {identityError && (
+          <p className="text-red-500 text-xs mt-3">{identityError}</p>
+        )}
       </div>
 
       <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-6">
