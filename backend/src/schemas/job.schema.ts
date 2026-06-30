@@ -6,7 +6,6 @@ export const STAGES = [
   'Interview',
   'Offer',
   'Rejected',
-  'Archived',
 ] as const;
 
 export const createJobSchema = z.object({

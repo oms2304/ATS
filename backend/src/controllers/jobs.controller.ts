@@ -3,15 +3,15 @@ import prisma from '../lib/prisma';
 import { createJobSchema, updateJobSchema } from '../schemas/job.schema';
 
 // Canonical forward-only workflow (S2-BR-005 / C12). Each value is the set of
-// stages a job is allowed to move to from the key stage. Rejected and Archived
-// are terminal — an empty array means no forward move is allowed.
+// stages a job is allowed to move to from the key stage. Rejected is terminal —
+// an empty array means no forward move is allowed. Archiving is a separate
+// concern handled via archivedAt, not a stage.
 export const FORWARD_TRANSITIONS: Record<string, string[]> = {
   Interested: ['Applied', 'Rejected'],
   Applied: ['Interview', 'Rejected'],
   Interview: ['Offer', 'Rejected'],
-  Offer: ['Archived', 'Rejected'],
+  Offer: ['Rejected'],
   Rejected: [],
-  Archived: [],
 };
 
 function isForwardTransition(from: string, to: string): boolean {
