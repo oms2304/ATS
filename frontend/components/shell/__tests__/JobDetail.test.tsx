@@ -31,7 +31,7 @@ describe('S2-005 - Job Card to Job Detail Expansion', () => {
   it('job card links to correct job detail URL', () => {
     render(
       <AuthContext.Provider value={{ user: mockUser, isLoading: false, login: jest.fn(), logout: jest.fn(), setUser: jest.fn() }}>
-        <JobCard job={mockCardJob} onEdit={jest.fn()} />
+        <JobCard job={mockCardJob} onEdit={jest.fn()} onArchive={jest.fn()} onRestore={jest.fn()} />
       </AuthContext.Provider>
     );
     const link = screen.getByTestId('job-card').closest('a');
@@ -41,7 +41,7 @@ describe('S2-005 - Job Card to Job Detail Expansion', () => {
   it('job card displays baseline fields for detail navigation', () => {
     render(
       <AuthContext.Provider value={{ user: mockUser, isLoading: false, login: jest.fn(), logout: jest.fn(), setUser: jest.fn() }}>
-        <JobCard job={mockCardJob} onEdit={jest.fn()} />
+        <JobCard job={mockCardJob} onEdit={jest.fn()} onArchive={jest.fn()} onRestore={jest.fn()} />
       </AuthContext.Provider>
     );
     expect(screen.getByTestId('job-title')).toHaveTextContent('Frontend Developer');
