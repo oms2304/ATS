@@ -64,12 +64,13 @@ interface JobCardProps {
 }
 
 export function JobCard({ job, onEdit, onStageChange, onArchive, onRestore }: JobCardProps) {
-  const badge = STAGE_BADGE[job.stage] ?? STAGE_BADGE.Interested
-  const progress = STAGE_PROGRESS[job.stage] ?? 0
-  const progressColor = STAGE_PROGRESS_COLOR[job.stage] ?? '#2f81f4'
+  const displayStage = job.archivedAt ? 'Archived' : job.stage
+  const badge = STAGE_BADGE[displayStage] ?? STAGE_BADGE.Interested
+  const progress = STAGE_PROGRESS[displayStage] ?? 0
+  const progressColor = STAGE_PROGRESS_COLOR[displayStage] ?? '#2f81f4'
   const daysSinceUpdate = getDaysSinceUpdate(job.updatedAt)
   const isStale = daysSinceUpdate >= 7 && job.stage !== 'Rejected' && !job.archivedAt
-  const isTerminal = job.stage === 'Rejected' || job.stage === 'Archived'
+  const isTerminal = job.stage === 'Rejected' || !!job.archivedAt
 
   return (
     <Link
@@ -106,7 +107,7 @@ export function JobCard({ job, onEdit, onStageChange, onArchive, onRestore }: Jo
               style={{ backgroundColor: badge.bg, color: badge.text }}
               data-testid="job-stage"
             >
-              {job.stage}
+              {displayStage}
             </span>
           )}
         </div>
