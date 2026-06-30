@@ -94,19 +94,20 @@ See "Subjective Q&A — Top Talking Points" at the bottom of this file.
 
 ## C12 Demo Script (the new forward-only transition)
 
-Use the Marketing Coordinator job (currently in `Offer` after step C11) or any non-Rejected/Archived job.
+Use the Marketing Coordinator job (currently in `Offer` after step C11) or any non-terminal job.
 
 1. Click the stage select in the page header.
 2. Try to move it to a stage that is **not** in `FORWARD_TRANSITIONS` for the current stage.
    - From `Offer`, the only forward moves are `Archived` or `Rejected`. Anything else (e.g. back to `Applied`) is non-forward.
 3. The **Non-Forward Transition** warning dialog appears.
 4. It states the current stage, the target stage, and lists the valid next stages in blue.
-5. Click **Cancel** first — nothing changes on the page. State is preserved.
+5. Click **Cancel** — nothing changes on the page. The state is preserved.
 6. Click the stage select again and pick the same non-forward stage.
-7. This time click **Override Anyway** — the PATCH fires. The 422 path is exercised; the UI rolls back the optimistic update because `applyStageChange` catches the rejection.
-8. Land on a successful forward move (e.g. `Offer` -> `Archived`) to leave the demo on a clean state.
+7. This time click **Override Anyway** — the PATCH fires with `confirmedOverride: true`. The server returns 200, the stage changes, and a `StageTransition` plus a `JobActivity` row are written.
+8. Reload the page. The new stage and the timeline entry persist.
+9. Land on a successful forward move (e.g. `Offer` -> `Archived`) to leave the demo on a clean state.
 
-If asked how the rule is enforced on the backend: the `FORWARD_TRANSITIONS` table in `backend/src/controllers/jobs.controller.ts` returns HTTP 422 with `details.allowed` listing the legal next stages. Two tests in `backend/src/tests/stageTransition.test.ts` cover backward moves and terminal stages.
+If asked how the rule is enforced on the backend: the `FORWARD_TRANSITIONS` table in `backend/src/controllers/jobs.controller.ts` returns HTTP 422 with `details.allowed` listing the legal next stages **unless** the request includes `confirmedOverride: true`. The dashboard dropdown's `window.confirm` path is the one that demonstrates the 422 rollback: if the user clicks Cancel on the native confirm, no PATCH is sent; if they accept, the request is sent without `confirmedOverride` (or with it false), the server returns 422, and the dashboard's `setJobs` snapshot is restored.
 
 ---
 
@@ -176,4 +177,4 @@ The workflow lives at `.github/workflows/ci.yml` and runs `lint`, `build`, and `
 
 1. **Stage list inconsistency.** Dashboard shows 5 stages (no Archived), Job Detail shows 6 (with Archived). Intentional — Archived is a separate view, not a transition stage. Mention this in one sentence so the grader doesn't read it as a bug.
 2. **OpenAI live demo risk.** Section 4a of the implementation seeds two drafts so a live OpenAI failure during the demo does not lose C20-C22.
-3. **Existing test in `stageTransition.test.ts` was rewritten.** The previous "non-forward override" test (lines 52-63) is replaced by the two new 422 tests. The new behavior is the source of truth.
+3. **The Override Anyway button is a deliberate-action affordance, not a hard block.** The server still accepts the override (`confirmedOverride: true`) and writes the transition. The 422 path is exercised only on the dashboard dropdown's native `window.confirm` flow, where `confirmedOverride` is not sent.

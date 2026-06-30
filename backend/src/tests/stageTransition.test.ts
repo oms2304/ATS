@@ -86,6 +86,33 @@ describe('Stage transition persistence (S2-026, S2-BR-009)', () => {
     expect(prisma.jobActivity.create).not.toHaveBeenCalled();
   });
 
+  // Override path (S2-BR-007 / C12): when the frontend warning dialog has
+  // captured explicit user confirmation, the controller accepts the non-forward
+  // transition and still writes the transition + activity rows. The dialog is a
+  // deliberate-action affordance, not a hard block.
+  it('accepts a non-forward transition when confirmedOverride is true and records the change (S2-BR-007 / C12)', async () => {
+    const req = mockReq({ body: { stage: 'Applied', confirmedOverride: true } });
+    const res = mockRes();
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123', stage: 'Interview' } as any);
+    vi.mocked(prisma.job.update).mockResolvedValue({ id: 'job-1', user_id: 'user-123', stage: 'Applied' } as any);
+
+    await updateJob(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    const body = (res.json as any).mock.calls[0][0];
+    expect(body).toMatchObject({ success: true, data: { stage: 'Applied' } });
+    expect(prisma.stageTransition.create).toHaveBeenCalledWith({
+      data: { job_id: 'job-1', fromStage: 'Interview', toStage: 'Applied' },
+    });
+    expect(prisma.jobActivity.create).toHaveBeenCalledWith({
+      data: {
+        job_id: 'job-1',
+        type: 'stage_change',
+        note: 'Stage changed from Interview to Applied',
+      },
+    });
+  });
+
   it('does NOT record a transition when the stage is unchanged', async () => {
     const req = mockReq({ body: { title: 'New Title' } });
     const res = mockRes();
@@ -107,32 +134,6 @@ describe('Stage transition persistence (S2-026, S2-BR-009)', () => {
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(prisma.stageTransition.create).not.toHaveBeenCalled();
-  });
-
-  // Override path (S2-BR-007 / C12): when the frontend warning dialog has
-  // captured explicit user confirmation, the controller must accept the
-  // non-forward transition and still write the transition + activity rows.
-  it('accepts a non-forward transition when confirmedOverride is true and records the change', async () => {
-    const req = mockReq({ body: { stage: 'Applied', confirmedOverride: true } });
-    const res = mockRes();
-    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123', stage: 'Interview' } as any);
-    vi.mocked(prisma.job.update).mockResolvedValue({ id: 'job-1', user_id: 'user-123', stage: 'Applied' } as any);
-
-    await updateJob(req, res);
-
-    expect(res.status).toHaveBeenCalledWith(200);
-    const body = (res.json as any).mock.calls[0][0];
-    expect(body).toMatchObject({ success: true, data: { stage: 'Applied' } });
-    expect(prisma.stageTransition.create).toHaveBeenCalledWith({
-      data: { job_id: 'job-1', fromStage: 'Interview', toStage: 'Applied' },
-    });
-    expect(prisma.jobActivity.create).toHaveBeenCalledWith({
-      data: {
-        job_id: 'job-1',
-        type: 'stage_change',
-        note: 'Stage changed from Interview to Applied',
-      },
-    });
   });
 
   it('does not require confirmedOverride on a forward transition', async () => {
@@ -160,21 +161,6 @@ describe('Stage transition persistence (S2-026, S2-BR-009)', () => {
 
     await updateJob(req, res);
 
-    expect(prisma.job.update).toHaveBeenCalledTimes(1);
-    const updateArgs = (prisma.job.update as any).mock.calls[0][0];
-    expect(updateArgs.data).not.toHaveProperty('confirmedOverride');
-    expect(updateArgs.data).toMatchObject({ stage: 'Applied' });
-  });
-
-  it('does not pass confirmedOverride into prisma.job.update (override path)', async () => {
-    const req = mockReq({ body: { stage: 'Applied', confirmedOverride: true } });
-    const res = mockRes();
-    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123', stage: 'Interview' } as any);
-    vi.mocked(prisma.job.update).mockResolvedValue({ id: 'job-1', user_id: 'user-123', stage: 'Applied' } as any);
-
-    await updateJob(req, res);
-
-    expect(res.status).toHaveBeenCalledWith(200);
     expect(prisma.job.update).toHaveBeenCalledTimes(1);
     const updateArgs = (prisma.job.update as any).mock.calls[0][0];
     expect(updateArgs.data).not.toHaveProperty('confirmedOverride');
