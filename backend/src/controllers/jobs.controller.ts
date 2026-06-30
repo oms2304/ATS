@@ -98,20 +98,14 @@ export const updateJob = async (req: Request, res: Response) => {
     // it into prisma.job.update triggers an "Unknown argument" error on the
     // real DB and silently 500s. We read it from `parsed.data` for the
     // forward-transition guard below, then exclude it from the update.
-    const {
-      confirmedOverride: _confirmedOverride,
-      ...jobFields
-    } = parsed.data;
+    const { confirmedOverride, ...jobFields } = parsed.data;
 
-    const job = await prisma.job.update({
-      where: { id: req.params.id as string },
-      data: { ...jobFields, updatedAt: new Date() },
-    });
-
-          if (parsed.data.stage && parsed.data.stage !== existing.stage) {
+    // Forward-transition guard runs BEFORE any DB write so a blocked
+    // transition persists nothing (S2-BR-007 / C12).
+    if (parsed.data.stage && parsed.data.stage !== existing.stage) {
       const isForward = isForwardTransition(existing.stage, parsed.data.stage);
 
-      if (!isForward && !parsed.data.confirmedOverride) {
+      if (!isForward && !confirmedOverride) {
         return res.status(422).json({
           success: false,
           error: 'Invalid stage transition',
@@ -123,7 +117,14 @@ export const updateJob = async (req: Request, res: Response) => {
           },
         });
       }
+    }
 
+    const job = await prisma.job.update({
+      where: { id: req.params.id as string },
+      data: { ...jobFields, updatedAt: new Date() },
+    });
+
+    if (parsed.data.stage && parsed.data.stage !== existing.stage) {
       await prisma.stageTransition.create({
         data: {
           job_id: job.id,
@@ -131,7 +132,6 @@ export const updateJob = async (req: Request, res: Response) => {
           toStage: parsed.data.stage,
         },
       });
-
       await prisma.jobActivity.create({
         data: {
           job_id: job.id,
