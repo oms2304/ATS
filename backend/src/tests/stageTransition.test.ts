@@ -180,4 +180,19 @@ describe('Stage transition persistence (S2-026, S2-BR-009)', () => {
     expect(updateArgs.data).not.toHaveProperty('confirmedOverride');
     expect(updateArgs.data).toMatchObject({ stage: 'Applied' });
   });
+
+  it('does not write to the DB when a non-forward transition is blocked', async () => {
+    const req = mockReq({ body: { stage: 'Applied' } });
+    const res = mockRes();
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({
+      id: 'job-1',
+      user_id: 'user-123',
+      stage: 'Interview',
+    } as any);
+
+    await updateJob(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(422);
+    expect(prisma.job.update).not.toHaveBeenCalled();
+  });
 });
