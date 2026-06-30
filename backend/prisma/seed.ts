@@ -443,10 +443,40 @@ Alice Anderson
     });
   }
 
+  // Seed one deliberately STALE job so the orange "Stale" badge (7+ days since
+  // updatedAt) is demo-ready on first load. Backdate updatedAt ~10 days. Stage is
+  // not Rejected and the job is not archived, so isStale resolves true in
+  // frontend/components/ui/job-card.tsx.
+  const staleDate = new Date();
+  staleDate.setDate(staleDate.getDate() - 10);
+
+  const STALE_TITLE = 'Home Health Nurse';
+  const STALE_COMPANY = 'CareFirst Home Health';
+  let staleJob = await prisma.job.findFirst({
+    where: { user_id: alice.id, title: STALE_TITLE, company: STALE_COMPANY },
+  });
+  if (!staleJob) {
+    staleJob = await prisma.job.create({
+      data: {
+        user_id: alice.id,
+        title: STALE_TITLE,
+        company: STALE_COMPANY,
+        jobPostingBody:
+          'Deliver in-home nursing care to homebound patients: wound care, ' +
+          'medication management, and family education. Applied two weeks ago, ' +
+          'no response yet.',
+        stage: 'Applied',
+        updatedAt: staleDate,
+      },
+    });
+  }
+  // Guarantee the backdate regardless of Prisma @updatedAt behavior on create.
+  await prisma.$executeRaw`UPDATE "Job" SET "updatedAt" = ${staleDate} WHERE id = ${staleJob.id}`;
+
   console.log('Seed complete:');
   console.log('  alice@demo.test / Password123');
   console.log('    - Profile: 5/5 baseline fields + 1 Experience + 1 Education + 3 Skills + CareerPreferences');
-  console.log(`    - Jobs: ${aliceJobs.length} (Interested, Applied, Interview, Offer, Rejected)`);
+  console.log(`    - Jobs: ${aliceJobs.length + 1} (Interested, Applied, Interview, Offer, Rejected + 1 intentionally Stale)`);
   console.log('    - Rejected job has 3 seeded StageTransitions and 3 JobActivity rows');
   console.log('    - Marketing Coordinator has 1 pre-seeded Interview + 1 FollowUp + 2 AI drafts');
   console.log('  bob@demo.test   / Password123 (verified, minimal profile)');
