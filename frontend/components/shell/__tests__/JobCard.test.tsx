@@ -22,7 +22,7 @@ const mockJob = {
 describe('JobCard', () => {
   // HAPPY PATH: renders baseline fields
   it('renders job title, company, stage and date', () => {
-    render(<JobCard job={mockJob} onEdit={jest.fn()} />);
+    render(<JobCard job={mockJob} onEdit={jest.fn()} onArchive={jest.fn()} onRestore={jest.fn()} />);
     expect(screen.getByTestId('job-title')).toHaveTextContent('Frontend Developer');
     expect(screen.getByTestId('job-company')).toHaveTextContent('Acme Corp');
     expect(screen.getByTestId('job-stage')).toHaveTextContent('Applied');
@@ -31,7 +31,7 @@ describe('JobCard', () => {
 
   // HAPPY PATH: progress bar renders
   it('renders progress bar', () => {
-    render(<JobCard job={mockJob} onEdit={jest.fn()} />);
+    render(<JobCard job={mockJob} onEdit={jest.fn()} onArchive={jest.fn()} onRestore={jest.fn()} />);
     const progress = screen.getByTestId('job-progress');
     expect(progress).toBeInTheDocument();
     expect(progress).toHaveStyle({ width: '40%' });
@@ -40,14 +40,14 @@ describe('JobCard', () => {
   // HAPPY PATH: edit button calls onEdit
   it('calls onEdit when edit button is clicked', () => {
     const mockOnEdit = jest.fn();
-    render(<JobCard job={mockJob} onEdit={mockOnEdit} />);
+    render(<JobCard job={mockJob} onEdit={mockOnEdit} onArchive={jest.fn()} onRestore={jest.fn()} />);
     fireEvent.click(screen.getByText('Edit'));
     expect(mockOnEdit).toHaveBeenCalledWith(mockJob);
   });
 
   // HAPPY PATH: view link has correct href
   it('renders view link with correct job id', () => {
-    render(<JobCard job={mockJob} onEdit={jest.fn()} />);
+    render(<JobCard job={mockJob} onEdit={jest.fn()} onArchive={jest.fn()} onRestore={jest.fn()} />);
     const viewLink = screen.getByText('View').closest('a');
     expect(viewLink).toHaveAttribute('href', '/jobs/1');
   });
@@ -55,14 +55,14 @@ describe('JobCard', () => {
   // NON-HAPPY PATH: unknown stage falls back to default badge
   it('renders correctly with unknown stage', () => {
     const jobWithUnknownStage = { ...mockJob, stage: 'Unknown' };
-    render(<JobCard job={jobWithUnknownStage} onEdit={jest.fn()} />);
+    render(<JobCard job={jobWithUnknownStage} onEdit={jest.fn()} onArchive={jest.fn()} onRestore={jest.fn()} />);
     expect(screen.getByTestId('job-stage')).toHaveTextContent('Unknown');
   });
 
   // NON-HAPPY PATH: invalid date renders gracefully
   it('renders gracefully with invalid date', () => {
     const jobWithBadDate = { ...mockJob, updatedAt: 'invalid-date' };
-    render(<JobCard job={jobWithBadDate} onEdit={jest.fn()} />);
+    render(<JobCard job={jobWithBadDate} onEdit={jest.fn()} onArchive={jest.fn()} onRestore={jest.fn()} />);
     expect(screen.getByTestId('job-card')).toBeInTheDocument();
   });
 
@@ -73,13 +73,13 @@ it('shows stale indicator when job not updated for 7+ days', () => {
     stage: 'Applied',
     updatedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
   };
-  render(<JobCard job={staleJob} onEdit={jest.fn()} />);
+  render(<JobCard job={staleJob} onEdit={jest.fn()} onArchive={jest.fn()} onRestore={jest.fn()} />);
   expect(screen.getByTestId('job-stale')).toBeInTheDocument();
   expect(screen.getByTestId('job-stale')).toHaveTextContent('Stale');
 });
 
 it('does not show stale indicator for recently updated job', () => {
-  render(<JobCard job={mockJob} onEdit={jest.fn()} />);
+  render(<JobCard job={mockJob} onEdit={jest.fn()} onArchive={jest.fn()} onRestore={jest.fn()} />);
   expect(screen.queryByTestId('job-stale')).not.toBeInTheDocument();
 });
 
@@ -89,7 +89,7 @@ it('does not show stale indicator for Rejected jobs', () => {
     stage: 'Rejected',
     updatedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
   };
-  render(<JobCard job={rejectedJob} onEdit={jest.fn()} />);
+  render(<JobCard job={rejectedJob} onEdit={jest.fn()} onArchive={jest.fn()} onRestore={jest.fn()} />);
   expect(screen.queryByTestId('job-stale')).not.toBeInTheDocument();
 });
 
@@ -99,7 +99,7 @@ it('does not show stale indicator for Archived jobs', () => {
     stage: 'Archived',
     updatedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
   };
-  render(<JobCard job={archivedJob} onEdit={jest.fn()} />);
+  render(<JobCard job={archivedJob} onEdit={jest.fn()} onArchive={jest.fn()} onRestore={jest.fn()} />);
   expect(screen.queryByTestId('job-stale')).not.toBeInTheDocument();
 });
 

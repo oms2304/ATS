@@ -27,9 +27,9 @@ const mockUpdateJobStage = jest.fn((id: string, stage: string) => mockApiFetch(`
 
 jest.mock('@/lib/api', () => ({
   apiFetch: (...args: unknown[]) => mockApiFetch(...args),
-  archiveJob: (...args: unknown[]) => mockArchiveJob(...args),
-  restoreJob: (...args: unknown[]) => mockRestoreJob(...args),
-  updateJobStage: (...args: unknown[]) => mockUpdateJobStage(...args),
+  archiveJob: (id: string) => mockArchiveJob(id),
+  restoreJob: (id: string) => mockRestoreJob(id),
+  updateJobStage: (id: string, stage: string) => mockUpdateJobStage(id, stage),
 }));
 
 const mockUser = { userId: '1', name: 'Jane Doe', email: 'jane@example.com' };

@@ -2,7 +2,7 @@
 
 import { apiFetch } from '@/lib/api'
 
-export const STAGES = ['Interested', 'Applied', 'Interview', 'Offer', 'Rejected', 'Archived'] as const 
+export const STAGES = ['Interested', 'Applied', 'Interview', 'Offer', 'Rejected'] as const 
 
 export const STAGE_BADGE: Record<string, { bg: string; text: string }> = {
     Interested: { bg: '#21262d', text: '#8b949e'},
@@ -10,7 +10,7 @@ export const STAGE_BADGE: Record<string, { bg: string; text: string }> = {
     Interview:  { bg: '#2d1f6e', text: '#bc8cff' },
     Offer:      { bg: '#1a3d2b', text: '#3fb950' },
     Rejected:   { bg: '#3d1f1f', text: '#f85149' },
-    Archived:   { bg: '#21262d', text: '#8b949e' },
+    // Archived:   { bg: '#21262d', text: '#8b949e' },
 }
 
 export async function updateJobStage(jobId: string, stage: string) {
