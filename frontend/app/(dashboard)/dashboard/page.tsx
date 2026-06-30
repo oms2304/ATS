@@ -12,7 +12,7 @@ const FORWARD_TRANSITIONS: Record<string, string[]> = {
   Interested: ['Applied', 'Rejected'],
   Applied: ['Interview', 'Rejected'],
   Interview: ['Offer', 'Rejected'],
-  Offer: ['Archived', 'Rejected'],
+  Offer: ['Rejected'],
   Rejected: [],
   Archived: [],
 }
@@ -128,8 +128,9 @@ export default function DashboardPage() {
 
     const allowed = FORWARD_TRANSITIONS[job.stage] ?? []
     const isForward = allowed.includes(nextStage)
+    const leavingArchive = job.stage === 'Archived'
 
-    if (!isForward) {
+    if (!isForward && !leavingArchive) {
       const confirmed = window.confirm(
         `Moving from ${job.stage} to ${nextStage} is not a standard forward transition.\n\n` +
         `Allowed next stages: ${allowed.join(', ') || 'None (terminal stage)'}\n\n` +
@@ -139,15 +140,23 @@ export default function DashboardPage() {
     }
 
     const prev = job.stage
-    setJobs((js) => js.map((j) => (j.id === jobId ? { ...j, stage: nextStage } : j)))  // optimistic
+    const wasArchived = !!job.archivedAt
+    const willUnarchive = wasArchived && nextStage !== 'Archived'
+
+    setJobs((js) => js.map((j) => (j.id === jobId ? {
+      ...j,
+      stage: nextStage,
+      archivedAt: willUnarchive ? null : j.archivedAt,
+    } : j)))  // optimistic (clear archivedAt if we're un-archiving)
     try {
       await apiFetch(`/api/jobs/${jobId}`, {
         method: 'PATCH',
         body: JSON.stringify({
           stage: nextStage,
-          confirmedOverride: !isForward,
+          confirmedOverride: !isForward && !leavingArchive,
         }),
       })
+      if (willUnarchive) setShowArchived(false)  // jump to active view so the user sees the restored job
       fetchMetrics().catch(() => { /* stats stay; non-blocking */ })
     } catch {
       setJobs((js) => js.map((j) => (j.id === jobId ? { ...j, stage: prev } : j)))     // rollback

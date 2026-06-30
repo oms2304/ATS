@@ -2,7 +2,7 @@
 
 import { apiFetch } from '@/lib/api'
 
-export const STAGES = ['Interested', 'Applied', 'Interview', 'Offer', 'Rejected', 'Archived'] as const 
+export const STAGES = ['Interested', 'Applied', 'Interview', 'Offer', 'Rejected'] as const
 
 export const STAGE_BADGE: Record<string, { bg: string; text: string }> = {
     Interested: { bg: '#21262d', text: '#8b949e'},

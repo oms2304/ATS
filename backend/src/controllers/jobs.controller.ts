@@ -9,7 +9,7 @@ export const FORWARD_TRANSITIONS: Record<string, string[]> = {
   Interested: ['Applied', 'Rejected'],
   Applied: ['Interview', 'Rejected'],
   Interview: ['Offer', 'Rejected'],
-  Offer: ['Archived', 'Rejected'],
+  Offer: ['Rejected'],
   Rejected: [],
   Archived: [],
 };
@@ -46,13 +46,21 @@ export const getJobs = async (req: Request, res: Response) => {
 
     const showArchived = req.query.archived === 'true';
 
-    const jobs = await prisma.job.findMany({
+    const rows = await prisma.job.findMany({
       where: {
         user_id,
         archivedAt: showArchived ? { not: null } : null,
       },
       orderBy: { updatedAt: 'desc' },
     });
+
+    // Invariant: any row with archivedAt set is, by definition, archived.
+    // Force the stage column to 'Archived' on the response so the frontend
+    // always sees a consistent shape even if the underlying row was written
+    // by an older code path (or by direct DB access) that didn't set stage.
+    const jobs = rows.map((j) =>
+      j.archivedAt && j.stage !== 'Archived' ? { ...j, stage: 'Archived' } : j
+    );
 
     return res.status(200).json({ success: true, data: jobs });
   } catch {
@@ -64,10 +72,17 @@ export const getJobById = async (req: Request, res: Response) => {
   try {
     const user_id = req.user?.userId;
     if (!user_id) return res.status(401).json({ success: false, error: 'Unauthorized' });
-    const job = await prisma.job.findUnique({
+    const row = await prisma.job.findUnique({
       where: { id: req.params.id as string },
     });
-    if (!job) return res.status(404).json({ success: false, error: 'Job not found' });
+    if (!row) return res.status(404).json({ success: false, error: 'Job not found' });
+
+    // Invariant: any row with archivedAt set is, by definition, archived.
+    const job =
+      row.archivedAt && row.stage !== 'Archived'
+        ? { ...row, stage: 'Archived' }
+        : row;
+
     return res.status(200).json({ success: true, data: job });
   } catch {
     return res.status(500).json({ success: false, error: 'Failed to fetch job' });
@@ -101,11 +116,15 @@ export const updateJob = async (req: Request, res: Response) => {
     const { confirmedOverride, ...jobFields } = parsed.data;
 
     // Forward-transition guard runs BEFORE any DB write so a blocked
-    // transition persists nothing (S2-BR-007 / C12).
+    // transition persists nothing (S2-BR-007 / C12). Leaving the Archived
+    // stage is always allowed — any non-Archived target also un-archives
+    // the job, so the user's intent ("move this out of the archive") is
+    // unambiguous and we don't gate it behind the override prompt.
     if (parsed.data.stage && parsed.data.stage !== existing.stage) {
       const isForward = isForwardTransition(existing.stage, parsed.data.stage);
+      const leavingArchive = existing.stage === 'Archived';
 
-      if (!isForward && !confirmedOverride) {
+      if (!isForward && !leavingArchive && !confirmedOverride) {
         return res.status(422).json({
           success: false,
           error: 'Invalid stage transition',
@@ -119,9 +138,22 @@ export const updateJob = async (req: Request, res: Response) => {
       }
     }
 
+    // If the stage is changing to anything other than 'Archived' on a job
+    // that is currently archived, clear archivedAt in the same write so the
+    // row is consistent: stage in [Interested..Rejected] implies active.
+    const willUnarchive =
+      parsed.data.stage &&
+      parsed.data.stage !== 'Archived' &&
+      parsed.data.stage !== existing.stage &&
+      existing.archivedAt;
+
     const job = await prisma.job.update({
       where: { id: req.params.id as string },
-      data: { ...jobFields, updatedAt: new Date() },
+      data: {
+        ...jobFields,
+        updatedAt: new Date(),
+        ...(willUnarchive ? { archivedAt: null } : {}),
+      },
     });
 
     if (parsed.data.stage && parsed.data.stage !== existing.stage) {
@@ -136,7 +168,9 @@ export const updateJob = async (req: Request, res: Response) => {
         data: {
           job_id: job.id,
           type: 'stage_change',
-          note: `Stage changed from ${existing.stage} to ${parsed.data.stage}`,
+          note: willUnarchive
+            ? `Stage changed from ${existing.stage} to ${parsed.data.stage} (unarchived)`
+            : `Stage changed from ${existing.stage} to ${parsed.data.stage}`,
         },
       });
     }

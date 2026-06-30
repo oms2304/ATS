@@ -15,7 +15,7 @@ type JobFormProps = {
   onCancel: () => void
 }
 
-const STAGES = ['Interested', 'Applied', 'Interview', 'Offer', 'Rejected', 'Archived']
+const STAGES = ['Interested', 'Applied', 'Interview', 'Offer', 'Rejected']
 
 export function JobForm({ jobId, initialData, onSuccess, onCancel }: JobFormProps) {
   const [form, setForm] = useState({

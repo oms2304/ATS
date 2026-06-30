@@ -96,7 +96,7 @@ it('does not show stale indicator for Rejected jobs', () => {
 it('does not show stale indicator for Archived jobs', () => {
   const archivedJob = {
     ...mockJob,
-    stage: 'Archived',
+    archivedAt: new Date().toISOString(),
     updatedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
   };
   render(<JobCard job={archivedJob} onEdit={jest.fn()} />);

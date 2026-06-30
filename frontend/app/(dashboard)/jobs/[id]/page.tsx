@@ -48,7 +48,7 @@ type SavedDoc = {
   updatedAt: string
 }
 
-const STAGES = ['Interested', 'Applied', 'Interview', 'Offer', 'Rejected', 'Archived'] as const
+const STAGES = ['Interested', 'Applied', 'Interview', 'Offer', 'Rejected'] as const
 const ROUND_TYPES = ['Phone Screen', 'Technical', 'Behavioral', 'System Design', 'HR', 'Final', 'Other'] as const
 
 // Mirrors backend/src/controllers/jobs.controller.ts FORWARD_TRANSITIONS.
@@ -57,7 +57,7 @@ const FORWARD_TRANSITIONS: Record<string, string[]> = {
   Interested: ['Applied', 'Rejected'],
   Applied: ['Interview', 'Rejected'],
   Interview: ['Offer', 'Rejected'],
-  Offer: ['Archived', 'Rejected'],
+  Offer: ['Rejected'],
   Rejected: [],
   Archived: [],
 }
@@ -536,8 +536,14 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     )
   }
 
-  const badge = STAGE_BADGE[job.stage] ?? STAGE_BADGE.Interested
-  const progress = STAGE_PROGRESS[job.stage] ?? 0
+  // Display rule: a job with archivedAt set is always shown as "Archived"
+  // regardless of the underlying stage column. The backend's archiveJob
+  // endpoint does set stage to 'Archived', but if a row was archived by any
+  // other path (legacy data, future restore logic) the stage column may not
+  // match. archivedAt is the source of truth for the user's view.
+  const displayStage = job.archivedAt ? 'Archived' : job.stage
+  const badge = STAGE_BADGE[displayStage] ?? STAGE_BADGE.Interested
+  const progress = STAGE_PROGRESS[displayStage] ?? 0
 
   return (
     <div className="min-h-screen bg-[#0d1117] p-6 text-[#e6edf3]">
@@ -551,19 +557,29 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
               <p className="text-sm text-[#8b949e] mb-1">{job.company}</p>
               <h1 className="text-2xl font-semibold text-white">{job.title}</h1>
             </div>
-            <label title="Click to change stage">
+            <label title={job.archivedAt ? 'Archived' : 'Click to change stage'}>
               <span className="sr-only">Stage</span>
-              <select
-                value={job.stage}
-                onChange={handleStageChange}
-                disabled={updatingStage}
-                className="text-xs px-2 py-1 rounded appearance-none cursor-pointer outline-none focus:ring-1 focus:ring-[#2f81f4] disabled:opacity-50"
-                style={{ backgroundColor: badge.bg, color: badge.text }}
-              >
-                {STAGES.map((s) => (
-                  <option key={s} value={s} className="bg-[#161b22] text-white">{s}</option>
-                ))}
-              </select>
+              {job.archivedAt ? (
+                <span
+                  data-testid="job-stage"
+                  className="text-xs px-2 py-1 rounded"
+                  style={{ backgroundColor: badge.bg, color: badge.text }}
+                >
+                  {displayStage}
+                </span>
+              ) : (
+                <select
+                  value={displayStage}
+                  onChange={handleStageChange}
+                  disabled={updatingStage}
+                  className="text-xs px-2 py-1 rounded appearance-none cursor-pointer outline-none focus:ring-1 focus:ring-[#2f81f4] disabled:opacity-50"
+                  style={{ backgroundColor: badge.bg, color: badge.text }}
+                >
+                  {STAGES.map((s) => (
+                    <option key={s} value={s} className="bg-[#161b22] text-white">{s}</option>
+                  ))}
+                </select>
+              )}
             </label>
           </div>
 

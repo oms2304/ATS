@@ -64,12 +64,17 @@ interface JobCardProps {
 }
 
 export function JobCard({ job, onEdit, onStageChange, onArchive, onRestore }: JobCardProps) {
-  const badge = STAGE_BADGE[job.stage] ?? STAGE_BADGE.Interested
-  const progress = STAGE_PROGRESS[job.stage] ?? 0
-  const progressColor = STAGE_PROGRESS_COLOR[job.stage] ?? '#2f81f4'
+  // Display rule: a job with archivedAt set is always shown as "Archived"
+  // regardless of the underlying stage column. This is the source of truth
+  // for the user's view, since the dashboard splits active/archived lists
+  // by archivedAt, not by stage.
+  const displayStage = job.archivedAt ? 'Archived' : job.stage
+  const badge = STAGE_BADGE[displayStage] ?? STAGE_BADGE.Interested
+  const progress = STAGE_PROGRESS[displayStage] ?? 0
+  const progressColor = STAGE_PROGRESS_COLOR[displayStage] ?? '#2f81f4'
   const daysSinceUpdate = getDaysSinceUpdate(job.updatedAt)
-  const isStale = daysSinceUpdate >= 7 && job.stage !== 'Rejected' && job.stage !== 'Archived'
-  const isTerminal = job.stage === 'Rejected' || job.stage === 'Archived'
+  const isStale = daysSinceUpdate >= 7 && job.stage !== 'Rejected' && !job.archivedAt
+  const isTerminal = job.stage === 'Rejected' || !!job.archivedAt
 
   return (
     <Link
@@ -97,7 +102,7 @@ export function JobCard({ job, onEdit, onStageChange, onArchive, onRestore }: Jo
           )}
           {onStageChange ? (
             <StageSelect
-              value={job.stage}
+              value={displayStage}
               onChange={(next) => onStageChange(job.id, next)}
             />
           ) : (
@@ -106,7 +111,7 @@ export function JobCard({ job, onEdit, onStageChange, onArchive, onRestore }: Jo
               style={{ backgroundColor: badge.bg, color: badge.text }}
               data-testid="job-stage"
             >
-              {job.stage}
+              {displayStage}
             </span>
           )}
         </div>
