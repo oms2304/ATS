@@ -67,6 +67,69 @@ async function main() {
     create: aliceProfile,
   });
 
+  // Pre-populate Alice's Sprint 2 profile sections so C04/C17 read "all 6
+  // sections pre-populated" on first load. Deterministic IDs make this
+  // idempotent across re-seeds.
+  await prisma.experience.upsert({
+    where: { id: 'seed-exp-city-hospital-alice' },
+    update: {},
+    create: {
+      id: 'seed-exp-city-hospital-alice',
+      userId: alice.id,
+      title: 'Registered Nurse — Medical/Surgical',
+      company: 'City Hospital',
+      startDate: new Date('2018-06-01'),
+      endDate: null,
+      isCurrent: true,
+      description:
+        'Provide direct patient care on a 24-bed medical/surgical unit. Mentor new staff and run shift handoffs across three shifts.',
+      order: 0,
+    },
+  });
+
+  await prisma.education.upsert({
+    where: { id: 'seed-edu-rutgers-alice' },
+    update: {},
+    create: {
+      id: 'seed-edu-rutgers-alice',
+      userId: alice.id,
+      school: 'Rutgers University',
+      degree: 'BSN',
+      fieldOfStudy: 'Nursing',
+      startDate: new Date('2014-09-01'),
+      endDate: new Date('2018-05-31'),
+      isCurrent: false,
+      gpa: '3.7',
+      order: 0,
+    },
+  });
+
+  const seedSkills = [
+    { id: 'seed-skill-react-alice',    name: 'React',          category: 'Frontend', proficiency: 'Intermediate' },
+    { id: 'seed-skill-postgres-alice', name: 'PostgreSQL',     category: 'Backend',  proficiency: 'Advanced' },
+    { id: 'seed-skill-triage-alice',   name: 'Patient Triage', category: 'Clinical', proficiency: 'Expert' },
+  ];
+  for (const s of seedSkills) {
+    await prisma.skill.upsert({
+      where: { id: s.id },
+      update: { category: s.category, proficiency: s.proficiency },
+      create: { ...s, userId: alice.id, order: 0 },
+    });
+  }
+
+  await prisma.careerPreferences.upsert({
+    where: { userId: alice.id },
+    update: {},
+    create: {
+      userId: alice.id,
+      targetRoles: ['Registered Nurse', 'Charge Nurse', 'Patient Educator'],
+      preferredLocations: ['Newark, NJ', 'Remote'],
+      workMode: 'Hybrid',
+      salaryMin: 75000,
+      salaryMax: 110000,
+    },
+  });
+
   const aliceJobs = [
     {
       title: 'Registered Nurse — Medical/Surgical',
@@ -96,6 +159,15 @@ async function main() {
         'Lead the night shift ICU team of 12 nurses, coordinate admissions and discharges, and serve as a clinical resource for bedside staff.',
       stage: 'Offer',
     },
+    {
+      title: 'Pediatric Nurse — Outpatient Clinic',
+      company: 'Sunshine Pediatrics',
+      jobPostingBody:
+        'Provide primary care nursing for pediatric patients in a busy outpatient setting. Administer vaccines, perform triage, and educate families on chronic conditions. Day shift, no weekends.',
+      stage: 'Rejected',
+      outcomeNote:
+        'Rejected after final round, position filled by an internal candidate with more pediatric-specific experience.',
+    },
   ];
 
   for (const job of aliceJobs) {
@@ -113,6 +185,75 @@ async function main() {
         },
       });
     }
+  }
+
+  // Pre-seed a StageTransition + JobActivity history on the Rejected job so the
+  // timeline already shows a realistic progression and the C16 outcome is visible
+  // on first load. Deterministic IDs make this idempotent across re-seeds.
+  const rejectedJob = await prisma.job.findFirst({
+    where: { user_id: alice.id, title: 'Pediatric Nurse — Outpatient Clinic' },
+  });
+  if (rejectedJob) {
+    await prisma.stageTransition.upsert({
+      where: { id: `seed-stage-${rejectedJob.id}-1` },
+      update: {},
+      create: {
+        id: `seed-stage-${rejectedJob.id}-1`,
+        job_id: rejectedJob.id,
+        fromStage: 'Interested',
+        toStage: 'Applied',
+      },
+    });
+    await prisma.stageTransition.upsert({
+      where: { id: `seed-stage-${rejectedJob.id}-2` },
+      update: {},
+      create: {
+        id: `seed-stage-${rejectedJob.id}-2`,
+        job_id: rejectedJob.id,
+        fromStage: 'Applied',
+        toStage: 'Interview',
+      },
+    });
+    await prisma.stageTransition.upsert({
+      where: { id: `seed-stage-${rejectedJob.id}-3` },
+      update: {},
+      create: {
+        id: `seed-stage-${rejectedJob.id}-3`,
+        job_id: rejectedJob.id,
+        fromStage: 'Interview',
+        toStage: 'Rejected',
+      },
+    });
+    await prisma.jobActivity.upsert({
+      where: { id: `seed-activity-${rejectedJob.id}-1` },
+      update: {},
+      create: {
+        id: `seed-activity-${rejectedJob.id}-1`,
+        job_id: rejectedJob.id,
+        type: 'stage_change',
+        note: 'Stage changed from Interested to Applied',
+      },
+    });
+    await prisma.jobActivity.upsert({
+      where: { id: `seed-activity-${rejectedJob.id}-2` },
+      update: {},
+      create: {
+        id: `seed-activity-${rejectedJob.id}-2`,
+        job_id: rejectedJob.id,
+        type: 'stage_change',
+        note: 'Stage changed from Applied to Interview',
+      },
+    });
+    await prisma.jobActivity.upsert({
+      where: { id: `seed-activity-${rejectedJob.id}-3` },
+      update: {},
+      create: {
+        id: `seed-activity-${rejectedJob.id}-3`,
+        job_id: rejectedJob.id,
+        type: 'stage_change',
+        note: 'Stage changed from Interview to Rejected',
+      },
+    });
   }
 
   const bob = await prisma.user.upsert({
@@ -263,8 +404,51 @@ Alice Anderson
     });
   }
 
+  // Pre-seed one Interview and one FollowUp on Marketing Coordinator so the
+  // timeline already has anchor rows for the C14/C15 demos. Deterministic IDs
+  // make this idempotent across re-seeds.
+  const marketingJobForActivity = await prisma.job.findFirst({
+    where: { user_id: alice.id, title: 'Marketing Coordinator', company: 'BrandCo' },
+  });
+
+  if (marketingJobForActivity) {
+    const interviewDate = new Date();
+    interviewDate.setDate(interviewDate.getDate() - 2);
+
+    await prisma.interview.upsert({
+      where: { id: 'seed-interview-phone-screen-alice' },
+      update: {},
+      create: {
+        id: 'seed-interview-phone-screen-alice',
+        job_id: marketingJobForActivity.id,
+        roundType: 'Phone Screen',
+        date: interviewDate,
+        notes: 'Initial recruiter call — confirmed interest and salary range.',
+      },
+    });
+
+    const followUpDue = new Date();
+    followUpDue.setDate(followUpDue.getDate() + 1);
+
+    await prisma.followUp.upsert({
+      where: { id: 'seed-followup-thank-you-alice' },
+      update: {},
+      create: {
+        id: 'seed-followup-thank-you-alice',
+        job_id: marketingJobForActivity.id,
+        title: 'Send thank-you email after phone screen',
+        dueDate: followUpDue,
+        completed: false,
+      },
+    });
+  }
+
   console.log('Seed complete:');
-  console.log(`  alice@demo.test / Password123 (verified, full profile, ${aliceJobs.length} jobs, 2 seeded AI drafts)`);
+  console.log('  alice@demo.test / Password123');
+  console.log('    - Profile: 5/5 baseline fields + 1 Experience + 1 Education + 3 Skills + CareerPreferences');
+  console.log(`    - Jobs: ${aliceJobs.length} (Interested, Applied, Interview, Offer, Rejected)`);
+  console.log('    - Rejected job has 3 seeded StageTransitions and 3 JobActivity rows');
+  console.log('    - Marketing Coordinator has 1 pre-seeded Interview + 1 FollowUp + 2 AI drafts');
   console.log('  bob@demo.test   / Password123 (verified, minimal profile)');
 }
 
