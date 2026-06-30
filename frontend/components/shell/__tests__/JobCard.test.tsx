@@ -93,14 +93,25 @@ it('does not show stale indicator for Rejected jobs', () => {
   expect(screen.queryByTestId('job-stale')).not.toBeInTheDocument();
 });
 
-it('does not show stale indicator for Archived jobs', () => {
+it('does not show stale indicator for archived jobs', () => {
   const archivedJob = {
     ...mockJob,
-    stage: 'Archived',
+    archivedAt: new Date().toISOString(),
     updatedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
   };
   render(<JobCard job={archivedJob} onEdit={jest.fn()} onArchive={jest.fn()} onRestore={jest.fn()} />);
   expect(screen.queryByTestId('job-stale')).not.toBeInTheDocument();
+});
+
+it('preserves and shows the real stage for archived jobs', () => {
+  const archivedJob = {
+    ...mockJob,
+    stage: 'Applied',
+    archivedAt: new Date().toISOString(),
+  };
+  render(<JobCard job={archivedJob} onEdit={jest.fn()} onStageChange={jest.fn()} onArchive={jest.fn()} onRestore={jest.fn()} />);
+  // Archived cards show a read-only badge, not the editable StageSelect dropdown
+  expect(screen.getByTestId('job-stage')).toHaveTextContent('Applied');
 });
 
 });

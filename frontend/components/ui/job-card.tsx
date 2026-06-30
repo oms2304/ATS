@@ -68,7 +68,7 @@ export function JobCard({ job, onEdit, onStageChange, onArchive, onRestore }: Jo
   const progress = STAGE_PROGRESS[job.stage] ?? 0
   const progressColor = STAGE_PROGRESS_COLOR[job.stage] ?? '#2f81f4'
   const daysSinceUpdate = getDaysSinceUpdate(job.updatedAt)
-  const isStale = daysSinceUpdate >= 7 && job.stage !== 'Rejected' && job.stage !== 'Archived'
+  const isStale = daysSinceUpdate >= 7 && job.stage !== 'Rejected' && !job.archivedAt
   const isTerminal = job.stage === 'Rejected' || job.stage === 'Archived'
 
   return (
@@ -95,7 +95,7 @@ export function JobCard({ job, onEdit, onStageChange, onArchive, onRestore }: Jo
               Stale
             </span>
           )}
-          {onStageChange ? (
+          {onStageChange && !job.archivedAt ? (
             <StageSelect
               value={job.stage}
               onChange={(next) => onStageChange(job.id, next)}
