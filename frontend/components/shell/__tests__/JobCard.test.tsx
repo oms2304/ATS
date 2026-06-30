@@ -103,15 +103,15 @@ it('does not show stale indicator for archived jobs', () => {
   expect(screen.queryByTestId('job-stale')).not.toBeInTheDocument();
 });
 
-it('preserves and shows the real stage for archived jobs', () => {
+it('shows the "Archived" label for archived jobs (real stage preserved underneath)', () => {
   const archivedJob = {
     ...mockJob,
     stage: 'Applied',
     archivedAt: new Date().toISOString(),
   };
   render(<JobCard job={archivedJob} onEdit={jest.fn()} onStageChange={jest.fn()} onArchive={jest.fn()} onRestore={jest.fn()} />);
-  // Archived cards show a read-only badge, not the editable StageSelect dropdown
-  expect(screen.getByTestId('job-stage')).toHaveTextContent('Applied');
+  // Display-only: badge reads "Archived" while the stored stage stays 'Applied' so restore can bring it back.
+  expect(screen.getByTestId('job-stage')).toHaveTextContent('Archived');
 });
 
 });
