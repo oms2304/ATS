@@ -48,7 +48,7 @@ type SavedDoc = {
   updatedAt: string
 }
 
-const STAGES = ['Interested', 'Applied', 'Interview', 'Offer', 'Rejected', 'Archived'] as const
+const STAGES = ['Interested', 'Applied', 'Interview', 'Offer', 'Rejected'] as const
 const ROUND_TYPES = ['Phone Screen', 'Technical', 'Behavioral', 'System Design', 'HR', 'Final', 'Other'] as const
 
 // Mirrors backend/src/controllers/jobs.controller.ts FORWARD_TRANSITIONS.
@@ -57,9 +57,8 @@ const FORWARD_TRANSITIONS: Record<string, string[]> = {
   Interested: ['Applied', 'Rejected'],
   Applied: ['Interview', 'Rejected'],
   Interview: ['Offer', 'Rejected'],
-  Offer: ['Archived', 'Rejected'],
+  Offer: ['Rejected'],
   Rejected: [],
-  Archived: [],
 }
 
 const STAGE_BADGE: Record<string, { bg: string; text: string }> = {
