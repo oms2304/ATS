@@ -96,11 +96,17 @@ it('does not show stale indicator for Rejected jobs', () => {
 it('does not show stale indicator for Archived jobs', () => {
   const archivedJob = {
     ...mockJob,
-    stage: 'Archived',
+    archivedAt: new Date().toISOString(),
     updatedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
   };
   render(<JobCard job={archivedJob} onEdit={jest.fn()} onArchive={jest.fn()} onRestore={jest.fn()} />);
   expect(screen.queryByTestId('job-stale')).not.toBeInTheDocument();
+});
+
+it('shows the Archived badge (not the real stage) for an archived job', () => {
+  const archivedJob = { ...mockJob, stage: 'Offer', archivedAt: new Date().toISOString() };
+  render(<JobCard job={archivedJob} onEdit={jest.fn()} onArchive={jest.fn()} onRestore={jest.fn()} />);
+  expect(screen.getByTestId('job-stage')).toHaveTextContent('Archived');
 });
 
 });

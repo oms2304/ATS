@@ -15,7 +15,8 @@ type JobFormProps = {
   onCancel: () => void
 }
 
-const STAGES = ['Interested', 'Applied', 'Interview', 'Offer', 'Rejected', 'Archived']
+// Archived is the archivedAt flag (Archive button), not a selectable stage.
+const STAGES = ['Interested', 'Applied', 'Interview', 'Offer', 'Rejected']
 
 export function JobForm({ jobId, initialData, onSuccess, onCancel }: JobFormProps) {
   const [form, setForm] = useState({

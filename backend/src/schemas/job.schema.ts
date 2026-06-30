@@ -1,12 +1,14 @@
 import { z } from 'zod';
 
+// "Archived" is NOT a workflow stage — it's the archivedAt flag set via the
+// Archive button. Keeping it out of this enum makes it impossible to overwrite
+// a job's real stage with "Archived" through the update API.
 export const STAGES = [
   'Interested',
   'Applied',
   'Interview',
   'Offer',
   'Rejected',
-  'Archived',
 ] as const;
 
 export const createJobSchema = z.object({

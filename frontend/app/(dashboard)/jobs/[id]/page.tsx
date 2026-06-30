@@ -17,6 +17,7 @@ type Job = {
   outcomeNote: string | null
   createdAt: string
   updatedAt: string
+  archivedAt?: string | null
 }
 
 type Interview = {
@@ -48,7 +49,8 @@ type SavedDoc = {
   updatedAt: string
 }
 
-const STAGES = ['Interested', 'Applied', 'Interview', 'Offer', 'Rejected', 'Archived'] as const
+// Archived is the archivedAt flag (Archive button), not a selectable stage.
+const STAGES = ['Interested', 'Applied', 'Interview', 'Offer', 'Rejected'] as const
 const ROUND_TYPES = ['Phone Screen', 'Technical', 'Behavioral', 'System Design', 'HR', 'Final', 'Other'] as const
 
 // Mirrors backend/src/controllers/jobs.controller.ts FORWARD_TRANSITIONS.
@@ -57,7 +59,7 @@ const FORWARD_TRANSITIONS: Record<string, string[]> = {
   Interested: ['Applied', 'Rejected'],
   Applied: ['Interview', 'Rejected'],
   Interview: ['Offer', 'Rejected'],
-  Offer: ['Archived', 'Rejected'],
+  Offer: ['Rejected'],
   Rejected: [],
   Archived: [],
 }
@@ -536,8 +538,11 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     )
   }
 
-  const badge = STAGE_BADGE[job.stage] ?? STAGE_BADGE.Interested
-  const progress = STAGE_PROGRESS[job.stage] ?? 0
+  // Archived is a display state from archivedAt; the real stage stays in job.stage.
+  const isArchived = !!job.archivedAt
+  const displayStage = isArchived ? 'Archived' : job.stage
+  const badge = STAGE_BADGE[displayStage] ?? STAGE_BADGE.Interested
+  const progress = STAGE_PROGRESS[displayStage] ?? 0
 
   return (
     <div className="min-h-screen bg-[#0d1117] p-6 text-[#e6edf3]">
@@ -551,20 +556,29 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
               <p className="text-sm text-[#8b949e] mb-1">{job.company}</p>
               <h1 className="text-2xl font-semibold text-white">{job.title}</h1>
             </div>
-            <label title="Click to change stage">
-              <span className="sr-only">Stage</span>
-              <select
-                value={job.stage}
-                onChange={handleStageChange}
-                disabled={updatingStage}
-                className="text-xs px-2 py-1 rounded appearance-none cursor-pointer outline-none focus:ring-1 focus:ring-[#2f81f4] disabled:opacity-50"
+            {isArchived ? (
+              <span
+                className="text-xs px-2 py-1 rounded"
                 style={{ backgroundColor: badge.bg, color: badge.text }}
               >
-                {STAGES.map((s) => (
-                  <option key={s} value={s} className="bg-[#161b22] text-white">{s}</option>
-                ))}
-              </select>
-            </label>
+                Archived
+              </span>
+            ) : (
+              <label title="Click to change stage">
+                <span className="sr-only">Stage</span>
+                <select
+                  value={job.stage}
+                  onChange={handleStageChange}
+                  disabled={updatingStage}
+                  className="text-xs px-2 py-1 rounded appearance-none cursor-pointer outline-none focus:ring-1 focus:ring-[#2f81f4] disabled:opacity-50"
+                  style={{ backgroundColor: badge.bg, color: badge.text }}
+                >
+                  {STAGES.map((s) => (
+                    <option key={s} value={s} className="bg-[#161b22] text-white">{s}</option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
 
           <div className="h-1.5 w-full rounded-full bg-[#21262d] mb-6">

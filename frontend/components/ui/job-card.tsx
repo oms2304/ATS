@@ -64,12 +64,16 @@ interface JobCardProps {
 }
 
 export function JobCard({ job, onEdit, onStageChange, onArchive, onRestore }: JobCardProps) {
-  const badge = STAGE_BADGE[job.stage] ?? STAGE_BADGE.Interested
-  const progress = STAGE_PROGRESS[job.stage] ?? 0
-  const progressColor = STAGE_PROGRESS_COLOR[job.stage] ?? '#2f81f4'
+  // Archived is a display state driven by archivedAt, not the stored stage.
+  // The real stage is preserved in job.stage so Restore can bring it back.
+  const isArchived = !!job.archivedAt
+  const displayStage = isArchived ? 'Archived' : job.stage
+  const badge = STAGE_BADGE[displayStage] ?? STAGE_BADGE.Interested
+  const progress = STAGE_PROGRESS[displayStage] ?? 0
+  const progressColor = STAGE_PROGRESS_COLOR[displayStage] ?? '#2f81f4'
   const daysSinceUpdate = getDaysSinceUpdate(job.updatedAt)
-  const isStale = daysSinceUpdate >= 7 && job.stage !== 'Rejected' && job.stage !== 'Archived'
-  const isTerminal = job.stage === 'Rejected' || job.stage === 'Archived'
+  const isStale = daysSinceUpdate >= 7 && !isArchived && job.stage !== 'Rejected'
+  const isTerminal = isArchived || job.stage === 'Rejected'
 
   return (
     <Link
@@ -95,7 +99,7 @@ export function JobCard({ job, onEdit, onStageChange, onArchive, onRestore }: Jo
               Stale
             </span>
           )}
-          {onStageChange ? (
+          {onStageChange && !isArchived ? (
             <StageSelect
               value={job.stage}
               onChange={(next) => onStageChange(job.id, next)}
@@ -106,7 +110,7 @@ export function JobCard({ job, onEdit, onStageChange, onArchive, onRestore }: Jo
               style={{ backgroundColor: badge.bg, color: badge.text }}
               data-testid="job-stage"
             >
-              {job.stage}
+              {displayStage}
             </span>
           )}
         </div>
