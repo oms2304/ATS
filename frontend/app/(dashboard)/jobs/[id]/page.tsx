@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { apiFetch } from '@/lib/api'
 import { JobModal } from '@/components/forms/job-modal'
 import { PrepNotesSection } from '@/components/forms/prep-notes-section'
+import { ResearchNotesSection } from '@/components/forms/research-notes-section'
 
 type Job = {
   id: string
@@ -906,6 +907,9 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         {/* Outcome */}
         {/* Interview Prep Notes */}
         <PrepNotesSection jobId={job.id} />
+
+        {/* Company Research Notes */}
+        <ResearchNotesSection jobId={job.id} />
         {['Offer', 'Rejected', 'Archived'].includes(job.stage) && (
           <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-6">
             <div className="flex justify-between items-center mb-4">
