@@ -3,13 +3,24 @@ import { Request, Response } from 'express';
 import {
   createDocument,
   getDocuments,
+  updateDocumentMeta,
+  getDocumentVersions,
 } from '../controllers/documents.controller';
 
 vi.mock('../lib/prisma', () => ({
   default: {
     job: { findUnique: vi.fn() },
-    document: { create: vi.fn(), update: vi.fn(), findMany: vi.fn() },
-    documentVersion: { create: vi.fn(), findFirst: vi.fn() },
+    document: {
+      create: vi.fn(),
+      update: vi.fn(),
+      findMany: vi.fn(),
+      findUnique: vi.fn(),
+    },
+    documentVersion: {
+      create: vi.fn(),
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
+    },
     jobDocumentLink: {
       findUnique: vi.fn(),
       findMany: vi.fn(),
@@ -199,5 +210,251 @@ describe('getDocuments (S2-024)', () => {
     const payload = (res.json as any).mock.calls[0][0];
     expect(payload.data[0].content).toBe('Dear Hiring Team');
     expect(payload.data[0].job).toEqual({ id: 'job-1', title: 'Engineer', company: 'Acme' });
+  });
+});
+
+describe('updateDocumentMeta (S3-002)', () => {
+  it('updates the title and returns 200 (happy path)', async () => {
+    const req = mockReq({
+      params: { id: 'doc-1' },
+      body: { title: 'New Title' },
+    });
+    const res = mockRes();
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: 'doc-1', user_id: 'user-123' } as any);
+    vi.mocked(prisma.document.update).mockResolvedValue({
+      id: 'doc-1',
+      user_id: 'user-123',
+      type: 'resume',
+      title: 'New Title',
+      status: 'active',
+      tags: [],
+    } as any);
+
+    await updateDocumentMeta(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(prisma.document.update).toHaveBeenCalledWith({
+      where: { id: 'doc-1' },
+      data: { title: 'New Title' },
+    });
+    const payload = (res.json as any).mock.calls[0][0];
+    expect(payload.success).toBe(true);
+    expect(payload.data.title).toBe('New Title');
+  });
+
+  it("updates status to 'archived' and returns 200", async () => {
+    const req = mockReq({
+      params: { id: 'doc-1' },
+      body: { status: 'archived' },
+    });
+    const res = mockRes();
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: 'doc-1', user_id: 'user-123' } as any);
+    vi.mocked(prisma.document.update).mockResolvedValue({
+      id: 'doc-1',
+      user_id: 'user-123',
+      type: 'resume',
+      title: 'My Resume',
+      status: 'archived',
+      tags: [],
+    } as any);
+
+    await updateDocumentMeta(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(prisma.document.update).toHaveBeenCalledWith({
+      where: { id: 'doc-1' },
+      data: { status: 'archived' },
+    });
+    const payload = (res.json as any).mock.calls[0][0];
+    expect(payload.data.status).toBe('archived');
+  });
+
+  it('updates tags and returns 200', async () => {
+    const req = mockReq({
+      params: { id: 'doc-1' },
+      body: { tags: ['frontend', '2026'] },
+    });
+    const res = mockRes();
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: 'doc-1', user_id: 'user-123' } as any);
+    vi.mocked(prisma.document.update).mockResolvedValue({
+      id: 'doc-1',
+      user_id: 'user-123',
+      type: 'resume',
+      title: 'My Resume',
+      status: 'active',
+      tags: ['frontend', '2026'],
+    } as any);
+
+    await updateDocumentMeta(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(prisma.document.update).toHaveBeenCalledWith({
+      where: { id: 'doc-1' },
+      data: { tags: ['frontend', '2026'] },
+    });
+  });
+
+  it('returns 400 with field error when status is not a valid enum value', async () => {
+    const req = mockReq({
+      params: { id: 'doc-1' },
+      body: { status: 'deleted' },
+    });
+    const res = mockRes();
+
+    await updateDocumentMeta(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        fields: expect.objectContaining({ status: expect.any(Array) }),
+      })
+    );
+    expect(prisma.document.update).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 when title is an empty string', async () => {
+    const req = mockReq({
+      params: { id: 'doc-1' },
+      body: { title: '' },
+    });
+    const res = mockRes();
+
+    await updateDocumentMeta(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(prisma.document.update).not.toHaveBeenCalled();
+  });
+
+  it('returns 403 when the document belongs to another user', async () => {
+    const req = mockReq({
+      params: { id: 'doc-1' },
+      body: { title: 'New Title' },
+    });
+    const res = mockRes();
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: 'doc-1', user_id: 'someone-else' } as any);
+
+    await updateDocumentMeta(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(prisma.document.update).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when the document does not exist', async () => {
+    const req = mockReq({
+      params: { id: 'doc-missing' },
+      body: { title: 'New Title' },
+    });
+    const res = mockRes();
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(null);
+
+    await updateDocumentMeta(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(prisma.document.update).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 when unauthenticated', async () => {
+    const req = mockReq({
+      user: undefined,
+      params: { id: 'doc-1' },
+      body: { title: 'New Title' },
+    });
+    const res = mockRes();
+
+    await updateDocumentMeta(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(prisma.document.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('getDocumentVersions (S3-003)', () => {
+  it('returns versions ordered newest first (happy path)', async () => {
+    const req = mockReq({ params: { id: 'doc-1' } });
+    const res = mockRes();
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: 'doc-1', user_id: 'user-123' } as any);
+    vi.mocked(prisma.documentVersion.findMany).mockResolvedValue([
+      { id: 'ver-3', document_id: 'doc-1', version_number: 3, label: 'Final', content: 'v3 content' },
+      { id: 'ver-2', document_id: 'doc-1', version_number: 2, label: null, content: 'v2 content' },
+      { id: 'ver-1', document_id: 'doc-1', version_number: 1, label: 'Initial', content: 'v1 content' },
+    ] as any);
+
+    await getDocumentVersions(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(prisma.documentVersion.findMany).toHaveBeenCalledWith({
+      where: { document_id: 'doc-1' },
+      orderBy: { version_number: 'desc' },
+    });
+    const payload = (res.json as any).mock.calls[0][0];
+    expect(payload.success).toBe(true);
+    expect(payload.data).toHaveLength(3);
+    expect(payload.data[0].version_number).toBe(3);
+    expect(payload.data[2].version_number).toBe(1);
+  });
+
+  it('returns 403 when the document belongs to another user', async () => {
+    const req = mockReq({ params: { id: 'doc-1' } });
+    const res = mockRes();
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: 'doc-1', user_id: 'someone-else' } as any);
+
+    await getDocumentVersions(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(prisma.documentVersion.findMany).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when the document does not exist', async () => {
+    const req = mockReq({ params: { id: 'doc-missing' } });
+    const res = mockRes();
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(null);
+
+    await getDocumentVersions(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(prisma.documentVersion.findMany).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 when unauthenticated (no token)', async () => {
+    const req = mockReq({ user: undefined, params: { id: 'doc-1' } });
+    const res = mockRes();
+
+    await getDocumentVersions(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(prisma.documentVersion.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('S2-024 regression — createDocument defaults (S3-002)', () => {
+  it('newly created documents still default to status: "active" and empty tags: []', async () => {
+    const req = mockReq({ body: validBody });
+    const res = mockRes();
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123' } as any);
+    vi.mocked(prisma.jobDocumentLink.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.document.create).mockResolvedValue({
+      id: 'doc-1',
+      user_id: 'user-123',
+      type: 'resume',
+      title: 'My Resume',
+      status: 'active',
+      tags: [],
+    } as any);
+    vi.mocked(prisma.documentVersion.create).mockResolvedValue({
+      id: 'ver-1',
+      document_id: 'doc-1',
+      version_number: 1,
+      content: validBody.content,
+    } as any);
+    vi.mocked(prisma.jobDocumentLink.create).mockResolvedValue({ id: 'link-1' } as any);
+
+    await createDocument(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    const payload = (res.json as any).mock.calls[0][0];
+    expect(payload.success).toBe(true);
+    expect(payload.data.status).toBe('active');
+    expect(payload.data.tags).toEqual([]);
   });
 });
