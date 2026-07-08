@@ -81,6 +81,8 @@ model Document {
   user      User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
   type      String
   title     String
+  status    String   @default("active")
+  tags      String[] @default([])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -93,6 +95,7 @@ model DocumentVersion {
   document_id    String
   document       Document @relation(fields: [document_id], references: [id], onDelete: Cascade)
   version_number Int
+  label          String?
   fileUrl        String?
   content        String?
   is_archived    Boolean  @default(false)
