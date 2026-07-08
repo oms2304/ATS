@@ -30,22 +30,26 @@ export function PrepNotesSection({ jobId }: { jobId: string }) {
   const [form, setForm] = useState({ category: 'company_info', content: '' })
   const [saving, setSaving] = useState(false)
 
-  async function refresh() {
-    try {
-      const res = await apiFetch(`/api/jobs/${jobId}/prep-notes`)
-      if (res.success) setNotes(res.data)
-    } catch {
-      // leave existing list in place on transient failure
-    } finally {
-      setLoading(false)
-    }
-  }
+  
+
+  
 
   useEffect(() => {
-    refresh()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let cancelled = false
+    async function load() {
+      try {
+        const res = await apiFetch(`/api/jobs/${jobId}/prep-notes`)
+        if (!cancelled && res.success) setNotes(res.data)
+      } catch {
+        // leave existing list in place on transient failure
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
   }, [jobId])
-
+  
   async function handleSave() {
     if (!form.content.trim()) return
     setSaving(true)
