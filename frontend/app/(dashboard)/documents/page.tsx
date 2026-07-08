@@ -1,8 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
 import { apiFetch } from '@/lib/api'
+import { DocumentCard } from '@/components/ui/document-card'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 
 type DocItem = {
   id: string
@@ -18,10 +25,23 @@ function typeLabel(type: string) {
   return type === 'cover_letter' ? 'Cover Letter' : 'Resume'
 }
 
+function formatDateTime(value: string) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
 export default function DocumentsPage() {
   const [docs, setDocs] = useState<DocItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [activeDoc, setActiveDoc] = useState<DocItem | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -38,7 +58,7 @@ export default function DocumentsPage() {
   }, [])
 
   return (
-    <div className="max-w-3xl mx-auto py-8 px-4 flex flex-col gap-6">
+    <div className="max-w-5xl mx-auto py-8 px-4 flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold text-white mb-1">Documents</h1>
         <p className="text-sm text-[#8b949e]">
@@ -53,46 +73,37 @@ export default function DocumentsPage() {
           No saved documents yet. Open a job, generate a resume or cover letter, and click Save.
         </p>
       ) : (
-        <div className="flex flex-col gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {docs.map((doc) => (
-            <div
-              key={doc.id}
-              className="bg-[#161b22] border border-[#30363d] rounded-lg p-5"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-white">{doc.title}</p>
-                  <p className="text-xs text-[#8b949e] mt-0.5">
-                    {typeLabel(doc.type)} · v{doc.versionNumber}
-                    {doc.job && (
-                      <>
-                        {' · '}
-                        <Link
-                          href={`/jobs/${doc.job.id}`}
-                          className="text-[#58a6ff] hover:underline"
-                        >
-                          {doc.job.title} at {doc.job.company}
-                        </Link>
-                      </>
-                    )}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setExpandedId(expandedId === doc.id ? null : doc.id)}
-                  className="text-xs px-3 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors shrink-0"
-                >
-                  {expandedId === doc.id ? 'Hide' : 'View'}
-                </button>
-              </div>
-              {expandedId === doc.id && (
-                <pre className="mt-3 whitespace-pre-wrap font-sans text-sm text-[#c9d1d9] bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 max-h-[28rem] overflow-y-auto">
-                  {doc.content}
-                </pre>
-              )}
-            </div>
+            <DocumentCard key={doc.id} doc={doc} onView={setActiveDoc} />
           ))}
         </div>
       )}
+
+      <Dialog open={!!activeDoc} onOpenChange={(open) => !open && setActiveDoc(null)}>
+        <DialogContent className="sm:max-w-2xl bg-[#161b22] text-white border border-[#30363d]">
+          {activeDoc && (
+            <>
+              <DialogHeader>
+                <DialogTitle>{activeDoc.title}</DialogTitle>
+                <DialogDescription className="text-[#8b949e]">
+                  {typeLabel(activeDoc.type)} · v{activeDoc.versionNumber} · Updated{' '}
+                  {formatDateTime(activeDoc.updatedAt)}
+                  {activeDoc.job && (
+                    <>
+                      {' · '}
+                      {activeDoc.job.title} at {activeDoc.job.company}
+                    </>
+                  )}
+                </DialogDescription>
+              </DialogHeader>
+              <pre className="whitespace-pre-wrap font-sans text-sm text-[#c9d1d9] bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 max-h-[28rem] overflow-y-auto">
+                {activeDoc.content}
+              </pre>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
