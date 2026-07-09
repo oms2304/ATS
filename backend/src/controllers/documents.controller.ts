@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../lib/prisma';
-import { createDocumentSchema } from '../schemas/document.schema';
+import { createDocumentSchema, updateDocumentMetaSchema } from '../schemas/document.schema';
 
 // List the current user's saved documents. When ?jobId= is supplied, returns the
 // documents linked to that job (after verifying the job belongs to the user).
@@ -161,5 +161,58 @@ export async function deleteDocument(req: Request, res: Response) {
     return res.status(200).json({ success: true, data: { message: 'Document deleted' } });
   } catch {
     return res.status(500).json({ success: false, error: 'Failed to delete document' });
+  }
+}
+
+export async function updateDocumentMeta(req: Request, res: Response) {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    const parsed = updateDocumentMetaSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        fields: parsed.error.flatten().fieldErrors,
+      });
+    }
+
+    const document = await prisma.document.findUnique({ where: { id: req.params.id as string } });
+    if (!document) return res.status(404).json({ success: false, error: 'Document not found' });
+    if (document.user_id !== userId)
+      return res.status(403).json({ success: false, error: 'Access denied' });
+
+    const updated = await prisma.document.update({
+      where: { id: req.params.id as string },
+      data: parsed.data,
+    });
+
+    return res.status(200).json({ success: true, data: updated });
+  } catch (error) {
+    console.error('updateDocumentMeta error:', error);
+    return res.status(500).json({ success: false, error: 'Failed to update document' });
+  }
+}
+
+export async function getDocumentVersions(req: Request, res: Response) {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    const document = await prisma.document.findUnique({ where: { id: req.params.id as string } });
+    if (!document) return res.status(404).json({ success: false, error: 'Document not found' });
+    if (document.user_id !== userId)
+      return res.status(403).json({ success: false, error: 'Access denied' });
+
+    const versions = await prisma.documentVersion.findMany({
+      where: { document_id: req.params.id as string },
+      orderBy: { version_number: 'desc' },
+    });
+
+    return res.status(200).json({ success: true, data: versions });
+  } catch (error) {
+    console.error('getDocumentVersions error:', error);
+    return res.status(500).json({ success: false, error: 'Failed to get versions' });
   }
 }
