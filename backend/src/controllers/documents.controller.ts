@@ -33,8 +33,13 @@ export async function getDocuments(req: Request, res: Response) {
       return res.status(200).json({ success: true, data });
     }
 
+    const showArchived = req.query.archived === 'true';
+
     const documents = await prisma.document.findMany({
-      where: { user_id: userId },
+      where: {
+        user_id: userId,
+        ...(showArchived ? { archivedAt: { not: null } } : { archivedAt: null }),
+      },
       orderBy: { updatedAt: 'desc' },
       include: {
         versions: { orderBy: { version_number: 'desc' }, take: 1 },
@@ -214,5 +219,51 @@ export async function getDocumentVersions(req: Request, res: Response) {
   } catch (error) {
     console.error('getDocumentVersions error:', error);
     return res.status(500).json({ success: false, error: 'Failed to get versions' });
+  }
+}
+
+export async function archiveDocument(req: Request, res: Response) {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    const existing = await prisma.document.findFirst({
+      where: { id: req.params.id as string, user_id: userId },
+    });
+    if (!existing) return res.status(404).json({ success: false, error: 'Document not found' });
+    if (existing.archivedAt)
+      return res.status(409).json({ success: false, error: 'Document is already archived' });
+
+    const document = await prisma.document.update({
+      where: { id: req.params.id as string },
+      data: { archivedAt: new Date() },
+    });
+
+    return res.status(200).json({ success: true, data: document });
+  } catch {
+    return res.status(500).json({ success: false, error: 'Failed to archive document' });
+  }
+}
+
+export async function restoreDocument(req: Request, res: Response) {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    const existing = await prisma.document.findFirst({
+      where: { id: req.params.id as string, user_id: userId },
+    });
+    if (!existing) return res.status(404).json({ success: false, error: 'Document not found' });
+    if (!existing.archivedAt)
+      return res.status(409).json({ success: false, error: 'Document is not archived' });
+
+    const document = await prisma.document.update({
+      where: { id: req.params.id as string },
+      data: { archivedAt: null },
+    });
+
+    return res.status(200).json({ success: true, data: document });
+  } catch {
+    return res.status(500).json({ success: false, error: 'Failed to restore document' });
   }
 }

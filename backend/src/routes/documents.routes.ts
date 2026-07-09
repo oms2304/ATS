@@ -7,6 +7,8 @@ import {
   deleteDocument,
   updateDocumentMeta,
   getDocumentVersions,
+  archiveDocument,
+  restoreDocument,
 } from '../controllers/documents.controller';
 
 const router = Router();
@@ -17,5 +19,7 @@ router.get('/:id', checkOwnership('document'), getDocumentById);
 router.patch('/:id', checkOwnership('document'), updateDocumentMeta);
 router.delete('/:id', checkOwnership('document'), deleteDocument);
 router.get('/:id/versions', checkOwnership('document'), getDocumentVersions);
+router.patch('/:id/archive', checkOwnership('document'), archiveDocument);
+router.patch('/:id/restore', checkOwnership('document'), restoreDocument);
 
 export default router;
