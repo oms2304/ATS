@@ -41,3 +41,7 @@ export const archiveJob = (id: string) =>
   apiFetch(`/api/jobs/${id}/archive`, { method: 'PATCH' })
 export const restoreJob = (id: string) =>
   apiFetch(`/api/jobs/${id}/restore`, { method: 'PATCH' })
+export const archiveDocument = (id: string) =>
+  apiFetch(`/api/documents/${id}/archive`, { method: 'PATCH' })
+export const restoreDocument = (id: string) =>
+  apiFetch(`/api/documents/${id}/restore`, { method: 'PATCH' })
