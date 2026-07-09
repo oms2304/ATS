@@ -76,18 +76,21 @@ model JobActivity {
 }
 
 model Document {
-  id        String   @id @default(cuid())
-  user_id   String
-  user      User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  type      String
-  title     String
-  status    String   @default("active")
-  tags      String[] @default([])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String    @id @default(cuid())
+  user_id    String
+  user       User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  type       String
+  title      String
+  status     String    @default("active")
+  tags       String[]  @default([])
+  archivedAt DateTime? @map("archived_at")
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   versions DocumentVersion[]
   jobs     JobDocumentLink[]
+
+  @@index([user_id, archivedAt])
 }
 
 model DocumentVersion {
