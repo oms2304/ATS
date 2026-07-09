@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { apiFetch } from '@/lib/api'
 import { JobModal } from '@/components/forms/job-modal'
+import { PrepNotesSection } from '@/components/forms/prep-notes-section'
 
 type Job = {
   id: string
@@ -903,6 +904,8 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         </div>
 
         {/* Outcome */}
+        {/* Interview Prep Notes */}
+        <PrepNotesSection jobId={job.id} />
         {['Offer', 'Rejected', 'Archived'].includes(job.stage) && (
           <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-6">
             <div className="flex justify-between items-center mb-4">
@@ -947,7 +950,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         initialData={{ title: job.title, company: job.company, jobPostingBody: job.jobPostingBody, stage: job.stage }}
         onSuccess={(updated) => setJob({ ...job, ...(updated as Job) })}
       />
-
+      
       {showTransitionWarning && pendingStage && (
         <div
           role="dialog"

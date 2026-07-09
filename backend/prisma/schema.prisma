@@ -62,6 +62,7 @@ model Job {
   interviews       Interview[]
   followUps        FollowUp[]
   stageTransitions StageTransition[]
+  prepNotes        PrepNote[]
 
   @@index([user_id, archivedAt])
 }
@@ -212,3 +213,15 @@ model StageTransition {
   toStage   String   @map("to_stage")
   changedAt DateTime @default(now()) @map("changed_at")
 }
+
+ model PrepNote {
+  id        String   @id @default(cuid())
+  job_id    String
+  job       Job      @relation(fields: [job_id], references: [id], onDelete: Cascade)
+  category  String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([job_id])
+ }

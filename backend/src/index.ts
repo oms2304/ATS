@@ -10,6 +10,7 @@ import documentsRouter from './routes/documents.routes';
 import aiRouter from './routes/ai.routes';
 import interviewRouter from './routes/interview.routes';
 import followUpRouter from './routes/followup.routes';
+import prepNoteRouter from './routes/prepnote.routes';
 import timelineRouter from './routes/timeline.routes';
 import experienceRouter from './routes/experience.routes';
 import educationRouter from './routes/education.routes';
@@ -41,6 +42,7 @@ app.use(
 )
 app.use(express.json());
 
+
 app.use('/api/auth', authRoutes);
 app.use('/api/jobs', authMiddleware, jobsRouter);
 app.use('/api/profile', authMiddleware, profileRouter);
@@ -48,6 +50,7 @@ app.use('/api/documents', authMiddleware, documentsRouter);
 app.use('/api/ai', authMiddleware, aiRouter);
 app.use('/api', interviewRouter);
 app.use('/api', followUpRouter);
+app.use('/api', prepNoteRouter);
 app.use('/api', timelineRouter);
 app.use('/api/experience', authMiddleware, experienceRouter);
 app.use('/api/education', authMiddleware, educationRouter);
