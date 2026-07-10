@@ -1,11 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import {
   createDocument,
   getDocuments,
   updateDocumentMeta,
   getDocumentVersions,
+  archiveDocument,
+  restoreDocument,
 } from '../controllers/documents.controller';
+import { checkOwnership } from '../middleware/ownership.middleware';
 
 vi.mock('../lib/prisma', () => ({
   default: {
@@ -15,11 +18,14 @@ vi.mock('../lib/prisma', () => ({
       update: vi.fn(),
       findMany: vi.fn(),
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
     },
     documentVersion: {
       create: vi.fn(),
       findFirst: vi.fn(),
       findMany: vi.fn(),
+      delete: vi.fn(),
+      update: vi.fn(),
     },
     jobDocumentLink: {
       findUnique: vi.fn(),
@@ -205,7 +211,9 @@ describe('getDocuments (S2-024)', () => {
     await getDocuments(req, res);
 
     expect(prisma.document.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { user_id: 'user-123' } })
+      expect.objectContaining({
+        where: expect.objectContaining({ user_id: 'user-123' }),
+      })
     );
     const payload = (res.json as any).mock.calls[0][0];
     expect(payload.data[0].content).toBe('Dear Hiring Team');
@@ -456,5 +464,222 @@ describe('S2-024 regression — createDocument defaults (S3-002)', () => {
     expect(payload.success).toBe(true);
     expect(payload.data.status).toBe('active');
     expect(payload.data.tags).toEqual([]);
+  });
+});
+
+describe('archiveDocument (S3-008)', () => {
+  it('archives an active document: sets archivedAt and returns 200', async () => {
+    const req = mockReq({ params: { id: 'doc-1' } });
+    const res = mockRes();
+    const existing = { id: 'doc-1', user_id: 'user-123', archivedAt: null };
+    const archived = { id: 'doc-1', user_id: 'user-123', archivedAt: new Date() };
+    vi.mocked(prisma.document.findFirst).mockResolvedValue(existing as any);
+    vi.mocked(prisma.document.update).mockResolvedValue(archived as any);
+
+    await archiveDocument(req, res);
+
+    expect(prisma.document.update).toHaveBeenCalledWith({
+      where: { id: 'doc-1' },
+      data: { archivedAt: expect.any(Date) },
+    });
+    expect(res.json).toHaveBeenCalledWith({ success: true, data: archived });
+  });
+
+  // S3-BR-009: archiving a document must not delete or alter any DocumentVersion rows
+  it('does not delete or update any DocumentVersion when archiving (S3-BR-009)', async () => {
+    const req = mockReq({ params: { id: 'doc-1' } });
+    const res = mockRes();
+    vi.mocked(prisma.document.findFirst).mockResolvedValue({
+      id: 'doc-1',
+      user_id: 'user-123',
+      archivedAt: null,
+    } as any);
+    vi.mocked(prisma.document.update).mockResolvedValue({
+      id: 'doc-1',
+      archivedAt: new Date(),
+    } as any);
+
+    await archiveDocument(req, res);
+
+    expect(prisma.documentVersion.delete).not.toHaveBeenCalled();
+    expect(prisma.documentVersion.update).not.toHaveBeenCalled();
+  });
+
+  it('returns 409 when archiving an already-archived document', async () => {
+    const req = mockReq({ params: { id: 'doc-1' } });
+    const res = mockRes();
+    vi.mocked(prisma.document.findFirst).mockResolvedValue({
+      id: 'doc-1',
+      user_id: 'user-123',
+      archivedAt: new Date(),
+    } as any);
+
+    await archiveDocument(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(prisma.document.update).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when the document does not exist', async () => {
+    const req = mockReq({ params: { id: 'doc-999' } });
+    const res = mockRes();
+    vi.mocked(prisma.document.findFirst).mockResolvedValue(null);
+
+    await archiveDocument(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(prisma.document.update).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 when unauthenticated', async () => {
+    const req = mockReq({ user: undefined, params: { id: 'doc-1' } });
+    const res = mockRes();
+
+    await archiveDocument(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(prisma.document.findFirst).not.toHaveBeenCalled();
+  });
+});
+
+describe('restoreDocument (S3-008)', () => {
+  it('restores an archived document: clears archivedAt and returns 200', async () => {
+    const req = mockReq({ params: { id: 'doc-1' } });
+    const res = mockRes();
+    const existing = { id: 'doc-1', user_id: 'user-123', archivedAt: new Date() };
+    const restored = { id: 'doc-1', user_id: 'user-123', archivedAt: null };
+    vi.mocked(prisma.document.findFirst).mockResolvedValue(existing as any);
+    vi.mocked(prisma.document.update).mockResolvedValue(restored as any);
+
+    await restoreDocument(req, res);
+
+    expect(prisma.document.update).toHaveBeenCalledWith({
+      where: { id: 'doc-1' },
+      data: { archivedAt: null },
+    });
+    expect(res.json).toHaveBeenCalledWith({ success: true, data: restored });
+  });
+
+  it('returns 409 when restoring a document that is not archived', async () => {
+    const req = mockReq({ params: { id: 'doc-1' } });
+    const res = mockRes();
+    vi.mocked(prisma.document.findFirst).mockResolvedValue({
+      id: 'doc-1',
+      user_id: 'user-123',
+      archivedAt: null,
+    } as any);
+
+    await restoreDocument(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(prisma.document.update).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when the document does not exist', async () => {
+    const req = mockReq({ params: { id: 'doc-999' } });
+    const res = mockRes();
+    vi.mocked(prisma.document.findFirst).mockResolvedValue(null);
+
+    await restoreDocument(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(prisma.document.update).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 when unauthenticated', async () => {
+    const req = mockReq({ user: undefined, params: { id: 'doc-1' } });
+    const res = mockRes();
+
+    await restoreDocument(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(prisma.document.findFirst).not.toHaveBeenCalled();
+  });
+});
+
+describe('document ownership (S3-008)', () => {
+  it('returns 403 when archiving a document owned by another user (via checkOwnership)', async () => {
+    const req = mockReq({ params: { id: 'doc-1' } });
+    const res = mockRes();
+    const next = vi.fn() as unknown as NextFunction;
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      id: 'doc-1',
+      user_id: 'someone-else',
+    } as any);
+
+    await checkOwnership('document')(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({ success: false, error: 'Access denied' });
+    expect(next).not.toHaveBeenCalled();
+  });
+});
+
+describe('getDocuments archive filtering (S3-008)', () => {
+  it('default list (no ?archived= param) excludes archived documents', async () => {
+    const req = mockReq();
+    const res = mockRes();
+    vi.mocked(prisma.document.findMany).mockResolvedValue([] as any);
+
+    await getDocuments(req, res);
+
+    expect(prisma.document.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          user_id: 'user-123',
+          archivedAt: null,
+        }),
+      })
+    );
+  });
+
+  it('?archived=true returns only archived documents', async () => {
+    const req = mockReq({ query: { archived: 'true' } });
+    const res = mockRes();
+    vi.mocked(prisma.document.findMany).mockResolvedValue([] as any);
+
+    await getDocuments(req, res);
+
+    expect(prisma.document.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          user_id: 'user-123',
+          archivedAt: { not: null },
+        }),
+      })
+    );
+  });
+
+  // S2-024 regression: the default list still returns active documents with the full S2-024 shape
+  it('regression: default list still returns active documents with full S2-024 shape (content, job)', async () => {
+    const req = mockReq();
+    const res = mockRes();
+    vi.mocked(prisma.document.findMany).mockResolvedValue([
+      {
+        id: 'doc-1',
+        type: 'cover_letter',
+        title: 'Cover Letter',
+        archivedAt: null,
+        updatedAt: new Date(),
+        versions: [{ content: 'Dear Hiring Team', version_number: 1 }],
+        jobs: [{ job: { id: 'job-1', title: 'Engineer', company: 'Acme' } }],
+      },
+    ] as any);
+
+    await getDocuments(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(prisma.document.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          user_id: 'user-123',
+          archivedAt: null,
+        }),
+      })
+    );
+    const payload = (res.json as any).mock.calls[0][0];
+    expect(payload.data).toHaveLength(1);
+    expect(payload.data[0].content).toBe('Dear Hiring Team');
+    expect(payload.data[0].job).toEqual({ id: 'job-1', title: 'Engineer', company: 'Acme' });
   });
 });
