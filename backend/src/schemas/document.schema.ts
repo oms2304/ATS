@@ -25,7 +25,13 @@ export const createVersionSchema = z
     message: 'Either content or fileUrl is required',
     path: ['content'],
   });
+export const linkDocumentSchema = z.object({
+  documentId: z.string().min(1, 'documentId is required'),
+  type: z.enum(DOCUMENT_TYPES),
+  confirmedReplace: z.boolean().optional(),
+});
 
+export type LinkDocumentInput = z.infer<typeof linkDocumentSchema>;
 export type CreateDocumentInput = z.infer<typeof createDocumentSchema>;
 export type UpdateDocumentMetaInput = z.infer<typeof updateDocumentMetaSchema>;
 export type CreateVersionInput = z.infer<typeof createVersionSchema>;

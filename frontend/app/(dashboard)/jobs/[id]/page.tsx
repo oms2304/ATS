@@ -7,6 +7,7 @@ import { apiFetch } from '@/lib/api'
 import { JobModal } from '@/components/forms/job-modal'
 import { PrepNotesSection } from '@/components/forms/prep-notes-section'
 import { ResearchNotesSection } from '@/components/forms/research-notes-section'
+import { JobDocumentLinks } from '@/components/forms/job-document-links'
 
 type Job = {
   id: string
@@ -803,7 +804,10 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
             </div>
           )}
         </div>
+        {/* Linked Documents (S3-009) */}
+        <JobDocumentLinks jobId={job.id} />
 
+        
         {/* Interviews */}
         <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-6">
           <div className="flex justify-between items-center mb-4">
