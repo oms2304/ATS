@@ -14,6 +14,8 @@ type LibraryDoc = {
 type LinkedDoc = {
   documentId: string
   title: string
+  versionNumber: number
+  updatedAt: string
 } | null
 
 const DOC_TYPES = [
@@ -21,6 +23,12 @@ const DOC_TYPES = [
   { value: 'cover_letter', label: 'Cover Letter' },
 ] as const
 
+function formatDate(value: string) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+}
 export function JobDocumentLinks({ jobId }: { jobId: string }) {
   const [library, setLibrary] = useState<LibraryDoc[]>([])
   const [links, setLinks] = useState<Record<string, LinkedDoc>>({ resume: null, cover_letter: null })
@@ -43,7 +51,7 @@ export function JobDocumentLinks({ jobId }: { jobId: string }) {
         if (linkedRes.success && Array.isArray(linkedRes.data)) {
           const next: Record<string, LinkedDoc> = { resume: null, cover_letter: null }
           for (const doc of linkedRes.data) {
-            next[doc.type] = { documentId: doc.id, title: doc.title }
+            next[doc.type] = { documentId: doc.id, title: doc.title, versionNumber: doc.versionNumber, updatedAt: doc.updatedAt }
           }
           setLinks(next)
         }
@@ -66,7 +74,15 @@ export function JobDocumentLinks({ jobId }: { jobId: string }) {
       })
       if (res.success) {
         const doc = library.find((d) => d.id === documentId)
-        setLinks((prev) => ({ ...prev, [type]: { documentId, title: doc?.title ?? '' } }))
+        setLinks((prev) => ({
+          ...prev,
+          [type]: {
+            documentId,
+            title: doc?.title ?? '',
+            versionNumber: doc?.versionNumber ?? 1,
+            updatedAt: doc?.updatedAt ?? new Date().toISOString(),
+          },
+        }))
         setSelecting(null)
         setSelectedDocId('')
         setConfirmReplace(null)
@@ -121,7 +137,12 @@ export function JobDocumentLinks({ jobId }: { jobId: string }) {
                 </div>
 
                 {linked ? (
-                  <p className="text-sm text-white mt-2">{linked.title}</p>
+                  <div className="mt-2">
+                    <p className="text-sm text-white">{linked.title}</p>
+                    <p className="text-xs text-[#8b949e] mt-0.5">
+                      v{linked.versionNumber} · Updated {formatDate(linked.updatedAt)}
+                    </p>
+                  </div>
                 ) : selecting !== value ? (
                   <p className="text-sm text-[#8b949e] mt-2">No {label.toLowerCase()} linked.</p>
                 ) : null}
