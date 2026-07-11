@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import { apiFetch } from '@/lib/api'
+import { downloadTextFile } from '@/lib/download'
 
 type LibraryDoc = {
   id: string
   type: string
   title: string
+  content: string | null
   versionNumber: number
   updatedAt: string
 }
@@ -14,6 +16,7 @@ type LibraryDoc = {
 type LinkedDoc = {
   documentId: string
   title: string
+  content: string | null
   versionNumber: number
   updatedAt: string
 } | null
@@ -51,7 +54,7 @@ export function JobDocumentLinks({ jobId }: { jobId: string }) {
         if (linkedRes.success && Array.isArray(linkedRes.data)) {
           const next: Record<string, LinkedDoc> = { resume: null, cover_letter: null }
           for (const doc of linkedRes.data) {
-            next[doc.type] = { documentId: doc.id, title: doc.title, versionNumber: doc.versionNumber, updatedAt: doc.updatedAt }
+            next[doc.type] = { documentId: doc.id, title: doc.title, content: doc.content, versionNumber: doc.versionNumber, updatedAt: doc.updatedAt }
           }
           setLinks(next)
         }
@@ -79,6 +82,7 @@ export function JobDocumentLinks({ jobId }: { jobId: string }) {
           [type]: {
             documentId,
             title: doc?.title ?? '',
+            content: doc?.content ?? null,
             versionNumber: doc?.versionNumber ?? 1,
             updatedAt: doc?.updatedAt ?? new Date().toISOString(),
           },
@@ -124,6 +128,14 @@ export function JobDocumentLinks({ jobId }: { jobId: string }) {
                   <span className="text-xs px-2 py-0.5 rounded bg-[#2d1f6e] text-[#bc8cff]">{label}</span>
                   {selecting !== value && (
                     <div className="flex gap-3">
+                      {linked && linked.content && (
+                        <button
+                          onClick={() => downloadTextFile(linked.title, linked.content as string)}
+                          className="text-xs text-[#8b949e] hover:text-white transition-colors"
+                        >
+                          Download
+                        </button>
+                      )}
                       {linked && (
                         <button onClick={() => handleUnlink(value)} className="text-xs text-[#f85149] hover:underline">
                           Unlink
