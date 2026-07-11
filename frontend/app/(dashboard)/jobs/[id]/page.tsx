@@ -4,9 +4,11 @@ import { use, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { apiFetch } from '@/lib/api'
+import { downloadTextFile } from '@/lib/download'
 import { JobModal } from '@/components/forms/job-modal'
 import { PrepNotesSection } from '@/components/forms/prep-notes-section'
 import { ResearchNotesSection } from '@/components/forms/research-notes-section'
+import { JobDocumentLinks } from '@/components/forms/job-document-links'
 
 type Job = {
   id: string
@@ -786,12 +788,22 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                         {doc.type === 'cover_letter' ? 'Cover Letter' : 'Resume'} · v{doc.versionNumber}
                       </p>
                     </div>
-                    <button
-                      onClick={() => setExpandedDocId(expandedDocId === doc.id ? null : doc.id)}
-                      className="text-xs px-3 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors shrink-0"
-                    >
-                      {expandedDocId === doc.id ? 'Hide' : 'View'}
-                    </button>
+                    <div className="flex gap-2 shrink-0">
+                      {doc.content && (
+                        <button
+                          onClick={() => downloadTextFile(doc.title, doc.content as string)}
+                          className="text-xs px-3 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors"
+                        >
+                          Download
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setExpandedDocId(expandedDocId === doc.id ? null : doc.id)}
+                        className="text-xs px-3 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors"
+                      >
+                        {expandedDocId === doc.id ? 'Hide' : 'View'}
+                      </button>
+                    </div>
                   </div>
                   {expandedDocId === doc.id && (
                     <pre className="mt-3 whitespace-pre-wrap font-sans text-sm text-[#c9d1d9] bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 max-h-96 overflow-y-auto">
@@ -803,7 +815,10 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
             </div>
           )}
         </div>
+        {/* Linked Documents (S3-009) */}
+        <JobDocumentLinks jobId={job.id} />
 
+        
         {/* Interviews */}
         <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-6">
           <div className="flex justify-between items-center mb-4">

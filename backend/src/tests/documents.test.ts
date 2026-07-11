@@ -8,6 +8,8 @@ import {
   archiveDocument,
   restoreDocument,
   duplicateDocument,
+  linkDocumentToJob,
+  unlinkDocumentFromJob,
 } from '../controllers/documents.controller';
 import { checkOwnership } from '../middleware/ownership.middleware';
 
@@ -33,6 +35,7 @@ vi.mock('../lib/prisma', () => ({
       findMany: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+      delete: vi.fn(),
     },
   },
 }));
@@ -486,7 +489,6 @@ describe('archiveDocument (S3-008)', () => {
     expect(res.json).toHaveBeenCalledWith({ success: true, data: archived });
   });
 
-  // S3-BR-009: archiving a document must not delete or alter any DocumentVersion rows
   it('does not delete or update any DocumentVersion when archiving (S3-BR-009)', async () => {
     const req = mockReq({ params: { id: 'doc-1' } });
     const res = mockRes();
@@ -651,7 +653,6 @@ describe('getDocuments archive filtering (S3-008)', () => {
     );
   });
 
-  // S2-024 regression: the default list still returns active documents with the full S2-024 shape
   it('regression: default list still returns active documents with full S2-024 shape (content, job)', async () => {
     const req = mockReq();
     const res = mockRes();
@@ -793,5 +794,204 @@ describe('duplicateDocument (S3-007)', () => {
       where: { id: 'doc-1', user_id: 'user-123' },
     });
     expect(res.status).toHaveBeenCalledWith(404);
+  });
+});
+describe('linkDocumentToJob (S3-009)', () => {
+  it('links an existing document to a job with no prior link (happy path)', async () => {
+    const req = mockReq({
+      params: { jobId: 'job-1' },
+      body: { documentId: 'doc-1', type: 'resume' },
+    });
+    const res = mockRes();
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123' } as any);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: 'doc-1', user_id: 'user-123' } as any);
+    vi.mocked(prisma.documentVersion.findFirst).mockResolvedValue({ id: 'ver-1', version_number: 1 } as any);
+    vi.mocked(prisma.jobDocumentLink.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.jobDocumentLink.create).mockResolvedValue({ id: 'link-1', job_id: 'job-1', document_id: 'doc-1', type: 'resume' } as any);
+
+    await linkDocumentToJob(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(prisma.jobDocumentLink.create).toHaveBeenCalledWith({
+      data: { job_id: 'job-1', document_id: 'doc-1', document_version_id: 'ver-1', type: 'resume' },
+    });
+  });
+
+  it('replaces an existing link when confirmedReplace is true', async () => {
+    const req = mockReq({
+      params: { jobId: 'job-1' },
+      body: { documentId: 'doc-2', type: 'resume', confirmedReplace: true },
+    });
+    const res = mockRes();
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123' } as any);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: 'doc-2', user_id: 'user-123' } as any);
+    vi.mocked(prisma.documentVersion.findFirst).mockResolvedValue({ id: 'ver-2', version_number: 1 } as any);
+    vi.mocked(prisma.jobDocumentLink.findUnique).mockResolvedValue({
+      id: 'link-1', document_id: 'doc-1', type: 'resume', document: { id: 'doc-1', title: 'Old Resume' },
+    } as any);
+    vi.mocked(prisma.jobDocumentLink.update).mockResolvedValue({ id: 'link-1', document_id: 'doc-2', type: 'resume' } as any);
+
+    await linkDocumentToJob(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(prisma.jobDocumentLink.update).toHaveBeenCalledWith({
+      where: { id: 'link-1' },
+      data: { document_id: 'doc-2', document_version_id: 'ver-2' },
+    });
+  });
+
+  it('returns 409 when replacing an existing link without confirmation (S3-BR-011)', async () => {
+    const req = mockReq({
+      params: { jobId: 'job-1' },
+      body: { documentId: 'doc-2', type: 'resume' },
+    });
+    const res = mockRes();
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123' } as any);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: 'doc-2', user_id: 'user-123' } as any);
+    vi.mocked(prisma.documentVersion.findFirst).mockResolvedValue({ id: 'ver-2', version_number: 1 } as any);
+    vi.mocked(prisma.jobDocumentLink.findUnique).mockResolvedValue({
+      id: 'link-1', document_id: 'doc-1', type: 'resume', document: { id: 'doc-1', title: 'Old Resume' },
+    } as any);
+
+    await linkDocumentToJob(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(prisma.jobDocumentLink.update).not.toHaveBeenCalled();
+  });
+
+  it('returns 403 when the job belongs to another user (S3-BR-012)', async () => {
+    const req = mockReq({
+      params: { jobId: 'job-1' },
+      body: { documentId: 'doc-1', type: 'resume' },
+    });
+    const res = mockRes();
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'someone-else' } as any);
+
+    await linkDocumentToJob(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(prisma.jobDocumentLink.create).not.toHaveBeenCalled();
+  });
+
+  it('returns 403 when the document belongs to another user (S3-BR-012)', async () => {
+    const req = mockReq({
+      params: { jobId: 'job-1' },
+      body: { documentId: 'doc-1', type: 'resume' },
+    });
+    const res = mockRes();
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123' } as any);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: 'doc-1', user_id: 'someone-else' } as any);
+
+    await linkDocumentToJob(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(prisma.jobDocumentLink.create).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when the job does not exist', async () => {
+    const req = mockReq({
+      params: { jobId: 'job-999' },
+      body: { documentId: 'doc-1', type: 'resume' },
+    });
+    const res = mockRes();
+    vi.mocked(prisma.job.findUnique).mockResolvedValue(null);
+
+    await linkDocumentToJob(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  it('returns 404 when the document does not exist', async () => {
+    const req = mockReq({
+      params: { jobId: 'job-1' },
+      body: { documentId: 'doc-999', type: 'resume' },
+    });
+    const res = mockRes();
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123' } as any);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(null);
+
+    await linkDocumentToJob(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  it('returns 400 when body fails validation (bad type)', async () => {
+    const req = mockReq({
+      params: { jobId: 'job-1' },
+      body: { documentId: 'doc-1', type: 'not_a_real_type' },
+    });
+    const res = mockRes();
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123' } as any);
+
+    await linkDocumentToJob(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  it('returns 401 when unauthenticated', async () => {
+    const req = mockReq({ user: undefined, params: { jobId: 'job-1' }, body: {} });
+    const res = mockRes();
+
+    await linkDocumentToJob(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+  });
+});
+
+describe('unlinkDocumentFromJob (S3-009)', () => {
+  it('unlinks a document from a job and returns 204 (happy path)', async () => {
+    const req = mockReq({ params: { jobId: 'job-1', type: 'resume' } });
+    const res = mockRes();
+    (res as any).send = vi.fn().mockReturnValue(res);
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123' } as any);
+    vi.mocked(prisma.jobDocumentLink.findUnique).mockResolvedValue({ id: 'link-1', job_id: 'job-1', type: 'resume' } as any);
+    vi.mocked(prisma.jobDocumentLink.delete).mockResolvedValue({ id: 'link-1' } as any);
+
+    await unlinkDocumentFromJob(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(204);
+    expect(prisma.jobDocumentLink.delete).toHaveBeenCalledWith({ where: { id: 'link-1' } });
+  });
+
+  it('returns 404 when no document is linked for that type', async () => {
+    const req = mockReq({ params: { jobId: 'job-1', type: 'resume' } });
+    const res = mockRes();
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123' } as any);
+    vi.mocked(prisma.jobDocumentLink.findUnique).mockResolvedValue(null);
+
+    await unlinkDocumentFromJob(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(prisma.jobDocumentLink.delete).not.toHaveBeenCalled();
+  });
+
+  it('returns 403 when the job belongs to another user (S3-BR-012)', async () => {
+    const req = mockReq({ params: { jobId: 'job-1', type: 'resume' } });
+    const res = mockRes();
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'someone-else' } as any);
+
+    await unlinkDocumentFromJob(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(prisma.jobDocumentLink.delete).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when the job does not exist', async () => {
+    const req = mockReq({ params: { jobId: 'job-999', type: 'resume' } });
+    const res = mockRes();
+    vi.mocked(prisma.job.findUnique).mockResolvedValue(null);
+
+    await unlinkDocumentFromJob(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  it('returns 401 when unauthenticated', async () => {
+    const req = mockReq({ user: undefined, params: { jobId: 'job-1', type: 'resume' } });
+    const res = mockRes();
+
+    await unlinkDocumentFromJob(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(401);
   });
 });

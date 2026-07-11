@@ -87,6 +87,42 @@ describe('DocumentCard', () => {
     expect(screen.getByTestId('document-card')).toBeInTheDocument();
   });
 
+  // S3-006: Status badge
+  // HAPPY PATH: status badge renders when status is present
+  it('renders active status badge when status is active', () => {
+    const docWithStatus = { ...mockDoc, status: 'active' };
+    render(<DocumentCard doc={docWithStatus} {...noop} />);
+    expect(screen.getByTestId('document-status')).toHaveTextContent('Active');
+  });
+
+  it('renders archived status badge when status is archived', () => {
+    const docWithStatus = { ...mockDoc, status: 'archived' };
+    render(<DocumentCard doc={docWithStatus} {...noop} />);
+    expect(screen.getByTestId('document-status')).toHaveTextContent('Archived');
+  });
+
+  // NON-HAPPY PATH: no status badge rendered when status is undefined
+  it('does not render a status badge when status is not provided', () => {
+    render(<DocumentCard doc={mockDoc} {...noop} />);
+    expect(screen.queryByTestId('document-status')).not.toBeInTheDocument();
+  });
+
+  // S3-006: Tag chips
+  // HAPPY PATH: tag chips render when tags are present
+  it('renders tag chips when tags are present', () => {
+    const docWithTags = { ...mockDoc, tags: ['urgent', 'referral'] };
+    render(<DocumentCard doc={docWithTags} {...noop} />);
+    const tagContainer = screen.getByTestId('document-tags');
+    expect(tagContainer).toHaveTextContent('urgent');
+    expect(tagContainer).toHaveTextContent('referral');
+  });
+
+  // NON-HAPPY PATH: no tag container rendered when tags is empty or undefined
+  it('does not render tag chips when tags is empty or undefined', () => {
+    render(<DocumentCard doc={mockDoc} {...noop} />);
+    expect(screen.queryByTestId('document-tags')).not.toBeInTheDocument();
+  });
+
   // S3-007: Duplicate
   // HAPPY PATH: duplicate button calls onDuplicate with the document
   it('calls onDuplicate with the document when Duplicate is clicked', () => {

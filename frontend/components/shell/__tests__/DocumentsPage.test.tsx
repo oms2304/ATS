@@ -18,6 +18,7 @@ jest.mock('@/lib/api', () => ({
   renameDocument: jest.fn(),
 }));
 
+// Helper: find the card element for a given title, regardless of sort order in the grid.
 function getCardByTitle(title: string) {
   const titleEl = screen.getByText(title);
   return titleEl.closest('[data-testid="document-card"]') as HTMLElement;
@@ -170,5 +171,125 @@ describe('DocumentsPage - S3-007 Document Duplicate and Rename', () => {
 
     expect(await screen.findByTestId('action-error')).toHaveTextContent(/could not rename/i);
     expect(screen.getByText('Alice Anderson Resume')).toBeInTheDocument();
+  });
+});
+
+describe('DocumentsPage - S3-006 Library Filtering and Sorting', () => {
+  const filterDocs = [
+    {
+      id: 'doc-1',
+      type: 'resume',
+      title: 'Active Resume',
+      content: 'content A',
+      versionNumber: 1,
+      updatedAt: '2024-01-01T00:00:00Z',
+      status: 'active',
+      tags: [],
+      job: null,
+    },
+    {
+      id: 'doc-2',
+      type: 'cover_letter',
+      title: 'Archived Cover Letter',
+      content: 'content B',
+      versionNumber: 1,
+      updatedAt: '2024-01-05T00:00:00Z',
+      status: 'archived',
+      tags: [],
+      job: null,
+    },
+    {
+      id: 'doc-3',
+      type: 'resume',
+      title: 'Zebra Resume',
+      content: 'content C',
+      versionNumber: 1,
+      updatedAt: '2024-01-03T00:00:00Z',
+      status: 'active',
+      tags: ['urgent'],
+      job: null,
+    },
+  ];
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  // HAPPY PATH: type filter narrows the visible cards
+  it('filters documents by type', async () => {
+    (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: filterDocs });
+    render(<DocumentsPage />);
+    await screen.findByText('Active Resume');
+
+    fireEvent.change(screen.getByTestId('type-filter'), { target: { value: 'cover_letter' } });
+
+    expect(screen.getByText('Archived Cover Letter')).toBeInTheDocument();
+    expect(screen.queryByText('Active Resume')).not.toBeInTheDocument();
+    expect(screen.queryByText('Zebra Resume')).not.toBeInTheDocument();
+  });
+
+  // HAPPY PATH: status filter narrows the visible cards
+  it('filters documents by status', async () => {
+    (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: filterDocs });
+    render(<DocumentsPage />);
+    await screen.findByText('Active Resume');
+
+    fireEvent.change(screen.getByTestId('status-filter'), { target: { value: 'archived' } });
+
+    expect(screen.getByText('Archived Cover Letter')).toBeInTheDocument();
+    expect(screen.queryByText('Active Resume')).not.toBeInTheDocument();
+    expect(screen.queryByText('Zebra Resume')).not.toBeInTheDocument();
+  });
+
+  // HAPPY PATH: combining type and status filters narrows further
+  it('combines type and status filters', async () => {
+    (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: filterDocs });
+    render(<DocumentsPage />);
+    await screen.findByText('Active Resume');
+
+    fireEvent.change(screen.getByTestId('type-filter'), { target: { value: 'resume' } });
+    fireEvent.change(screen.getByTestId('status-filter'), { target: { value: 'active' } });
+
+    expect(screen.getByText('Active Resume')).toBeInTheDocument();
+    expect(screen.getByText('Zebra Resume')).toBeInTheDocument();
+    expect(screen.queryByText('Archived Cover Letter')).not.toBeInTheDocument();
+  });
+
+  // HAPPY PATH: sorting by title A-Z orders cards alphabetically
+  it('sorts documents by title A-Z', async () => {
+    (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: filterDocs });
+    render(<DocumentsPage />);
+    await screen.findByText('Active Resume');
+
+    fireEvent.change(screen.getByTestId('sort-select'), { target: { value: 'titleAsc' } });
+
+    const titles = screen.getAllByTestId('document-title');
+    expect(titles[0]).toHaveTextContent('Active Resume');
+    expect(titles[1]).toHaveTextContent('Archived Cover Letter');
+    expect(titles[2]).toHaveTextContent('Zebra Resume');
+  });
+
+  // HAPPY PATH: default sort is last updated, newest first
+  it('sorts documents by last updated (newest first) by default', async () => {
+    (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: filterDocs });
+    render(<DocumentsPage />);
+    await screen.findByText('Active Resume');
+
+    const titles = screen.getAllByTestId('document-title');
+    expect(titles[0]).toHaveTextContent('Archived Cover Letter'); // Jan 5
+    expect(titles[1]).toHaveTextContent('Zebra Resume'); // Jan 3
+    expect(titles[2]).toHaveTextContent('Active Resume'); // Jan 1
+  });
+
+  // NON-HAPPY PATH: filter combination with no matches shows a message
+  it('shows a no-match message when filters exclude all documents', async () => {
+    (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: filterDocs });
+    render(<DocumentsPage />);
+    await screen.findByText('Active Resume');
+
+    fireEvent.change(screen.getByTestId('type-filter'), { target: { value: 'cover_letter' } });
+    fireEvent.change(screen.getByTestId('status-filter'), { target: { value: 'active' } });
+
+    expect(screen.getByTestId('no-match-message')).toBeInTheDocument();
   });
 });

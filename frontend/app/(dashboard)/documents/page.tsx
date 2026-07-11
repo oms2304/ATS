@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { apiFetch, duplicateDocument, renameDocument } from '@/lib/api'
 import { DocumentCard } from '@/components/ui/document-card'
 import {
@@ -18,8 +18,14 @@ type DocItem = {
   content: string | null
   versionNumber: number
   updatedAt: string
+  status?: string
+  tags?: string[]
   job: { id: string; title: string; company: string } | null
 }
+
+type TypeFilter = 'All' | 'resume' | 'cover_letter'
+type StatusFilter = 'All' | 'active' | 'archived'
+type SortOption = 'updatedDesc' | 'updatedAsc' | 'titleAsc'
 
 function typeLabel(type: string) {
   return type === 'cover_letter' ? 'Cover Letter' : 'Resume'
@@ -43,6 +49,11 @@ export default function DocumentsPage() {
   const [loading, setLoading] = useState(true)
   const [activeDoc, setActiveDoc] = useState<DocItem | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+
+  // S3-006: filter and sort state for the document library
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('All')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('All')
+  const [sortBy, setSortBy] = useState<SortOption>('updatedDesc')
 
   useEffect(() => {
     async function load() {
@@ -87,6 +98,28 @@ export default function DocumentsPage() {
     }
   }
 
+  // S3-006: derive the filtered/sorted list shown in the grid
+  const visibleDocs = useMemo(() => {
+    let result = [...docs]
+
+    if (typeFilter !== 'All') {
+      result = result.filter((doc) => doc.type === typeFilter)
+    }
+
+    if (statusFilter !== 'All') {
+      result = result.filter((doc) => (doc.status ?? 'active') === statusFilter)
+    }
+
+    result.sort((a, b) => {
+      if (sortBy === 'titleAsc') return a.title.localeCompare(b.title)
+      const aTime = new Date(a.updatedAt).getTime()
+      const bTime = new Date(b.updatedAt).getTime()
+      return sortBy === 'updatedAsc' ? aTime - bTime : bTime - aTime
+    })
+
+    return result
+  }, [docs, typeFilter, statusFilter, sortBy])
+
   return (
     <div className="max-w-5xl mx-auto py-8 px-4 flex flex-col gap-6">
       <div>
@@ -102,15 +135,56 @@ export default function DocumentsPage() {
         </p>
       )}
 
+      {!loading && docs.length > 0 && (
+        <div className="flex flex-wrap gap-3">
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}
+            data-testid="type-filter"
+            className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all appearance-none"
+          >
+            <option value="All">All types</option>
+            <option value="resume">Resume</option>
+            <option value="cover_letter">Cover Letter</option>
+          </select>
+
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+            data-testid="status-filter"
+            className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all appearance-none"
+          >
+            <option value="All">All statuses</option>
+            <option value="active">Active</option>
+            <option value="archived">Archived</option>
+          </select>
+
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortOption)}
+            data-testid="sort-select"
+            className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all appearance-none"
+          >
+            <option value="updatedDesc">Last Updated (Newest)</option>
+            <option value="updatedAsc">Last Updated (Oldest)</option>
+            <option value="titleAsc">Title (A-Z)</option>
+          </select>
+        </div>
+      )}
+
       {loading ? (
         <p className="text-sm text-[#8b949e]">Loading...</p>
       ) : docs.length === 0 ? (
         <p className="text-sm text-[#8b949e]">
           No saved documents yet. Open a job, generate a resume or cover letter, and click Save.
         </p>
+      ) : visibleDocs.length === 0 ? (
+        <p className="text-sm text-[#8b949e]" data-testid="no-match-message">
+          No documents match your filters.
+        </p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {docs.map((doc) => (
+          {visibleDocs.map((doc) => (
             <DocumentCard
               key={doc.id}
               doc={doc}
