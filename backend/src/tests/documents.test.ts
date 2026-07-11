@@ -7,6 +7,7 @@ import {
   getDocumentVersions,
   archiveDocument,
   restoreDocument,
+  duplicateDocument,
   linkDocumentToJob,
   unlinkDocumentFromJob,
 } from '../controllers/documents.controller';
@@ -685,6 +686,116 @@ describe('getDocuments archive filtering (S3-008)', () => {
   });
 });
 
+describe('duplicateDocument (S3-007)', () => {
+  it('creates a new document and version copied from the source, titled with "(Copy)" suffix', async () => {
+    const req = mockReq({ params: { id: 'doc-1' } });
+    const res = mockRes();
+    const source = {
+      id: 'doc-1',
+      user_id: 'user-123',
+      type: 'resume',
+      title: 'My Resume',
+      status: 'active',
+      tags: ['urgent'],
+    };
+    const latestVersion = { id: 'ver-1', document_id: 'doc-1', version_number: 2, content: 'Latest resume text' };
+    const newDoc = { id: 'doc-2', user_id: 'user-123', type: 'resume', title: 'My Resume (Copy)', status: 'active', tags: ['urgent'] };
+    const newVersion = { id: 'ver-2', document_id: 'doc-2', version_number: 1, content: 'Latest resume text' };
+
+    vi.mocked(prisma.document.findFirst).mockResolvedValue(source as any);
+    vi.mocked(prisma.documentVersion.findFirst).mockResolvedValue(latestVersion as any);
+    vi.mocked(prisma.document.create).mockResolvedValue(newDoc as any);
+    vi.mocked(prisma.documentVersion.create).mockResolvedValue(newVersion as any);
+
+    await duplicateDocument(req, res);
+
+    expect(prisma.document.create).toHaveBeenCalledWith({
+      data: {
+        user_id: 'user-123',
+        type: 'resume',
+        title: 'My Resume (Copy)',
+        status: 'active',
+        tags: ['urgent'],
+      },
+    });
+    expect(prisma.documentVersion.create).toHaveBeenCalledWith({
+      data: {
+        document_id: 'doc-2',
+        version_number: 1,
+        content: 'Latest resume text',
+      },
+    });
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      data: { ...newDoc, content: 'Latest resume text' },
+    });
+  });
+
+  it('duplicates a document with no existing version using null content', async () => {
+    const req = mockReq({ params: { id: 'doc-1' } });
+    const res = mockRes();
+    const source = { id: 'doc-1', user_id: 'user-123', type: 'resume', title: 'Empty Doc', status: 'active', tags: [] };
+    const newDoc = { id: 'doc-2', user_id: 'user-123', type: 'resume', title: 'Empty Doc (Copy)', status: 'active', tags: [] };
+    const newVersion = { id: 'ver-2', document_id: 'doc-2', version_number: 1, content: null };
+
+    vi.mocked(prisma.document.findFirst).mockResolvedValue(source as any);
+    vi.mocked(prisma.documentVersion.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.document.create).mockResolvedValue(newDoc as any);
+    vi.mocked(prisma.documentVersion.create).mockResolvedValue(newVersion as any);
+
+    await duplicateDocument(req, res);
+
+    expect(prisma.documentVersion.create).toHaveBeenCalledWith({
+      data: {
+        document_id: 'doc-2',
+        version_number: 1,
+        content: null,
+      },
+    });
+    expect(res.status).toHaveBeenCalledWith(201);
+  });
+
+  // NON-HAPPY PATH: document not found
+  it('returns 404 when the source document does not exist', async () => {
+    const req = mockReq({ params: { id: 'doc-999' } });
+    const res = mockRes();
+    vi.mocked(prisma.document.findFirst).mockResolvedValue(null);
+
+    await duplicateDocument(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(prisma.document.create).not.toHaveBeenCalled();
+  });
+
+  // NON-HAPPY PATH: unauthenticated
+  it('returns 401 when unauthenticated', async () => {
+    const req = mockReq({ user: undefined, params: { id: 'doc-1' } });
+    const res = mockRes();
+
+    await duplicateDocument(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(prisma.document.findFirst).not.toHaveBeenCalled();
+  });
+
+  // REGRESSION: ownership — duplicating another user's document must be blocked
+  // by the user_id filter in findFirst, so it should behave exactly like "not found"
+  it('does not duplicate a document owned by a different user (ownership enforced via findFirst filter)', async () => {
+    const req = mockReq({ params: { id: 'doc-1' } });
+    const res = mockRes();
+    // findFirst is called with { id, user_id: userId }, so another user's doc
+    // simply won't match and resolves to null — same 404 path as a missing doc.
+    vi.mocked(prisma.document.findFirst).mockResolvedValue(null);
+
+    await duplicateDocument(req, res);
+
+    expect(prisma.document.findFirst).toHaveBeenCalledWith({
+      where: { id: 'doc-1', user_id: 'user-123' },
+    });
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+});
 describe('linkDocumentToJob (S3-009)', () => {
   it('links an existing document to a job with no prior link (happy path)', async () => {
     const req = mockReq({

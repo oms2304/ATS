@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { apiFetch } from '@/lib/api'
+import { apiFetch, duplicateDocument, renameDocument } from '@/lib/api'
 import { DocumentCard } from '@/components/ui/document-card'
 import {
   Dialog,
@@ -48,6 +48,7 @@ export default function DocumentsPage() {
   const [docs, setDocs] = useState<DocItem[]>([])
   const [loading, setLoading] = useState(true)
   const [activeDoc, setActiveDoc] = useState<DocItem | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   // S3-006: filter and sort state for the document library
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('All')
@@ -68,6 +69,36 @@ export default function DocumentsPage() {
     load()
   }, [])
 
+  // S3-007: duplicate a document. Prepends the new copy to the list so the
+  // user sees it immediately without a full refetch.
+  async function handleDuplicate(doc: DocItem) {
+    setActionError(null)
+    try {
+      const res = await duplicateDocument(doc.id)
+      if (res.success && res.data) {
+        setDocs((prev) => [res.data, ...prev])
+      }
+    } catch {
+      setActionError('Could not duplicate document. Please try again.')
+    }
+  }
+
+  // S3-007: rename a document. Updates the title in place on success.
+  async function handleRename(doc: DocItem, newTitle: string) {
+    setActionError(null)
+    try {
+      const res = await renameDocument(doc.id, newTitle)
+      if (res.success) {
+        setDocs((prev) =>
+          prev.map((d) => (d.id === doc.id ? { ...d, title: newTitle } : d))
+        )
+      }
+    } catch {
+      setActionError('Could not rename document. Please try again.')
+    }
+  }
+
+  // S3-006: derive the filtered/sorted list shown in the grid
   const visibleDocs = useMemo(() => {
     let result = [...docs]
 
@@ -97,6 +128,12 @@ export default function DocumentsPage() {
           Resumes and cover letters you&apos;ve saved from your job drafts.
         </p>
       </div>
+
+      {actionError && (
+        <p className="text-sm text-[#f85149]" data-testid="action-error">
+          {actionError}
+        </p>
+      )}
 
       {!loading && docs.length > 0 && (
         <div className="flex flex-wrap gap-3">
@@ -148,7 +185,13 @@ export default function DocumentsPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {visibleDocs.map((doc) => (
-            <DocumentCard key={doc.id} doc={doc} onView={setActiveDoc} />
+            <DocumentCard
+              key={doc.id}
+              doc={doc}
+              onView={setActiveDoc}
+              onDuplicate={handleDuplicate}
+              onRename={handleRename}
+            />
           ))}
         </div>
       )}

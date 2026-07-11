@@ -270,6 +270,49 @@ export async function restoreDocument(req: Request, res: Response) {
   }
 }
 
+// S3-007: Duplicate a document. Creates a new Document + a single DocumentVersion
+// copied from the source document's latest version. The duplicate always starts
+// active (not archived) and is not linked to any job — job links are per-type and
+// cardinality-constrained (S3-BR-010), so a duplicate can't silently inherit them.
+export async function duplicateDocument(req: Request, res: Response) {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    const existing = await prisma.document.findFirst({
+      where: { id: req.params.id as string, user_id: userId },
+    });
+    if (!existing) return res.status(404).json({ success: false, error: 'Document not found' });
+
+    const latestVersion = await prisma.documentVersion.findFirst({
+      where: { document_id: existing.id },
+      orderBy: { version_number: 'desc' },
+    });
+
+    const duplicate = await prisma.document.create({
+      data: {
+        user_id: userId,
+        type: existing.type,
+        title: `${existing.title} (Copy)`,
+        status: 'active',
+        tags: existing.tags,
+      },
+    });
+
+    const version = await prisma.documentVersion.create({
+      data: {
+        document_id: duplicate.id,
+        version_number: 1,
+        content: latestVersion?.content ?? null,
+      },
+    });
+
+    return res.status(201).json({ success: true, data: { ...duplicate, content: version.content } });
+  } catch {
+    return res.status(500).json({ success: false, error: 'Failed to duplicate document' });
+  }
+}
+
 // Link an existing library document to a job (S3-009). Enforces S3-BR-010
 // (one resume + one cover letter per job) and S3-BR-011 (confirmation required
 // before replacing an existing link) — mirrors the confirmedOverride pattern
