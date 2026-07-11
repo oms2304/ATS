@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../lib/prisma';
-import { createDocumentSchema, updateDocumentMetaSchema } from '../schemas/document.schema';
+import { createDocumentSchema, updateDocumentMetaSchema, linkDocumentSchema } from '../schemas/document.schema';
 
 // List the current user's saved documents. When ?jobId= is supplied, returns the
 // documents linked to that job (after verifying the job belongs to the user).
@@ -265,5 +265,94 @@ export async function restoreDocument(req: Request, res: Response) {
     return res.status(200).json({ success: true, data: document });
   } catch {
     return res.status(500).json({ success: false, error: 'Failed to restore document' });
+  }
+}
+
+// Link an existing library document to a job (S3-009). Enforces S3-BR-010
+// (one resume + one cover letter per job) and S3-BR-011 (confirmation required
+// before replacing an existing link) — mirrors the confirmedOverride pattern
+// used for job stage transitions.
+export async function linkDocumentToJob(req: Request, res: Response) {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    const jobId = req.params.jobId as string;
+    const job = await prisma.job.findUnique({ where: { id: jobId } });
+    if (!job) return res.status(404).json({ success: false, error: 'Job not found' });
+    if (job.user_id !== userId) return res.status(403).json({ success: false, error: 'Access denied' });
+
+    const parsed = linkDocumentSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        fields: parsed.error.flatten().fieldErrors,
+      });
+    }
+    const { documentId, type, confirmedReplace } = parsed.data;
+
+    const document = await prisma.document.findUnique({ where: { id: documentId } });
+    if (!document) return res.status(404).json({ success: false, error: 'Document not found' });
+    if (document.user_id !== userId) return res.status(403).json({ success: false, error: 'Access denied' });
+
+    const latestVersion = await prisma.documentVersion.findFirst({
+      where: { document_id: documentId },
+      orderBy: { version_number: 'desc' },
+    });
+    if (!latestVersion) {
+      return res.status(400).json({ success: false, error: 'Document has no versions to link' });
+    }
+
+    const existingLink = await prisma.jobDocumentLink.findUnique({
+      where: { job_id_type: { job_id: jobId, type } },
+      include: { document: true },
+    });
+
+    if (existingLink && existingLink.document_id !== documentId && !confirmedReplace) {
+      return res.status(409).json({
+        success: false,
+        error: 'A document is already linked for this type',
+        existing: { documentId: existingLink.document_id, title: existingLink.document.title },
+      });
+    }
+
+    const link = existingLink
+      ? await prisma.jobDocumentLink.update({
+          where: { id: existingLink.id },
+          data: { document_id: documentId, document_version_id: latestVersion.id },
+        })
+      : await prisma.jobDocumentLink.create({
+          data: { job_id: jobId, document_id: documentId, document_version_id: latestVersion.id, type },
+        });
+
+    return res.status(200).json({ success: true, data: link });
+  } catch {
+    return res.status(500).json({ success: false, error: 'Failed to link document' });
+  }
+}
+
+// Unlink a document from a job by type (S3-009).
+export async function unlinkDocumentFromJob(req: Request, res: Response) {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    const jobId = req.params.jobId as string;
+    const type = req.params.type as string;
+
+    const job = await prisma.job.findUnique({ where: { id: jobId } });
+    if (!job) return res.status(404).json({ success: false, error: 'Job not found' });
+    if (job.user_id !== userId) return res.status(403).json({ success: false, error: 'Access denied' });
+
+    const existingLink = await prisma.jobDocumentLink.findUnique({
+      where: { job_id_type: { job_id: jobId, type } },
+    });
+    if (!existingLink) return res.status(404).json({ success: false, error: 'No document linked for this type' });
+
+    await prisma.jobDocumentLink.delete({ where: { id: existingLink.id } });
+    return res.status(204).send();
+  } catch {
+    return res.status(500).json({ success: false, error: 'Failed to unlink document' });
   }
 }
