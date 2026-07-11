@@ -45,3 +45,11 @@ export const archiveDocument = (id: string) =>
   apiFetch(`/api/documents/${id}/archive`, { method: 'PATCH' })
 export const restoreDocument = (id: string) =>
   apiFetch(`/api/documents/${id}/restore`, { method: 'PATCH' })
+
+export const duplicateDocument = (id: string) =>
+  apiFetch(`/api/documents/${id}/duplicate`, { method: 'POST' })
+export const renameDocument = (id: string, title: string) =>
+  apiFetch(`/api/documents/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ title }),
+  })

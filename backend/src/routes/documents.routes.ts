@@ -9,6 +9,7 @@ import {
   getDocumentVersions,
   archiveDocument,
   restoreDocument,
+  duplicateDocument,
 } from '../controllers/documents.controller';
 
 const router = Router();
@@ -21,5 +22,6 @@ router.delete('/:id', checkOwnership('document'), deleteDocument);
 router.get('/:id/versions', checkOwnership('document'), getDocumentVersions);
 router.patch('/:id/archive', checkOwnership('document'), archiveDocument);
 router.patch('/:id/restore', checkOwnership('document'), restoreDocument);
+router.post('/:id/duplicate', checkOwnership('document'), duplicateDocument);
 
 export default router;
