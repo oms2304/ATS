@@ -56,6 +56,8 @@ export async function getDocuments(req: Request, res: Response) {
         content: latest?.content ?? null,
         versionNumber: latest?.version_number ?? 1,
         updatedAt: doc.updatedAt,
+        status: doc.status,
+        tags: doc.tags,
         job: link?.job
           ? { id: link.job.id, title: link.job.title, company: link.job.company }
           : null,
