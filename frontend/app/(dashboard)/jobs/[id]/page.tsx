@@ -21,6 +21,7 @@ type Job = {
   outcomeNote: string | null
   createdAt: string
   updatedAt: string
+  archivedAt?: string | null
 }
 
 type Interview = {
@@ -90,6 +91,12 @@ function formatDate(value: string) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+function getDaysSinceUpdate(updatedAt: string): number {
+  const updated = new Date(updatedAt)
+  const now = new Date()
+  const diff = now.getTime() - updated.getTime()
+  return Math.floor(diff / (1000 * 60 * 60 * 24))
+}
 function formatDateTimeLocal(value: string) {
   if (!value) return ''
   const date = new Date(value)
@@ -541,6 +548,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
 
   const badge = STAGE_BADGE[job.stage] ?? STAGE_BADGE.Interested
   const progress = STAGE_PROGRESS[job.stage] ?? 0
+  const isStale = getDaysSinceUpdate(job.updatedAt) >= 7 && job.stage !== 'Rejected' && !job.archivedAt
 
   return (
     <div className="min-h-screen bg-[#0d1117] p-6 text-[#e6edf3]">
@@ -548,26 +556,41 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         <Link href="/dashboard" className="text-sm text-[#2f81f4] hover:underline inline-block">&larr; Back to dashboard</Link>
 
         {/* Overview */}
-        <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-6">
+        <div
+          className={`bg-[#161b22] border rounded-lg p-6 ${
+            isStale ? 'border-[#f0883e]' : 'border-[#30363d]'
+          }`}
+        >
           <div className="flex justify-between items-start mb-3 gap-4">
             <div>
               <p className="text-sm text-[#8b949e] mb-1">{job.company}</p>
               <h1 className="text-2xl font-semibold text-white">{job.title}</h1>
             </div>
-            <label title="Click to change stage">
-              <span className="sr-only">Stage</span>
-              <select
-                value={job.stage}
-                onChange={handleStageChange}
-                disabled={updatingStage}
-                className="text-xs px-2 py-1 rounded appearance-none cursor-pointer outline-none focus:ring-1 focus:ring-[#2f81f4] disabled:opacity-50"
-                style={{ backgroundColor: badge.bg, color: badge.text }}
-              >
-                {STAGES.map((s) => (
-                  <option key={s} value={s} className="bg-[#161b22] text-white">{s}</option>
-                ))}
-              </select>
-            </label>
+            <div className="flex items-center gap-1">
+              {isStale && (
+                <span
+                  className="text-xs px-2 py-1 rounded"
+                  style={{ backgroundColor: '#3d2a1e', color: '#f0883e' }}
+                  data-testid="job-detail-stale"
+                >
+                  Stale
+                </span>
+              )}
+              <label title="Click to change stage">
+                <span className="sr-only">Stage</span>
+                <select
+                  value={job.stage}
+                  onChange={handleStageChange}
+                  disabled={updatingStage}
+                  className="text-xs px-2 py-1 rounded appearance-none cursor-pointer outline-none focus:ring-1 focus:ring-[#2f81f4] disabled:opacity-50"
+                  style={{ backgroundColor: badge.bg, color: badge.text }}
+                >
+                  {STAGES.map((s) => (
+                    <option key={s} value={s} className="bg-[#161b22] text-white">{s}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
           </div>
 
           <div className="h-1.5 w-full rounded-full bg-[#21262d] mb-6">
