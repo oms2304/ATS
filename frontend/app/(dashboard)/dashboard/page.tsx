@@ -47,6 +47,8 @@ export default function DashboardPage() {
     totalApplied: number
     totalResponded: number
     responseRate: number
+    velocity: number
+    stageConversionRate: number
   } | null>(null)
 
   // Refetch jobs whenever the archived view is toggled.
@@ -238,7 +240,7 @@ export default function DashboardPage() {
 
       {/* Metrics Section — hidden in archived view since metrics reflect active flow */}
       {metrics && !showArchived && (
-        <div data-testid="metrics-section" className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div data-testid="metrics-section" className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
           <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-4 text-center">
           <p data-testid="metric-total-jobs" className="text-2xl font-bold text-white">{metrics.totalJobs}</p>
           <p className="text-xs text-[#8b949e] mt-1">Total Jobs</p>
@@ -254,6 +256,14 @@ export default function DashboardPage() {
         <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-4 text-center">
           <p data-testid="metric-response-rate" className="text-2xl font-bold text-[#3fb950]">{metrics.responseRate}%</p>
           <p className="text-xs text-[#8b949e] mt-1">Response Rate</p>
+        </div>
+        <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-4 text-center">
+          <p data-testid="metric-velocity" className="text-2xl font-bold text-[#f0883e]">{metrics.velocity}</p>
+          <p className="text-xs text-[#8b949e] mt-1">Velocity (7d)</p>
+        </div>
+        <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-4 text-center">
+          <p data-testid="metric-stage-conversion" className="text-2xl font-bold text-[#2f81f4]">{metrics.stageConversionRate}%</p>
+          <p className="text-xs text-[#8b949e] mt-1">Interview Rate (14d)</p>
         </div>
       </div>
       )}
