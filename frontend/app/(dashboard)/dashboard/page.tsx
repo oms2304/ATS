@@ -194,6 +194,7 @@ export default function DashboardPage() {
           <select
             value={stageFilter}
             onChange={(e) => setStageFilter(e.target.value)}
+            aria-label="Filter by stage"
             disabled={showArchived}
             className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all appearance-none disabled:opacity-40 disabled:cursor-not-allowed"
           >
@@ -208,6 +209,7 @@ export default function DashboardPage() {
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
+            aria-label="Sort jobs"
             className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all appearance-none"
 >
             <option value="updatedAt">Last Activity</option>

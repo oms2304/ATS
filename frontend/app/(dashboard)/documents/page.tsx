@@ -141,6 +141,7 @@ export default function DocumentsPage() {
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}
             data-testid="type-filter"
+            aria-label="Filter by document type"
             className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all appearance-none"
           >
             <option value="All">All types</option>
@@ -152,6 +153,7 @@ export default function DocumentsPage() {
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
             data-testid="status-filter"
+            aria-label="Filter by document status"
             className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all appearance-none"
           >
             <option value="All">All statuses</option>
@@ -163,6 +165,7 @@ export default function DocumentsPage() {
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as SortOption)}
             data-testid="sort-select"
+            aria-label="Sort documents"
             className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all appearance-none"
           >
             <option value="updatedDesc">Last Updated (Newest)</option>
