@@ -728,7 +728,7 @@ describe('duplicateDocument (S3-007)', () => {
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith({
       success: true,
-      data: { ...newDoc, content: 'Latest resume text' },
+      data: { ...newDoc, content: 'Latest resume text', versionNumber: 1 },
     });
   });
 
@@ -754,6 +754,10 @@ describe('duplicateDocument (S3-007)', () => {
       },
     });
     expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      data: { ...newDoc, content: null, versionNumber: 1 },
+    });
   });
 
   // NON-HAPPY PATH: document not found
