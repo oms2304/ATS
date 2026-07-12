@@ -41,6 +41,7 @@ export function StageSelect({
       onChange={(e) => { e.stopPropagation(); onChange(e.target.value) }}
       className="text-xs px-2 py-1 rounded appearance-none cursor-pointer outline-none focus:ring-1 focus:ring-[#2f81f4] disabled:opacity-50"
       style={{ backgroundColor: badge.bg, color: badge.text }}
+      aria-label="Change job stage"
     >
       {STAGES.map((s) => (
         <option key={s} value={s} className="bg-[#161b22] text-white">{s}</option>

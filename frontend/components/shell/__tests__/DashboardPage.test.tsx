@@ -184,7 +184,7 @@ it('sorts jobs by company alphabetically', async () => {
   fireEvent.change(screen.getByDisplayValue('Last Activity'), {
     target: { value: 'company' },
   });
-  const titles = screen.getAllByRole('heading', { level: 3 });
+  const titles = screen.getAllByRole('heading', { level: 2 });
   expect(titles[0]).toHaveTextContent('Frontend Developer');
   expect(titles[1]).toHaveTextContent('Backend Engineer');
 });
@@ -193,7 +193,7 @@ it('sorts jobs by last activity by default', async () => {
   (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: mockJobs });
   renderWithAuth();
   await screen.findByPlaceholderText('Search jobs...');
-  const titles = screen.getAllByRole('heading', { level: 3 });
+  const titles = screen.getAllByRole('heading', { level: 2 });
   expect(titles[0]).toHaveTextContent('Backend Engineer');
   expect(titles[1]).toHaveTextContent('Frontend Developer');
 });

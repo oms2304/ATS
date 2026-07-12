@@ -112,7 +112,7 @@ export function JobCard({ job, onEdit, onStageChange, onArchive, onRestore }: Jo
           )}
         </div>
       </div>
-      <h3 className="text-white font-medium mb-1" data-testid="job-title">{job.title}</h3>
+      <h2 className="text-white font-medium mb-1" data-testid="job-title">{job.title}</h2>
       <p className="text-xs text-[#8b949e] mb-3" data-testid="job-date">
         Updated {formatDate(job.updatedAt)}
       </p>

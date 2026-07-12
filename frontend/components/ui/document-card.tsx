@@ -130,9 +130,9 @@ export function DocumentCard({ doc, onView, onDuplicate, onRename }: DocumentCar
           </button>
         </div>
       ) : (
-        <h3 className="text-white font-medium mb-1 truncate" data-testid="document-title">
+        <h2 className="text-white font-medium mb-1 truncate" data-testid="document-title">
           {doc.title}
-        </h3>
+        </h2>
       )}
 
       {doc.job && (
