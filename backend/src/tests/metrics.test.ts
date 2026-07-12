@@ -146,7 +146,7 @@ describe('getDashboardMetrics - S3-014 Stage Conversion (S3-BR-014, S3-BR-015)',
     const appliedAt3 = new Date('2024-01-10T00:00:00Z');
     const appliedAt4 = new Date('2024-01-15T00:00:00Z');
 
-    vi.mocked(prisma.stageTransition.findMany).mockImplementation((args: any) => {
+    (vi.mocked(prisma.stageTransition.findMany) as any).mockImplementation((args: any) => {
       if (args.where.toStage === 'Applied') {
         return Promise.resolve([
           { job_id: 'job-0', changedAt: appliedAt1 },
@@ -191,7 +191,7 @@ describe('getDashboardMetrics - S3-014 Stage Conversion (S3-BR-014, S3-BR-015)',
     vi.mocked(prisma.job.findMany).mockResolvedValue(jobsAt('Interview') as any);
 
     const appliedAt = new Date('2024-01-01T00:00:00Z');
-    vi.mocked(prisma.stageTransition.findMany).mockImplementation((args: any) => {
+    (vi.mocked(prisma.stageTransition.findMany) as any).mockImplementation((args: any) => {
       if (args.where.toStage === 'Applied') {
         return Promise.resolve([{ job_id: 'job-0', changedAt: appliedAt }] as any);
       }
