@@ -45,6 +45,8 @@ const mockMetrics = {
   totalApplied: 2,
   totalResponded: 1,
   responseRate: 50,
+  velocity: 4,
+  stageConversionRate: 30,
 };
 
 const renderWithAuth = () => {
@@ -77,6 +79,20 @@ describe('S2-025 - Dashboard Metrics', () => {
     renderWithAuth();
     expect(await screen.findByTestId('metric-total-jobs')).toHaveTextContent('2');
     expect(await screen.findByTestId('metric-response-rate')).toHaveTextContent('50%');
+  });
+
+  // S3-014: Velocity and Stage Conversion metric cards
+  it('renders velocity and stage conversion metric cards with correct labels', async () => {
+    renderWithAuth();
+    expect(await screen.findByTestId('metrics-section')).toBeInTheDocument();
+    expect(await screen.findByText('Velocity (7d)')).toBeInTheDocument();
+    expect(await screen.findByText('Interview Rate (14d)')).toBeInTheDocument();
+  });
+
+  it('displays correct velocity and stage conversion values', async () => {
+    renderWithAuth();
+    expect(await screen.findByTestId('metric-velocity')).toHaveTextContent('4');
+    expect(await screen.findByTestId('metric-stage-conversion')).toHaveTextContent('30%');
   });
 
   // NON-HAPPY PATH: metrics not shown when API fails
