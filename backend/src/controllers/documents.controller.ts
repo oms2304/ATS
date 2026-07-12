@@ -307,7 +307,7 @@ export async function duplicateDocument(req: Request, res: Response) {
       },
     });
 
-    return res.status(201).json({ success: true, data: { ...duplicate, content: version.content } });
+    return res.status(201).json({ success: true, data: { ...duplicate, content: version.content, versionNumber: version.version_number } });
   } catch {
     return res.status(500).json({ success: false, error: 'Failed to duplicate document' });
   }
