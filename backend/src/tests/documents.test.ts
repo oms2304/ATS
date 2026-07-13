@@ -860,6 +860,15 @@ describe('linkDocumentToJob (S3-009, S3-BR-010, S3-BR-012)', () => {
     await linkDocumentToJob(req, res);
 
     expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        existing: expect.objectContaining({
+          documentId: expect.any(String),
+          title: expect.any(String),
+        }),
+      })
+    );
     expect(prisma.jobDocumentLink.update).not.toHaveBeenCalled();
   });
 
@@ -980,6 +989,12 @@ describe('linkDocumentToJob (S3-009, S3-BR-010, S3-BR-012)', () => {
     await linkDocumentToJob(req, res);
 
     expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        error: expect.stringContaining('no versions'),
+      })
+    );
     expect(prisma.jobDocumentLink.create).not.toHaveBeenCalled();
     expect(prisma.jobDocumentLink.update).not.toHaveBeenCalled();
   });
