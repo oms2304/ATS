@@ -240,3 +240,52 @@ Rewrite the draft following the instruction above. Return only the rewritten con
     return res.status(500).json({ success: false, error: 'Failed to rewrite draft' })
   }
 }
+
+export async function generateCompanyResearch(req: Request, res: Response) {
+  try {
+    const userId = req.user?.userId
+    if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' })
+
+    const jobId = req.params.jobId as string
+    const job = await prisma.job.findUnique({ where: { id: jobId } })
+    if (!job) return res.status(404).json({ success: false, error: 'Job not found' })
+    if (job.user_id !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' })
+    }
+
+    const { context } = req.body as { context?: string }
+
+    const completion = await openai.chat.completions.create({
+      model: RESUME_MODEL,
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are a company research assistant helping a job candidate prepare. Write factual, concise notes about the company based on what is publicly known and reasonable to infer from the job posting. Never invent specific numbers, funding amounts, executive names, or statistics you cannot verify — instead describe what the candidate should look up themselves.',
+        },
+        {
+          role: 'user',
+          content: `Company: ${job.company}
+Job title: ${job.title}
+Job posting:
+${job.jobPostingBody}
+${context ? `\nAdditional context from the candidate:\n${context}` : ''}
+
+Write structured research notes covering: what the company likely does, what this role's focus probably is based on the posting, and 3-4 questions the candidate should research or ask about before interviewing. Keep it concise, use short paragraphs or bullet points.`,
+        },
+      ],
+      max_tokens: 700,
+      temperature: 0.4,
+    })
+
+    const draft = completion.choices[0]?.message?.content
+    if (!draft) {
+      return res.status(500).json({ success: false, error: 'AI did not return a response' })
+    }
+
+    return res.json({ success: true, data: { draft } })
+  } catch (error) {
+    console.error('generateCompanyResearch error:', error)
+    return res.status(500).json({ success: false, error: 'Failed to generate company research' })
+  }
+}
