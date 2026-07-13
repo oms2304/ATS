@@ -38,6 +38,8 @@ vi.mock('../lib/prisma', () => ({
       upsert: vi.fn().mockResolvedValue(null),
       findUnique: vi.fn().mockResolvedValue(null),
       delete: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockResolvedValue(null),
+      update: vi.fn().mockResolvedValue(null),
     },
   },
   default: {
@@ -66,6 +68,8 @@ vi.mock('../lib/prisma', () => ({
       upsert: vi.fn().mockResolvedValue(null),
       findUnique: vi.fn().mockResolvedValue(null),
       delete: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockResolvedValue(null),
+      update: vi.fn().mockResolvedValue(null),
     },
   },
 }))
@@ -132,6 +136,8 @@ beforeEach(() => {
   vi.mocked(prisma.researchNote.upsert).mockResolvedValue(null as any)
   vi.mocked(prisma.researchNote.findUnique).mockResolvedValue(null as any)
   vi.mocked(prisma.researchNote.delete).mockResolvedValue(null as any)
+  vi.mocked(prisma.researchNote.create).mockResolvedValue(null as any)
+  vi.mocked(prisma.researchNote.update).mockResolvedValue(null as any)
 })
 
 describe('generateResume (controller)', () => {
@@ -669,9 +675,12 @@ describe('generateCompanyResearch (controller)', () => {
 
     await generateCompanyResearch(req, res)
 
+    expect(res.json).toHaveBeenCalledWith({ success: true, data: { draft: expect.any(String) } })
     expect(prisma.researchNote.upsert).not.toHaveBeenCalled()
     expect(prisma.researchNote.findUnique).not.toHaveBeenCalled()
     expect(prisma.researchNote.delete).not.toHaveBeenCalled()
+    expect(prisma.researchNote.create).not.toHaveBeenCalled()
+    expect(prisma.researchNote.update).not.toHaveBeenCalled()
   })
 })
 
