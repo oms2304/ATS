@@ -800,7 +800,7 @@ describe('duplicateDocument (S3-007)', () => {
     expect(res.status).toHaveBeenCalledWith(404);
   });
 });
-describe('linkDocumentToJob (S3-009)', () => {
+describe('linkDocumentToJob (S3-009, S3-BR-010, S3-BR-012)', () => {
   it('links an existing document to a job with no prior link (happy path)', async () => {
     const req = mockReq({
       params: { jobId: 'job-1' },
@@ -860,6 +860,15 @@ describe('linkDocumentToJob (S3-009)', () => {
     await linkDocumentToJob(req, res);
 
     expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        existing: expect.objectContaining({
+          documentId: expect.any(String),
+          title: expect.any(String),
+        }),
+      })
+    );
     expect(prisma.jobDocumentLink.update).not.toHaveBeenCalled();
   });
 
@@ -940,9 +949,65 @@ describe('linkDocumentToJob (S3-009)', () => {
 
     expect(res.status).toHaveBeenCalledWith(401);
   });
+
+  it('re-linking the same document id to the same (job, type) silently repoints the link to the latest version (S3-BR-010)', async () => {
+    const req = mockReq({
+      params: { jobId: 'job-1' },
+      body: { documentId: 'doc-1', type: 'resume' },
+    });
+    const res = mockRes();
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123' } as any);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: 'doc-1', user_id: 'user-123' } as any);
+    vi.mocked(prisma.documentVersion.findFirst).mockResolvedValue({ id: 'ver-2', version_number: 2 } as any);
+    vi.mocked(prisma.jobDocumentLink.findUnique).mockResolvedValue({
+      id: 'link-1', document_id: 'doc-1', type: 'resume', document: { id: 'doc-1', title: 'My Resume' },
+    } as any);
+    vi.mocked(prisma.jobDocumentLink.update).mockResolvedValue({
+      id: 'link-1', job_id: 'job-1', document_id: 'doc-1', document_version_id: 'ver-2', type: 'resume',
+    } as any);
+
+    await linkDocumentToJob(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(prisma.jobDocumentLink.create).not.toHaveBeenCalled();
+    expect(prisma.jobDocumentLink.update).toHaveBeenCalledWith({
+      where: { id: 'link-1' },
+      data: { document_id: 'doc-1', document_version_id: 'ver-2' },
+    });
+  });
+
+  it('returns 400 when the document has no versions to link', async () => {
+    const req = mockReq({
+      params: { jobId: 'job-1' },
+      body: { documentId: 'doc-1', type: 'resume' },
+    });
+    const res = mockRes();
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123' } as any);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: 'doc-1', user_id: 'user-123' } as any);
+    vi.mocked(prisma.documentVersion.findFirst).mockResolvedValue(null);
+
+    await linkDocumentToJob(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        error: expect.stringContaining('no versions'),
+      })
+    );
+    expect(prisma.jobDocumentLink.create).not.toHaveBeenCalled();
+    expect(prisma.jobDocumentLink.update).not.toHaveBeenCalled();
+  });
 });
 
-describe('unlinkDocumentFromJob (S3-009)', () => {
+// Design decision (S3-021): unlinkDocumentFromJob intentionally tests only JOB ownership.
+// JobDocumentLink is keyed by (job_id, type). linkDocumentToJob already validates
+// ownership of both the job and the document at link-creation time, so a link can
+// only ever exist between a user's own job and a document they own. Therefore
+// unlinkDocumentFromJob correctly only needs to re-check job ownership — verifying
+// document ownership again on unlink would be redundant, not a missing security
+// check. See PR description "Design decisions" section.
+describe('unlinkDocumentFromJob (S3-009, S3-BR-012)', () => {
   it('unlinks a document from a job and returns 204 (happy path)', async () => {
     const req = mockReq({ params: { jobId: 'job-1', type: 'resume' } });
     const res = mockRes();
