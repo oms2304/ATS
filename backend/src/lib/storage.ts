@@ -34,6 +34,11 @@ export async function uploadFile(
 
   if (error) throw new Error(`Storage upload failed: ${error.message}`);
 
-  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
-  return data.publicUrl;
+  const { data, error: signError } = await supabase.storage
+    .from(BUCKET)
+    .createSignedUrl(path, 60 * 60 * 24 * 7); // 7 day expiry
+
+  if (signError || !data) throw new Error(`Failed to generate file URL: ${signError?.message}`);
+
+  return data.signedUrl;
 }
