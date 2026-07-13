@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Request, Response, NextFunction } from 'express';
 import {
   createDocument,
@@ -10,6 +10,7 @@ import {
   duplicateDocument,
   linkDocumentToJob,
   unlinkDocumentFromJob,
+  uploadDocument,
 } from '../controllers/documents.controller';
 import { checkOwnership } from '../middleware/ownership.middleware';
 
@@ -39,7 +40,14 @@ vi.mock('../lib/prisma', () => ({
     },
   },
 }));
+
+vi.mock('../lib/storage', () => ({
+  ensureBucketExists: vi.fn().mockResolvedValue(undefined),
+  uploadFile: vi.fn().mockResolvedValue('https://fake-storage.test/user-123/uuid.pdf'),
+}));
+
 import prisma from '../lib/prisma';
+import { ensureBucketExists, uploadFile } from '../lib/storage';
 
 const mockRes = () => {
   const res = {} as Response;
@@ -1062,5 +1070,240 @@ describe('unlinkDocumentFromJob (S3-009, S3-BR-012)', () => {
     await unlinkDocumentFromJob(req, res);
 
     expect(res.status).toHaveBeenCalledWith(401);
+  });
+});
+
+describe('uploadDocument (S3-004)', () => {
+  const makeFile = (overrides = {}) => ({
+    originalname: 'resume.pdf',
+    mimetype: 'application/pdf',
+    size: 1024,
+    buffer: Buffer.from('fake-pdf-bytes'),
+    ...overrides,
+  });
+
+  afterEach(() => {
+    vi.mocked(uploadFile).mockResolvedValue('https://fake-storage.test/user-123/uuid.pdf');
+    vi.mocked(ensureBucketExists).mockResolvedValue(undefined as any);
+  });
+
+  it('uploads a valid PDF, creates a Document and version 1 with file metadata (happy path)', async () => {
+    const req = mockReq({
+      body: { type: 'resume', title: 'My Resume' },
+      file: makeFile(),
+    });
+    const res = mockRes();
+    vi.mocked(prisma.document.create).mockResolvedValue({
+      id: 'doc-1',
+      user_id: 'user-123',
+      type: 'resume',
+      title: 'My Resume',
+    } as any);
+    vi.mocked(prisma.documentVersion.create).mockResolvedValue({
+      id: 'ver-1',
+      document_id: 'doc-1',
+      version_number: 1,
+      fileUrl: 'https://fake-storage.test/user-123/uuid.pdf',
+      fileName: 'resume.pdf',
+      mimeType: 'application/pdf',
+      fileSize: 1024,
+    } as any);
+
+    await uploadDocument(req, res);
+
+    expect(ensureBucketExists).toHaveBeenCalled();
+    expect(uploadFile).toHaveBeenCalledWith(
+      'user-123',
+      'resume.pdf',
+      expect.any(Buffer),
+      'application/pdf'
+    );
+    expect(prisma.document.create).toHaveBeenCalledWith({
+      data: { user_id: 'user-123', type: 'resume', title: 'My Resume' },
+    });
+    expect(prisma.documentVersion.create).toHaveBeenCalledWith({
+      data: {
+        document_id: 'doc-1',
+        version_number: 1,
+        fileUrl: 'https://fake-storage.test/user-123/uuid.pdf',
+        fileName: 'resume.pdf',
+        mimeType: 'application/pdf',
+        fileSize: 1024,
+      },
+    });
+    expect(res.status).toHaveBeenCalledWith(201);
+    const payload = (res.json as any).mock.calls[0][0];
+    expect(payload.success).toBe(true);
+    expect(payload.data.id).toBe('doc-1');
+    expect(payload.data.version.fileUrl).toBe('https://fake-storage.test/user-123/uuid.pdf');
+  });
+
+  it('trims the title before persisting', async () => {
+    const req = mockReq({
+      body: { type: 'resume', title: '  My Resume  ' },
+      file: makeFile(),
+    });
+    const res = mockRes();
+    vi.mocked(prisma.document.create).mockResolvedValue({ id: 'doc-1' } as any);
+    vi.mocked(prisma.documentVersion.create).mockResolvedValue({ id: 'ver-1' } as any);
+
+    await uploadDocument(req, res);
+
+    expect(prisma.document.create).toHaveBeenCalledWith({
+      data: { user_id: 'user-123', type: 'resume', title: 'My Resume' },
+    });
+  });
+
+  it('returns 400 with a field error on file when the file is missing', async () => {
+    const req = mockReq({ body: { type: 'resume', title: 'My Resume' } });
+    const res = mockRes();
+
+    await uploadDocument(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        fields: expect.objectContaining({ file: expect.any(Array) }),
+      })
+    );
+    expect(uploadFile).not.toHaveBeenCalled();
+    expect(prisma.document.create).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 with a field error on type when type is missing', async () => {
+    const req = mockReq({ body: { title: 'My Resume' }, file: makeFile() });
+    const res = mockRes();
+
+    await uploadDocument(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        fields: expect.objectContaining({ type: expect.any(Array) }),
+      })
+    );
+  });
+
+  it('returns 400 with a field error on type when type is not resume/cover_letter', async () => {
+    const req = mockReq({
+      body: { type: 'not_a_real_type', title: 'My Resume' },
+      file: makeFile(),
+    });
+    const res = mockRes();
+
+    await uploadDocument(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        fields: expect.objectContaining({ type: expect.any(Array) }),
+      })
+    );
+    expect(uploadFile).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 with a field error on title when title is missing', async () => {
+    const req = mockReq({ body: { type: 'resume' }, file: makeFile() });
+    const res = mockRes();
+
+    await uploadDocument(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        fields: expect.objectContaining({ title: expect.any(Array) }),
+      })
+    );
+  });
+
+  it('returns 400 with a field error on title when title is blank/whitespace only', async () => {
+    const req = mockReq({ body: { type: 'resume', title: '   ' }, file: makeFile() });
+    const res = mockRes();
+
+    await uploadDocument(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        fields: expect.objectContaining({ title: expect.any(Array) }),
+      })
+    );
+  });
+
+  it('returns 500 and creates no records when storage upload throws', async () => {
+    const req = mockReq({
+      body: { type: 'resume', title: 'My Resume' },
+      file: makeFile(),
+    });
+    const res = mockRes();
+    vi.mocked(uploadFile).mockRejectedValueOnce(new Error('Storage upload failed: boom'));
+
+    await uploadDocument(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({ success: false, error: 'Failed to upload document' });
+    expect(prisma.document.create).not.toHaveBeenCalled();
+    expect(prisma.documentVersion.create).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 when unauthenticated (no token)', async () => {
+    const req = mockReq({
+      user: undefined,
+      body: { type: 'resume', title: 'My Resume' },
+      file: makeFile(),
+    });
+    const res = mockRes();
+
+    await uploadDocument(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(uploadFile).not.toHaveBeenCalled();
+    expect(prisma.document.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('upload error handler (S3-004)', () => {
+  it('returns 400 with the spec message for UNSUPPORTED_FORMAT', async () => {
+    const { uploadErrorHandler } = await import('../middleware/upload.middleware');
+    const err: any = new Error('UNSUPPORTED_FORMAT');
+    const res = mockRes();
+    const next = vi.fn() as unknown as NextFunction;
+    await uploadErrorHandler(err, mockReq(), res, next);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      error: 'Validation failed',
+      fields: { file: ['Only PDF, DOCX, and TXT files are supported'] },
+    });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for FILE_TOO_LARGE', async () => {
+    const { uploadErrorHandler } = await import('../middleware/upload.middleware');
+    const err: any = new Error('FILE_TOO_LARGE');
+    const res = mockRes();
+    const next = vi.fn() as unknown as NextFunction;
+    await uploadErrorHandler(err, mockReq(), res, next);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      error: 'Validation failed',
+      fields: { file: ['File must be 5MB or smaller'] },
+    });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('forwards other errors via next(err)', async () => {
+    const { uploadErrorHandler } = await import('../middleware/upload.middleware');
+    const err: any = new Error('Something else broke');
+    const res = mockRes();
+    const next = vi.fn() as unknown as NextFunction;
+    await uploadErrorHandler(err, mockReq(), res, next);
+    expect(next).toHaveBeenCalledWith(err);
   });
 });

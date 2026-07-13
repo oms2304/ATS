@@ -1,6 +1,73 @@
 import { Request, Response } from 'express';
 import prisma from '../lib/prisma';
 import { createDocumentSchema, updateDocumentMetaSchema, linkDocumentSchema } from '../schemas/document.schema';
+import { uploadFile, ensureBucketExists } from '../lib/storage';
+
+// S3-004: Upload a file (PDF/DOCX/TXT) as a new Document + initial DocumentVersion.
+// Storage is Supabase Storage (private bucket); the file URL is a path reference,
+// and the existing download route (S3-005) enforces ownership before serving bytes.
+export async function uploadDocument(req: Request, res: Response) {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        fields: { file: ['A file is required'] },
+      });
+    }
+
+    const { type, title } = req.body;
+    if (!type || !['resume', 'cover_letter'].includes(type)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        fields: { type: ['type must be resume or cover_letter'] },
+      });
+    }
+    if (!title || !String(title).trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        fields: { title: ['Title is required'] },
+      });
+    }
+
+    await ensureBucketExists();
+
+    const fileUrl = await uploadFile(
+      userId,
+      req.file.originalname,
+      req.file.buffer,
+      req.file.mimetype
+    );
+
+    const document = await prisma.document.create({
+      data: { user_id: userId, type, title: String(title).trim() },
+    });
+
+    const version = await prisma.documentVersion.create({
+      data: {
+        document_id: document.id,
+        version_number: 1,
+        fileUrl,
+        fileName: req.file.originalname,
+        mimeType: req.file.mimetype,
+        fileSize: req.file.size,
+      },
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: { ...document, version },
+    });
+  } catch (error: any) {
+    console.error('uploadDocument error:', error);
+    return res.status(500).json({ success: false, error: 'Failed to upload document' });
+  }
+}
 
 // List the current user's saved documents. When ?jobId= is supplied, returns the
 // documents linked to that job (after verifying the job belongs to the user).

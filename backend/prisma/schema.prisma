@@ -102,6 +102,9 @@ model DocumentVersion {
   version_number Int
   label          String?
   fileUrl        String?
+  fileName       String?
+  mimeType       String?
+  fileSize       Int?
   content        String?
   is_archived    Boolean  @default(false)
   createdAt      DateTime @default(now())
