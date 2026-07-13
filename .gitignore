@@ -8,3 +8,6 @@ dist/
 build/
 .next/
 backend/dist/
+
+# database backup dumps
+*.dump
