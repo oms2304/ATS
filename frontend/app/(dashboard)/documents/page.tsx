@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { apiFetch, duplicateDocument, renameDocument } from '@/lib/api'
+import { apiFetch, duplicateDocument, renameDocument, archiveDocument, restoreDocument } from '@/lib/api'
 import { DocumentCard } from '@/components/ui/document-card'
 import {
   Dialog,
@@ -20,11 +20,11 @@ type DocItem = {
   updatedAt: string
   status?: string
   tags?: string[]
+  archivedAt?: string | null
   job: { id: string; title: string; company: string } | null
 }
 
 type TypeFilter = 'All' | 'resume' | 'cover_letter'
-type StatusFilter = 'All' | 'active' | 'archived'
 type SortOption = 'updatedDesc' | 'updatedAsc' | 'titleAsc'
 
 function typeLabel(type: string) {
@@ -50,15 +50,23 @@ export default function DocumentsPage() {
   const [activeDoc, setActiveDoc] = useState<DocItem | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
+  // S3-008: toggles between the active library and the archived view.
+  // The backend excludes archived documents from the default list, same
+  // as jobs, so we refetch with ?archived=true when this is on. This
+  // toggle is also the sole way to view archived/active state — there is
+  // no separate "status" filter, since a document's real archived state
+  // lives on archivedAt (set by this toggle's fetch), not the status field.
+  const [showArchived, setShowArchived] = useState(false)
+
   // S3-006: filter and sort state for the document library
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('All')
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('All')
   const [sortBy, setSortBy] = useState<SortOption>('updatedDesc')
 
   useEffect(() => {
     async function load() {
+      setLoading(true)
       try {
-        const res = await apiFetch('/api/documents')
+        const res = await apiFetch(`/api/documents${showArchived ? '?archived=true' : ''}`)
         if (res.success && Array.isArray(res.data)) setDocs(res.data)
       } catch {
         // leave the list empty so the page still renders
@@ -67,7 +75,7 @@ export default function DocumentsPage() {
       }
     }
     load()
-  }, [])
+  }, [showArchived])
 
   // S3-007: duplicate a document. Prepends the new copy to the list so the
   // user sees it immediately without a full refetch.
@@ -98,16 +106,40 @@ export default function DocumentsPage() {
     }
   }
 
+  // S3-008: archive a document. Since the current view only shows one
+  // "side" (active or archived) at a time, a successfully archived
+  // document is removed from the active view immediately.
+  async function handleArchive(doc: DocItem) {
+    setActionError(null)
+    try {
+      const res = await archiveDocument(doc.id)
+      if (res.success) {
+        setDocs((prev) => prev.filter((d) => d.id !== doc.id))
+      }
+    } catch {
+      setActionError('Could not archive document. Please try again.')
+    }
+  }
+
+  // S3-008: restore an archived document back to active.
+  async function handleRestore(doc: DocItem) {
+    setActionError(null)
+    try {
+      const res = await restoreDocument(doc.id)
+      if (res.success) {
+        setDocs((prev) => prev.filter((d) => d.id !== doc.id))
+      }
+    } catch {
+      setActionError('Could not restore document. Please try again.')
+    }
+  }
+
   // S3-006: derive the filtered/sorted list shown in the grid
   const visibleDocs = useMemo(() => {
     let result = [...docs]
 
     if (typeFilter !== 'All') {
       result = result.filter((doc) => doc.type === typeFilter)
-    }
-
-    if (statusFilter !== 'All') {
-      result = result.filter((doc) => (doc.status ?? 'active') === statusFilter)
     }
 
     result.sort((a, b) => {
@@ -118,15 +150,28 @@ export default function DocumentsPage() {
     })
 
     return result
-  }, [docs, typeFilter, statusFilter, sortBy])
+  }, [docs, typeFilter, sortBy])
 
   return (
     <div className="max-w-5xl mx-auto py-8 px-4 flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-white mb-1">Documents</h1>
-        <p className="text-sm text-[#8b949e]">
-          Resumes and cover letters you&apos;ve saved from your job drafts.
-        </p>
+      <div className="flex flex-wrap justify-between items-start gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-white mb-1">Documents</h1>
+          <p className="text-sm text-[#8b949e]">
+            Resumes and cover letters you&apos;ve saved from your job drafts.
+          </p>
+        </div>
+        <button
+          onClick={() => setShowArchived((v) => !v)}
+          data-testid="toggle-archived-documents"
+          className={`text-sm px-4 py-2 rounded border transition-colors ${
+            showArchived
+              ? 'bg-[#21262d] border-[#444c56] text-white'
+              : 'bg-[#0d1117] border-[#30363d] text-[#8b949e] hover:text-white hover:border-[#444c56]'
+          }`}
+        >
+          {showArchived ? 'Show active' : 'Show archived'}
+        </button>
       </div>
 
       {actionError && (
@@ -150,18 +195,6 @@ export default function DocumentsPage() {
           </select>
 
           <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-            data-testid="status-filter"
-            aria-label="Filter by document status"
-            className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all appearance-none"
-          >
-            <option value="All">All statuses</option>
-            <option value="active">Active</option>
-            <option value="archived">Archived</option>
-          </select>
-
-          <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as SortOption)}
             data-testid="sort-select"
@@ -179,7 +212,9 @@ export default function DocumentsPage() {
         <p className="text-sm text-[#8b949e]">Loading...</p>
       ) : docs.length === 0 ? (
         <p className="text-sm text-[#8b949e]">
-          No saved documents yet. Open a job, generate a resume or cover letter, and click Save.
+          {showArchived
+            ? 'No archived documents.'
+            : 'No saved documents yet. Open a job, generate a resume or cover letter, and click Save.'}
         </p>
       ) : visibleDocs.length === 0 ? (
         <p className="text-sm text-[#8b949e]" data-testid="no-match-message">
@@ -194,6 +229,8 @@ export default function DocumentsPage() {
               onView={setActiveDoc}
               onDuplicate={handleDuplicate}
               onRename={handleRename}
+              onArchive={handleArchive}
+              onRestore={handleRestore}
             />
           ))}
         </div>

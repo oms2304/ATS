@@ -675,9 +675,7 @@ describe('getDocuments archive filtering (S3-008)', () => {
         jobs: [{ job: { id: 'job-1', title: 'Engineer', company: 'Acme' } }],
       },
     ] as any);
-
     await getDocuments(req, res);
-
     expect(res.status).toHaveBeenCalledWith(200);
     expect(prisma.document.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -688,9 +686,32 @@ describe('getDocuments archive filtering (S3-008)', () => {
       })
     );
     const payload = (res.json as any).mock.calls[0][0];
-    expect(payload.data).toHaveLength(1);
     expect(payload.data[0].content).toBe('Dear Hiring Team');
     expect(payload.data[0].job).toEqual({ id: 'job-1', title: 'Engineer', company: 'Acme' });
+  });
+
+  // REGRESSION: archivedAt was previously missing from the getDocuments
+  // response mapper, so the frontend could never tell an archived document
+  // apart from an active one. Locking this in explicitly.
+  it('regression: response includes archivedAt so the frontend can distinguish active from archived documents', async () => {
+    const req = mockReq();
+    const res = mockRes();
+    vi.mocked(prisma.document.findMany).mockResolvedValue([
+      {
+        id: 'doc-1',
+        type: 'resume',
+        title: 'My Resume',
+        status: 'active',
+        tags: [],
+        archivedAt: null,
+        updatedAt: new Date(),
+        versions: [{ content: 'Resume text', version_number: 1 }],
+        jobs: [],
+      },
+    ] as any);
+    await getDocuments(req, res);
+    const payload = (res.json as any).mock.calls[0][0];
+    expect(payload.data[0]).toHaveProperty('archivedAt', null);
   });
 });
 

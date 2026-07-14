@@ -125,6 +125,7 @@ export async function getDocuments(req: Request, res: Response) {
         updatedAt: doc.updatedAt,
         status: doc.status,
         tags: doc.tags,
+        archivedAt: doc.archivedAt,
         job: link?.job
           ? { id: link.job.id, title: link.job.title, company: link.job.company }
           : null,
