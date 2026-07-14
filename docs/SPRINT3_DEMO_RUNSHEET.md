@@ -10,6 +10,11 @@ the hosted application; Docker is not required.
 - Primary account: `alice@demo.test` / `Password123`
 - Secondary account: `bob@demo.test` / `Password123`
 
+Alice has five concise job cards—one per pipeline stage. The Marketing
+Coordinator job is the feature hub for deadline/contact details, AI drafts,
+linked documents, interviews, follow-ups, research, and prep notes. The
+Applied card is also the stale-state example.
+
 Never paste an API key, database URL, JWT secret, service-role key, or bearer
 token into this document, a terminal recording, chat, or Git commit.
 

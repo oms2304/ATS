@@ -10,6 +10,7 @@ import {
   ALICE_PREP_NOTE_ID,
   ALICE_RESEARCH_NOTE_ID,
   ALICE_NURSING_SKILLS,
+  ALICE_JOBS,
   BOB_EMAIL,
   LEGACY_SKILL_IDS,
   PREP_NOTE_CONTENT,
@@ -18,6 +19,7 @@ import {
   COVER_LETTER_CONTENT,
   STALE_JOB_TITLE,
   STALE_JOB_COMPANY,
+  RETIRED_ALICE_JOBS,
   SeedEnvironmentMismatchError,
   SeedGuardError,
   SeedVerificationError,
@@ -201,6 +203,18 @@ function createFakePrisma() {
       if (!existing) throw new Error(`job ${where.id} not found`);
       Object.assign(existing, deepClone(data));
       return existing;
+    },
+    async deleteMany({ where }: any) {
+      const before = state.jobs.length;
+      state.jobs = state.jobs.filter((j) => {
+        const belongsToUser = j.user_id === where.user_id;
+        const matchesRetiredJob = where.OR.some(
+          ({ title, company }: AnyRecord) =>
+            j.title === title && j.company === company
+        );
+        return !(belongsToUser && matchesRetiredJob);
+      });
+      return { count: before - state.jobs.length };
     },
   };
 
@@ -552,8 +566,8 @@ describe('seedDemo - scoped two-run idempotence', () => {
       )
     ).toHaveLength(3);
     expect(afterFirst.careerPreferences).toHaveLength(1);
-    // 5 narrative + 1 stale = 6
-    expect(afterFirst.jobs).toHaveLength(6);
+    // One concise card per stage; the Applied card is also stale.
+    expect(afterFirst.jobs).toHaveLength(5);
     expect(afterFirst.documents).toHaveLength(2);
     expect(afterFirst.documentVersions).toHaveLength(2);
     expect(afterFirst.jobDocumentLinks).toHaveLength(2);
@@ -669,6 +683,58 @@ describe('seedDemo - scoped two-run idempotence', () => {
     expect(staleAfterSecond).toHaveLength(1);
   });
 
+  it("removes only Alice's retired demo job when migrating an older seed", async () => {
+    await runSeed();
+    const alice = fake.state.users.find((u) => u.email === ALICE_EMAIL)!;
+    const retired = RETIRED_ALICE_JOBS[0];
+
+    fake.state.jobs.push(
+      {
+        id: 'retired-alice-job',
+        user_id: alice.id,
+        ...retired,
+        jobPostingBody: 'Old Alice demo row',
+        stage: 'Applied',
+      },
+      {
+        id: 'same-title-other-user',
+        user_id: 'unrelated-user',
+        ...retired,
+        jobPostingBody: 'Unrelated row',
+        stage: 'Applied',
+      }
+    );
+
+    await runSeed();
+
+    expect(
+      fake.state.jobs.find((j) => j.id === 'retired-alice-job')
+    ).toBeUndefined();
+    expect(
+      fake.state.jobs.find((j) => j.id === 'same-title-other-user')
+    ).toBeDefined();
+  });
+
+  it('keeps the Marketing Coordinator as a concise feature-complete job', async () => {
+    await runSeed();
+    const marketing = fake.state.jobs.find(
+      (j) => j.title === 'Marketing Coordinator' && j.company === 'BrandCo'
+    )!;
+    const offer = fake.state.jobs.find(
+      (j) => j.title === 'Charge Nurse — ICU' && j.company === 'Mercy Health'
+    )!;
+
+    expect(marketing.recruiterNotes).toBe(
+      'Jordan Lee · recruiter@brandco.test'
+    );
+    expect(new Date(marketing.deadline).toISOString()).toBe(
+      '2026-07-21T12:00:00.000Z'
+    );
+    expect(offer.outcomeNote).toBe(
+      'Offer received; reviewing schedule and benefits.'
+    );
+  });
+
   it('ResearchNote and PrepNote are upserted on the Marketing Coordinator job', async () => {
     await runSeed();
     const research = fake.state.researchNotes[0];
@@ -772,7 +838,7 @@ describe('seedDemo - scoped two-run idempotence', () => {
       (f) => f.id === ALICE_FOLLOWUP_ID
     )!;
     expect(followUp).toBeDefined();
-    expect(followUp.title).toBe('Send thank-you email after phone screen');
+    expect(followUp.title).toBe('Send thank-you email');
 
     const research = fake.state.researchNotes.find(
       (r) => r.id === ALICE_RESEARCH_NOTE_ID
@@ -854,18 +920,16 @@ function createVerificationPrisma(options?: {
   legacySkillCount?: number;
 }): PrismaClient {
   const jobs = [
-    ...[
-      ['Registered Nurse — Medical/Surgical', 'City Hospital', 'job-city'],
-      ['Marketing Coordinator', 'BrandCo', 'job-marketing'],
-      ['Patient Educator', 'Riverside Clinic', 'job-riverside'],
-      ['Charge Nurse — ICU', 'Mercy Health', 'job-mercy'],
-      [
-        'Pediatric Nurse — Outpatient Clinic',
-        'Sunshine Pediatrics',
-        'job-rejected',
-      ],
-      [STALE_JOB_TITLE, STALE_JOB_COMPANY, 'job-stale'],
-    ].map(([title, company, id]) => ({ id, title, company })),
+    ...ALICE_JOBS.map(({ title, company }, index) => ({
+      id: `job-${index}`,
+      title,
+      company,
+    })),
+    {
+      id: 'job-stale',
+      title: STALE_JOB_TITLE,
+      company: STALE_JOB_COMPANY,
+    },
   ];
   if (options?.duplicateStaleJob) {
     jobs.push({
@@ -911,7 +975,7 @@ function createVerificationPrisma(options?: {
 describe('verifySeedState - observed database state', () => {
   it('returns observed scoped counts when the canonical state is exact', async () => {
     const summary = await verifySeedState(createVerificationPrisma(), 2);
-    expect(summary.jobs).toBe(6);
+    expect(summary.jobs).toBe(5);
     expect(summary.documents).toBe(2);
     expect(summary.legacySkillsDeleted).toBe(2);
   });
@@ -944,7 +1008,7 @@ describe('seedDemo - formatSeedSummary', () => {
       educations: 1,
       skills: 3,
       careerPreferences: 1,
-      jobs: 6,
+      jobs: 5,
       documents: 2,
       documentVersions: 2,
       jobDocumentLinks: 2,
@@ -959,7 +1023,7 @@ describe('seedDemo - formatSeedSummary', () => {
     expect(lines.join('\n')).toContain(ALICE_EMAIL);
     expect(lines.join('\n')).toContain(BOB_EMAIL);
     expect(lines.join('\n')).toContain('Password123');
-    expect(lines.join('\n')).toContain('Jobs: 6');
+    expect(lines.join('\n')).toContain('Jobs: 5');
     expect(lines.join('\n')).toContain(
       'Legacy React/PostgreSQL skills removed: 2'
     );

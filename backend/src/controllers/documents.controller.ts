@@ -16,6 +16,62 @@ import {
 } from '../lib/storage';
 import logger from '../lib/logger';
 
+const DUPLICATE_TITLE_ERROR = 'A document with this title already exists';
+const MAX_DOCUMENT_TITLE_LENGTH = 120;
+
+function duplicateTitleResponse(res: Response) {
+  return res.status(409).json({
+    success: false,
+    error: DUPLICATE_TITLE_ERROR,
+    fields: { title: [DUPLICATE_TITLE_ERROR] },
+  });
+}
+
+function isDuplicateTitleError(error: unknown) {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: string }).code === 'P2002'
+  );
+}
+
+async function hasDocumentTitle(
+  userId: string,
+  title: string,
+  excludeId?: string
+) {
+  const document = await prisma.document.findFirst({
+    where: {
+      user_id: userId,
+      title: { equals: title, mode: 'insensitive' },
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+    },
+    select: { id: true },
+  });
+  return !!document;
+}
+
+async function nextCopyTitle(userId: string, title: string) {
+  const documents = await prisma.document.findMany({
+    where: { user_id: userId },
+    select: { title: true },
+  });
+  const titles = new Set(
+    (documents ?? []).map((document) =>
+      document.title.trim().toLocaleLowerCase()
+    )
+  );
+
+  for (let copyNumber = 1; ; copyNumber += 1) {
+    const suffix = copyNumber === 1 ? ' (Copy)' : ` (Copy ${copyNumber})`;
+    const copyTitle = `${title
+      .slice(0, MAX_DOCUMENT_TITLE_LENGTH - suffix.length)
+      .trimEnd()}${suffix}`;
+    if (!titles.has(copyTitle.toLocaleLowerCase())) return copyTitle;
+  }
+}
+
 // S3-004: Upload a file (PDF/DOCX/TXT) as a new Document + initial DocumentVersion.
 // Storage is Supabase Storage (private bucket); the file URL is a path reference,
 // and the existing download route (S3-005) enforces ownership before serving bytes.
@@ -43,12 +99,27 @@ export async function uploadDocument(req: Request, res: Response) {
         fields: { type: ['type must be resume or cover_letter'] },
       });
     }
-    if (!title || !String(title).trim()) {
+    const normalizedTitle = String(title ?? '').trim();
+    if (!normalizedTitle) {
       return res.status(400).json({
         success: false,
         error: 'Validation failed',
         fields: { title: ['Title is required'] },
       });
+    }
+    if (normalizedTitle.length > MAX_DOCUMENT_TITLE_LENGTH) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        fields: {
+          title: [
+            `Title must be ${MAX_DOCUMENT_TITLE_LENGTH} characters or fewer`,
+          ],
+        },
+      });
+    }
+    if (await hasDocumentTitle(userId, normalizedTitle)) {
+      return duplicateTitleResponse(res);
     }
 
     await ensureBucketExists();
@@ -63,7 +134,7 @@ export async function uploadDocument(req: Request, res: Response) {
 
     const result = await prisma.$transaction(async (tx) => {
       const document = await tx.document.create({
-        data: { user_id: userId, type, title: String(title).trim() },
+        data: { user_id: userId, type, title: normalizedTitle },
       });
       const version = await tx.documentVersion.create({
         data: {
@@ -101,6 +172,7 @@ export async function uploadDocument(req: Request, res: Response) {
     logger.error('upload_document_failed', {
       error: error instanceof Error ? error.message : String(error),
     });
+    if (isDuplicateTitleError(error)) return duplicateTitleResponse(res);
     return res.status(error instanceof StorageServiceError ? 503 : 500).json({
       success: false,
       error:
@@ -230,7 +302,8 @@ export async function createDocument(req: Request, res: Response) {
         fields: parsed.error.flatten().fieldErrors,
       });
     }
-    const { jobId, type, title, content } = parsed.data;
+    const { jobId, type, content } = parsed.data;
+    const title = parsed.data.title.trim();
 
     const job = await prisma.job.findUnique({ where: { id: jobId } });
     if (!job)
@@ -241,6 +314,10 @@ export async function createDocument(req: Request, res: Response) {
     const existingLink = await prisma.jobDocumentLink.findUnique({
       where: { job_id_type: { job_id: jobId, type } },
     });
+
+    if (await hasDocumentTitle(userId, title, existingLink?.document_id)) {
+      return duplicateTitleResponse(res);
+    }
 
     if (existingLink) {
       const latest = await prisma.documentVersion.findFirst({
@@ -290,7 +367,8 @@ export async function createDocument(req: Request, res: Response) {
     return res
       .status(201)
       .json({ success: true, data: { ...document, content } });
-  } catch {
+  } catch (error) {
+    if (isDuplicateTitleError(error)) return duplicateTitleResponse(res);
     return res
       .status(500)
       .json({ success: false, error: 'Failed to save document' });
@@ -383,6 +461,13 @@ export async function updateDocumentMeta(req: Request, res: Response) {
     if (document.user_id !== userId)
       return res.status(403).json({ success: false, error: 'Access denied' });
 
+    if (
+      parsed.data.title &&
+      (await hasDocumentTitle(userId, parsed.data.title, document.id))
+    ) {
+      return duplicateTitleResponse(res);
+    }
+
     const updateData = {
       ...parsed.data,
       ...(parsed.data.status === 'archived'
@@ -399,6 +484,7 @@ export async function updateDocumentMeta(req: Request, res: Response) {
 
     return res.status(200).json({ success: true, data: updated });
   } catch (error) {
+    if (isDuplicateTitleError(error)) return duplicateTitleResponse(res);
     console.error('updateDocumentMeta error:', error);
     return res
       .status(500)
@@ -550,12 +636,14 @@ export async function duplicateDocument(req: Request, res: Response) {
       copiedFileUrl = copied.signedUrl;
     }
 
+    const copyTitle = await nextCopyTitle(userId, existing.title);
+
     const result = await prisma.$transaction(async (tx) => {
       const duplicate = await tx.document.create({
         data: {
           user_id: userId,
           type: existing.type,
-          title: `${existing.title} (Copy)`,
+          title: copyTitle,
           status: 'active',
           tags: existing.tags,
           archivedAt: null,
@@ -606,6 +694,7 @@ export async function duplicateDocument(req: Request, res: Response) {
         });
       }
     }
+    if (isDuplicateTitleError(error)) return duplicateTitleResponse(res);
     logger.error('duplicate_document_failed', {
       error: error instanceof Error ? error.message : String(error),
     });
