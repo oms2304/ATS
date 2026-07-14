@@ -98,6 +98,8 @@ const validBody = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(prisma.document.findFirst).mockReset();
+  vi.mocked(prisma.document.findMany).mockReset();
   vi.mocked(prisma.$transaction).mockImplementation(async (callback: any) =>
     callback(prisma)
   );
@@ -238,6 +240,30 @@ describe('createDocument (S2-024)', () => {
 
     expect(res.status).toHaveBeenCalledWith(401);
   });
+
+  it('rejects a title that is already used by another document for the user', async () => {
+    const req = mockReq({ body: validBody });
+    const res = mockRes();
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({
+      id: 'job-1',
+      user_id: 'user-123',
+    } as any);
+    vi.mocked(prisma.jobDocumentLink.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.document.findFirst).mockResolvedValue({
+      id: 'doc-9',
+    } as any);
+
+    await createDocument(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: 'A document with this title already exists',
+        fields: { title: ['A document with this title already exists'] },
+      })
+    );
+    expect(prisma.document.create).not.toHaveBeenCalled();
+  });
 });
 
 describe('getDocuments (S2-024)', () => {
@@ -344,6 +370,26 @@ describe('updateDocumentMeta (S3-002)', () => {
     const payload = (res.json as any).mock.calls[0][0];
     expect(payload.success).toBe(true);
     expect(payload.data.title).toBe('New Title');
+  });
+
+  it('rejects a rename that matches another document title, ignoring case', async () => {
+    const req = mockReq({
+      params: { id: 'doc-1' },
+      body: { title: 'MY RESUME' },
+    });
+    const res = mockRes();
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      id: 'doc-1',
+      user_id: 'user-123',
+    } as any);
+    vi.mocked(prisma.document.findFirst).mockResolvedValueOnce({
+      id: 'doc-2',
+    } as any);
+
+    await updateDocumentMeta(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(prisma.document.update).not.toHaveBeenCalled();
   });
 
   it("updates status to 'archived' and returns 200", async () => {
@@ -947,6 +993,44 @@ describe('duplicateDocument (S3-007)', () => {
     });
   });
 
+  it('uses the next available copy title when the default copy title exists', async () => {
+    const req = mockReq({ params: { id: 'doc-1' } });
+    const res = mockRes();
+    vi.mocked(prisma.document.findFirst).mockResolvedValueOnce({
+      id: 'doc-1',
+      user_id: 'user-123',
+      type: 'resume',
+      title: 'My Resume',
+      tags: [],
+    } as any);
+    vi.mocked(prisma.document.findMany).mockResolvedValueOnce([
+      { title: 'My Resume' },
+      { title: 'My Resume (Copy)' },
+    ] as any);
+    vi.mocked(prisma.documentVersion.findFirst).mockResolvedValueOnce({
+      id: 'ver-1',
+      document_id: 'doc-1',
+      version_number: 1,
+      fileUrl: null,
+    } as any);
+    vi.mocked(prisma.document.create).mockResolvedValueOnce({
+      id: 'doc-2',
+    } as any);
+    vi.mocked(prisma.documentVersion.create).mockResolvedValueOnce({
+      id: 'ver-2',
+      version_number: 1,
+      fileUrl: null,
+    } as any);
+
+    await duplicateDocument(req, res);
+
+    expect(prisma.document.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ title: 'My Resume (Copy 2)' }),
+      })
+    );
+  });
+
   it('returns 400 when a document has no version to duplicate', async () => {
     const req = mockReq({ params: { id: 'doc-1' } });
     const res = mockRes();
@@ -1468,6 +1552,29 @@ describe('uploadDocument (S3-004)', () => {
     expect(prisma.document.create).toHaveBeenCalledWith({
       data: { user_id: 'user-123', type: 'resume', title: 'My Resume' },
     });
+  });
+
+  it('rejects an upload when the title is already used, ignoring case', async () => {
+    const req = mockReq({
+      body: { type: 'resume', title: 'my resume' },
+      file: makeFile(),
+    });
+    const res = mockRes();
+    vi.mocked(prisma.document.findFirst).mockResolvedValueOnce({
+      id: 'doc-1',
+    } as any);
+
+    await uploadDocument(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: 'A document with this title already exists',
+        fields: { title: ['A document with this title already exists'] },
+      })
+    );
+    expect(uploadFile).not.toHaveBeenCalled();
+    expect(prisma.document.create).not.toHaveBeenCalled();
   });
 
   it('returns 400 with a field error on file when the file is missing', async () => {

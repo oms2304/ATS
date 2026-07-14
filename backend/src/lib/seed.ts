@@ -8,6 +8,16 @@ export const DEMO_PASSWORD = 'Password123';
 export const STALE_JOB_TITLE = 'Home Health Nurse';
 export const STALE_JOB_COMPANY = 'CareFirst Home Health';
 
+// This job was part of the older, larger Alice demo. Re-seeding removes only
+// this exact Alice-owned row so existing demo databases converge on the
+// smaller five-card board without touching unrelated development data.
+export const RETIRED_ALICE_JOBS = [
+  {
+    title: 'Registered Nurse — Medical/Surgical',
+    company: 'City Hospital',
+  },
+] as const;
+
 export const LEGACY_SKILL_IDS = [
   'seed-skill-react-alice',
   'seed-skill-postgres-alice',
@@ -246,80 +256,45 @@ export const RESUME_CONTENT = `ALICE ANDERSON
 Newark, NJ  |  alice@demo.test  |  +1-555-010-2233
 
 SUMMARY
-Compassionate, detail-oriented communicator with 6 years of experience
-coordinating multi-stakeholder programs in fast-paced clinical and
-team environments. Bringing the same coordination, empathy, and
-follow-through that I bring to patient care to brand, marketing, and
-event operations at BrandCo.
+Registered Nurse bringing six years of coordination, communication, and
+deadline management experience to BrandCo's marketing team.
 
 EXPERIENCE
 City Hospital — Registered Nurse, Medical/Surgical
-  - Coordinated care for a 24-bed unit, partnering with physicians and
-    families to keep every patient on plan.
-  - Mentored new staff and ran handoffs across three shifts.
-  - Triaged fast-moving situations under tight deadlines.
+  - Coordinated care plans and handoffs across a 24-bed unit.
+  - Created clear patient materials and mentored new staff.
 
 EDUCATION
-Nursing program with clinical rotations across Med/Surg, ICU, and
-patient education.
+BSN, Rutgers University
 
 SKILLS
-Patient education, stakeholder coordination, written communication,
-event-style scheduling, bilingual support.
+Stakeholder coordination, written communication, scheduling, reporting
 `;
 
 export const COVER_LETTER_CONTENT = `Dear Hiring Team,
 
-I am excited to apply for the Marketing Coordinator role at BrandCo.
-My background as a Registered Nurse at City Hospital has given me a
-strong foundation in coordinating multi-stakeholder programs, writing
-clear patient-facing materials, and keeping multiple workstreams on
-schedule under tight deadlines.
+I am excited to apply for the Marketing Coordinator role at BrandCo. As a
+Registered Nurse, I coordinate busy teams, write clear materials, and keep
+time-sensitive work on schedule.
 
-In my current role I coordinate care for a 24-bed medical/surgical unit,
-partnering with physicians, families, and ancillary teams to deliver a
-consistent experience. The same habits — clear written communication,
-calm triage of competing priorities, and disciplined follow-up — map
-directly to coordinating multi-channel marketing campaigns and event
-logistics in a consumer-brand environment.
-
-I would welcome the chance to bring that coordination mindset to BrandCo
-and to learn from your marketing team. Thank you for considering my
-application.
+I would bring that same organization, calm prioritization, and follow-through
+to campaign calendars, content coordination, and events. Thank you for your
+consideration.
 
 Sincerely,
 Alice Anderson
 `;
 
-export const RESEARCH_NOTE_CONTENT = `BrandCo is a growing consumer brand with integrated marketing campaigns
-spanning social, creative, sales, and external partners. Public details
-about the company's leadership and financials are limited; candidates
-should verify current facts before an interview.
-
-Role focus (inferred from the posting):
-  - Coordinating campaign calendars, approvals, and deliverables
-  - Drafting and publishing social content with light engagement reporting
-  - Supporting event organization and keeping stakeholders aligned
-
-Questions to research or ask in the interview:
-  1. What does the marketing team org structure look like, and who would
-     this role partner with day-to-day?
-  2. Which channels (paid social, email, events) drive the most pipeline
-     for BrandCo today, and how is that measured?
-  3. How does the team balance evergreen brand work versus time-sensitive
-     campaign launches?
-  4. What does success look like in the first 90 days for this role?
+export const RESEARCH_NOTE_CONTENT = `BrandCo demo research
+- Growing consumer brand with a small cross-functional marketing team.
+- Role focus: campaign calendars, social content, reporting, and events.
+- Ask: What should this role accomplish in its first 90 days?
 `;
 
 export const PREP_NOTE_CONTENT = `Talking points to weave into the interview:
-  - Patient education and stakeholder coordination map directly to
-    campaign coordination and clear written communication.
-  - Mentoring new staff demonstrates the ability to ramp up a wider
-    marketing team and run handoffs.
-  - Triaging fast-moving situations under tight deadlines shows
-    comfort with competing priorities and on-time delivery.
-  - Bilingual support and family-facing communication transfer to
-    customer-facing brand work.
+  - Care coordination maps to campaign coordination.
+  - Patient education demonstrates clear audience-focused writing.
+  - Shift handoffs show reliable follow-through under deadlines.
 `;
 
 export const ALICE_JOBS: ReadonlyArray<{
@@ -327,86 +302,54 @@ export const ALICE_JOBS: ReadonlyArray<{
   company: string;
   jobPostingBody: string;
   stage: 'Interested' | 'Applied' | 'Interview' | 'Offer' | 'Rejected';
+  deadlineDaysFromNow?: number;
   recruiterNotes?: string;
   outcomeNote?: string;
 }> = [
   {
-    title: 'Registered Nurse — Medical/Surgical',
-    company: 'City Hospital',
-    jobPostingBody: `Position: Registered Nurse — Medical/Surgical
-Schedule: Full-time nights; every third weekend
-
-City Hospital is seeking a compassionate, detail-oriented Registered Nurse to join its 24-bed Medical/Surgical unit. The RN will provide direct bedside care for adult patients with acute medical and post-surgical needs while working closely with physicians, nursing assistants, pharmacists, case managers, and other members of the care team.
-
-Key responsibilities include completing patient assessments, monitoring vital signs and changes in condition, administering medications and treatments, maintaining accurate electronic documentation, and updating individualized care plans. The nurse will coordinate admissions, transfers, and discharges; provide clear education to patients and family members; and ensure safe handoffs at the beginning and end of each shift.
-
-The ideal candidate is organized, calm under pressure, and committed to safe, patient-centered care. Strong clinical judgment, communication skills, teamwork, and the ability to prioritize several patient needs during a busy night shift are essential.`,
-    stage: 'Applied',
-  },
-  {
     title: 'Marketing Coordinator',
     company: 'BrandCo',
     jobPostingBody: `Position: Marketing Coordinator
-Schedule: Full-time, hybrid
+Hybrid, full-time
 
-BrandCo is looking for a Marketing Coordinator to support integrated campaigns for a growing consumer brand. This role works across marketing, creative, social media, sales, and external partners to keep campaigns organized, on schedule, and aligned with brand standards.
-
-Responsibilities include maintaining campaign calendars, coordinating project timelines and approvals, preparing marketing materials, tracking deliverables, and helping organize promotional events. The coordinator will schedule and publish social content, monitor engagement, maintain campaign files and reporting dashboards, and help turn performance data into clear updates for the team.
-
-The successful candidate is a strong written communicator with excellent organization and follow-through. Experience coordinating multiple workstreams, managing deadlines, and collaborating with different stakeholders is important. Familiarity with social-media platforms, spreadsheet reporting, presentation tools, and content-management workflows is preferred.`,
+Coordinate campaign calendars, content approvals, reporting, and events.
+Strong writing, organization, and cross-team follow-through required.`,
     stage: 'Interview',
+    deadlineDaysFromNow: 7,
+    recruiterNotes: 'Jordan Lee · recruiter@brandco.test',
   },
   {
     title: 'Patient Educator',
     company: 'Riverside Clinic',
     jobPostingBody: `Position: Patient Educator
-Schedule: Full-time, weekday outpatient clinic
-
-Riverside Clinic is seeking a Patient Educator to strengthen its chronic-disease management programs. The Patient Educator will help patients and caregivers understand diagnoses, medications, treatment plans, lifestyle recommendations, and the resources available to support long-term health.
-
-This role develops clear, accessible education materials; delivers one-on-one and small-group teaching sessions; and works with nurses, providers, care coordinators, and social-service partners to identify barriers to care. Responsibilities also include documenting education provided, reinforcing discharge and follow-up instructions, collecting patient feedback, and updating materials to reflect current clinical guidance and clinic needs.
-
-The ideal candidate communicates with empathy, adapts information for different levels of health literacy, and is comfortable building trust with diverse patient populations. Clinical experience, knowledge of chronic disease management, and strong written and presentation skills are valuable. Bilingual Spanish communication skills are a plus.`,
+Weekday outpatient role creating clear materials and teaching patients about
+care plans, medications, and follow-up.`,
     stage: 'Interested',
   },
   {
     title: 'Charge Nurse — ICU',
     company: 'Mercy Health',
     jobPostingBody: `Position: Charge Nurse — Intensive Care Unit
-Schedule: Full-time nights
-
-Mercy Health is hiring an experienced Charge Nurse to lead a 12-nurse Intensive Care Unit team during the night shift. The Charge Nurse combines direct clinical expertise with operational leadership to ensure safe staffing, timely patient flow, clear communication, and consistent support for bedside nurses caring for critically ill patients.
-
-Primary responsibilities include coordinating admissions, transfers, discharges, and bed placement; assigning staff based on acuity and skill mix; monitoring unit workload; and serving as a clinical resource when patients deteriorate or complex decisions are needed. The Charge Nurse will facilitate shift huddles and handoffs, collaborate with physicians and ancillary departments, address urgent staffing or workflow issues, and support compliance with safety, infection-prevention, and quality standards.
-
-Candidates should have substantial critical-care nursing experience, strong assessment and escalation skills, and the confidence to guide a team in a high-acuity environment. The role requires sound judgment, respectful communication, and the ability to balance patient-care priorities with unit operations throughout the shift.`,
+Lead night-shift staffing, patient flow, handoffs, and urgent clinical
+escalations for a 12-nurse ICU team.`,
     stage: 'Offer',
+    outcomeNote: 'Offer received; reviewing schedule and benefits.',
   },
   {
     title: 'Pediatric Nurse — Outpatient Clinic',
     company: 'Sunshine Pediatrics',
     jobPostingBody: `Position: Pediatric Nurse — Outpatient Clinic
-Schedule: Full-time days; no weekends
-
-Sunshine Pediatrics is seeking a Pediatric Nurse to provide family-centered care in a busy outpatient setting. The nurse will support well-child visits, same-day appointments, chronic-condition follow-up, preventive care, and ongoing communication with parents and caregivers.
-
-Responsibilities include obtaining histories and vital signs, performing telephone and in-person triage, administering vaccines and other ordered treatments, assisting providers during examinations and procedures, and documenting care in the electronic health record. The nurse will educate families about medications, growth and development, nutrition, immunization schedules, symptom monitoring, and home-care instructions. The role also helps coordinate referrals, follow-up appointments, and communication with schools or specialty providers when appropriate.
-
-The ideal candidate enjoys working with children and families, communicates clearly and patiently, and can balance scheduled visits with urgent triage needs. Pediatric, primary-care, vaccine-administration, and patient-education experience are highly relevant.`,
+Daytime clinic role supporting pediatric visits, triage, vaccines, family
+education, and referrals.`,
     stage: 'Rejected',
     outcomeNote:
-      'Rejected after final round, position filled by an internal candidate with more pediatric-specific experience.',
+      'Position filled by an internal candidate after the final interview.',
   },
 ];
 
 export const STALE_JOB_BODY = `Position: Home Health Nurse
-Schedule: Full-time field-based role
-
-CareFirst Home Health is seeking a Registered Nurse to deliver skilled, compassionate care to homebound patients in their residences. The Home Health Nurse manages an assigned caseload and works independently in the field while maintaining close communication with physicians, therapists, care coordinators, patients, and family caregivers.
-
-The nurse completes comprehensive assessments; develops and updates individualized plans of care; provides wound care, medication management, disease monitoring, and patient education; and recognizes changes that require escalation. The role includes documenting each visit in the electronic health record, coordinating services with the interdisciplinary team, reinforcing safety and self-management guidance, and helping patients and families understand medications, warning signs, and follow-up instructions.
-
-Successful candidates are comfortable working autonomously, organizing travel and visit schedules, building rapport in patients’ homes, and applying sound clinical judgment. Experience with home health, care coordination, chronic disease management, wound care, and family education is especially valuable.`;
+Field-based role managing home visits, care plans, patient education, and
+coordination with an interdisciplinary team.`;
 
 export type SeedSummary = {
   users: number;
@@ -474,7 +417,7 @@ export async function seedDemo(
     location: 'Newark, NJ',
     linkedIn: 'https://www.linkedin.com/in/alice-demo',
     summary:
-      'Compassionate Registered Nurse with 6 years of experience in acute care, patient education, and interdisciplinary coordination. Skilled at triaging fast-paced clinical environments and mentoring new staff.',
+      'Registered Nurse with six years of experience in patient education, team coordination, and calm prioritization.',
   };
   const aliceProfile = {
     userId: alice.id,
@@ -505,7 +448,7 @@ export async function seedDemo(
       endDate: null,
       isCurrent: true,
       description:
-        'Provide direct patient care on a 24-bed medical/surgical unit. Mentor new staff and run shift handoffs across three shifts.',
+        'Coordinate patient care, mentor new staff, and lead clear shift handoffs.',
       order: 0,
     },
     create: {
@@ -517,7 +460,7 @@ export async function seedDemo(
       endDate: null,
       isCurrent: true,
       description:
-        'Provide direct patient care on a 24-bed medical/surgical unit. Mentor new staff and run shift handoffs across three shifts.',
+        'Coordinate patient care, mentor new staff, and lead clear shift handoffs.',
       order: 0,
     },
   });
@@ -580,19 +523,26 @@ export async function seedDemo(
   await prisma.careerPreferences.upsert({
     where: { userId: alice.id },
     update: {
-      targetRoles: ['Registered Nurse', 'Charge Nurse', 'Patient Educator'],
-      preferredLocations: ['Newark, NJ', 'Remote'],
+      targetRoles: ['Patient Educator', 'Nurse Coordinator'],
+      preferredLocations: ['Newark, NJ'],
       workMode: 'Hybrid',
       salaryMin: 75000,
       salaryMax: 110000,
     },
     create: {
       userId: alice.id,
-      targetRoles: ['Registered Nurse', 'Charge Nurse', 'Patient Educator'],
-      preferredLocations: ['Newark, NJ', 'Remote'],
+      targetRoles: ['Patient Educator', 'Nurse Coordinator'],
+      preferredLocations: ['Newark, NJ'],
       workMode: 'Hybrid',
       salaryMin: 75000,
       salaryMax: 110000,
+    },
+  });
+
+  await prisma.job.deleteMany({
+    where: {
+      user_id: alice.id,
+      OR: RETIRED_ALICE_JOBS.map(({ title, company }) => ({ title, company })),
     },
   });
 
@@ -606,8 +556,15 @@ export async function seedDemo(
       company: job.company,
       jobPostingBody: job.jobPostingBody,
       stage: job.stage,
+      deadline:
+        job.deadlineDaysFromNow === undefined
+          ? null
+          : new Date(
+              now().getTime() + job.deadlineDaysFromNow * 24 * 60 * 60 * 1000
+            ),
       recruiterNotes: job.recruiterNotes ?? null,
       outcomeNote: job.outcomeNote ?? null,
+      archivedAt: null,
     };
     if (!existing) {
       await prisma.job.create({ data });
@@ -712,7 +669,7 @@ export async function seedDemo(
       update: {
         user_id: alice.id,
         type: 'resume',
-        title: 'Resume — Marketing Coordinator (BrandCo)',
+        title: 'BrandCo Resume',
         status: 'active',
         tags: ['demo', 'brandco'],
         archivedAt: null,
@@ -721,7 +678,7 @@ export async function seedDemo(
         id: `seed-resume-${marketingJob.id}`,
         user_id: alice.id,
         type: 'resume',
-        title: 'Resume — Marketing Coordinator (BrandCo)',
+        title: 'BrandCo Resume',
         status: 'active',
         tags: ['demo', 'brandco'],
         archivedAt: null,
@@ -759,7 +716,7 @@ export async function seedDemo(
       update: {
         user_id: alice.id,
         type: 'cover_letter',
-        title: 'Cover Letter — Marketing Coordinator (BrandCo)',
+        title: 'BrandCo Cover Letter',
         status: 'active',
         tags: ['demo', 'brandco'],
         archivedAt: null,
@@ -768,7 +725,7 @@ export async function seedDemo(
         id: `seed-cover-${marketingJob.id}`,
         user_id: alice.id,
         type: 'cover_letter',
-        title: 'Cover Letter — Marketing Coordinator (BrandCo)',
+        title: 'BrandCo Cover Letter',
         status: 'active',
         tags: ['demo', 'brandco'],
         archivedAt: null,
@@ -851,14 +808,14 @@ export async function seedDemo(
         job_id: marketingJobForActivity.id,
         roundType: 'Phone Screen',
         date: interviewDate,
-        notes: 'Initial recruiter call — confirmed interest and salary range.',
+        notes: 'Recruiter screen complete; salary range confirmed.',
       },
       create: {
         id: ALICE_INTERVIEW_ID,
         job_id: marketingJobForActivity.id,
         roundType: 'Phone Screen',
         date: interviewDate,
-        notes: 'Initial recruiter call — confirmed interest and salary range.',
+        notes: 'Recruiter screen complete; salary range confirmed.',
       },
     });
 
@@ -869,14 +826,14 @@ export async function seedDemo(
       where: { id: ALICE_FOLLOWUP_ID },
       update: {
         job_id: marketingJobForActivity.id,
-        title: 'Send thank-you email after phone screen',
+        title: 'Send thank-you email',
         dueDate: followUpDue,
         completed: false,
       },
       create: {
         id: ALICE_FOLLOWUP_ID,
         job_id: marketingJobForActivity.id,
-        title: 'Send thank-you email after phone screen',
+        title: 'Send thank-you email',
         dueDate: followUpDue,
         completed: false,
       },
@@ -940,6 +897,10 @@ export async function seedDemo(
         company: STALE_JOB_COMPANY,
         jobPostingBody: STALE_JOB_BODY,
         stage: 'Applied',
+        deadline: null,
+        recruiterNotes: null,
+        outcomeNote: null,
+        archivedAt: null,
       },
     });
   } else {
@@ -951,6 +912,10 @@ export async function seedDemo(
         company: STALE_JOB_COMPANY,
         jobPostingBody: STALE_JOB_BODY,
         stage: 'Applied',
+        deadline: null,
+        recruiterNotes: null,
+        outcomeNote: null,
+        archivedAt: null,
       },
     });
   }
@@ -1143,7 +1108,7 @@ export async function verifySeedState(
     educations: 1,
     skills: 3,
     careerPreferences: 1,
-    jobs: 6,
+    jobs: 5,
     documents: 2,
     documentVersions: 2,
     jobDocumentLinks: 2,
@@ -1171,9 +1136,9 @@ export function formatSeedSummary(summary: SeedSummary): string[] {
     'Seed complete:',
     `  ${ALICE_EMAIL} / ${DEMO_PASSWORD}`,
     '    - Profile: 5/5 baseline fields + 1 Experience + 1 Education + 3 Skills + CareerPreferences',
-    `    - Jobs: ${summary.jobs} (Interested, Applied, Interview, Offer, Rejected + 1 intentionally Stale)`,
+    `    - Jobs: ${summary.jobs} (one per stage; Applied is intentionally Stale)`,
     '    - Rejected job has 3 seeded StageTransitions and 3 JobActivity rows',
-    '    - Marketing Coordinator has 1 pre-seeded Interview + 1 FollowUp + 2 AI drafts + 1 ResearchNote + 1 PrepNote',
+    '    - Marketing Coordinator is the feature hub: deadline, recruiter, Interview, FollowUp, 2 AI drafts, ResearchNote, and PrepNote',
     `    - Legacy React/PostgreSQL skills removed: ${summary.legacySkillsDeleted}`,
     `  ${BOB_EMAIL}   / ${DEMO_PASSWORD} (verified, minimal profile)`,
   ];
