@@ -50,3 +50,24 @@ jobs:
           done
           echo "::error::Frontend health check failed (never returned 200)."
           exit 1
+
+      - name: Smoke test - critical API behavior
+        run: |
+          # Verifies real app behavior beyond liveness: auth is enforced on
+          # protected routes, and login rejects bad credentials with a clean
+          # error rather than a 500. Demo-critical flow, no data created.
+          jobs_code=$(curl -s -m 20 -o /dev/null -w '%{http_code}' "$BACKEND_URL/api/jobs")
+          echo "GET /api/jobs (no auth) -> $jobs_code"
+          if [ "$jobs_code" != "401" ]; then
+            echo "::error::Expected 401 from unauthenticated /api/jobs, got $jobs_code"
+            exit 1
+          fi
+
+          login_code=$(curl -s -m 20 -o /dev/null -w '%{http_code}' -X POST "$BACKEND_URL/api/auth/login" -H "Content-Type: application/json" -d '{"email":"smoketest-nonexistent@example.com","password":"wrong"}')
+          echo "POST /api/auth/login (bad creds) -> $login_code"
+          if [ "$login_code" != "401" ] && [ "$login_code" != "400" ]; then
+            echo "::error::Expected 400/401 from bad login, got $login_code"
+            exit 1
+          fi
+
+          echo "Smoke test passed: auth enforcement and login validation working."
