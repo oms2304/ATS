@@ -10,15 +10,27 @@ const adapter = new PrismaPg({
 
 const prisma = new PrismaClient({ adapter });
 
-const BASELINE_FIELDS = ['firstName', 'lastName', 'phone', 'location', 'summary'] as const;
+const BASELINE_FIELDS = [
+  'firstName',
+  'lastName',
+  'phone',
+  'location',
+  'summary',
+] as const;
 
 type ProfileLike = Partial<
-  Record<(typeof BASELINE_FIELDS)[number] | 'linkedIn', string | null | undefined>
+  Record<
+    (typeof BASELINE_FIELDS)[number] | 'linkedIn',
+    string | null | undefined
+  >
 >;
 
 function calculateCompletionScore(profile: ProfileLike): number {
   const completed = BASELINE_FIELDS.filter(
-    (field) => profile[field] !== null && profile[field] !== undefined && profile[field] !== ''
+    (field) =>
+      profile[field] !== null &&
+      profile[field] !== undefined &&
+      profile[field] !== ''
   ).length;
   return Math.round((completed / BASELINE_FIELDS.length) * 100);
 }
@@ -105,9 +117,24 @@ async function main() {
   });
 
   const seedSkills = [
-    { id: 'seed-skill-react-alice',    name: 'React',          category: 'Frontend', proficiency: 'Intermediate' },
-    { id: 'seed-skill-postgres-alice', name: 'PostgreSQL',     category: 'Backend',  proficiency: 'Advanced' },
-    { id: 'seed-skill-triage-alice',   name: 'Patient Triage', category: 'Clinical', proficiency: 'Expert' },
+    {
+      id: 'seed-skill-react-alice',
+      name: 'React',
+      category: 'Frontend',
+      proficiency: 'Intermediate',
+    },
+    {
+      id: 'seed-skill-postgres-alice',
+      name: 'PostgreSQL',
+      category: 'Backend',
+      proficiency: 'Advanced',
+    },
+    {
+      id: 'seed-skill-triage-alice',
+      name: 'Patient Triage',
+      category: 'Clinical',
+      proficiency: 'Expert',
+    },
   ];
   for (const s of seedSkills) {
     await prisma.skill.upsert({
@@ -134,36 +161,66 @@ async function main() {
     {
       title: 'Registered Nurse — Medical/Surgical',
       company: 'City Hospital',
-      jobPostingBody:
-        'Provide direct patient care on a 24-bed medical/surgical unit. Administer medications, monitor vitals, coordinate with physicians and family members. Night shift, every third weekend.',
+      jobPostingBody: `Position: Registered Nurse — Medical/Surgical
+Schedule: Full-time nights; every third weekend
+
+City Hospital is seeking a compassionate, detail-oriented Registered Nurse to join its 24-bed Medical/Surgical unit. The RN will provide direct bedside care for adult patients with acute medical and post-surgical needs while working closely with physicians, nursing assistants, pharmacists, case managers, and other members of the care team.
+
+Key responsibilities include completing patient assessments, monitoring vital signs and changes in condition, administering medications and treatments, maintaining accurate electronic documentation, and updating individualized care plans. The nurse will coordinate admissions, transfers, and discharges; provide clear education to patients and family members; and ensure safe handoffs at the beginning and end of each shift.
+
+The ideal candidate is organized, calm under pressure, and committed to safe, patient-centered care. Strong clinical judgment, communication skills, teamwork, and the ability to prioritize several patient needs during a busy night shift are essential.`,
       stage: 'Applied',
     },
     {
       title: 'Marketing Coordinator',
       company: 'BrandCo',
-      jobPostingBody:
-        'Coordinate multi-channel marketing campaigns, manage social media calendars, and support event logistics for a mid-sized consumer brand.',
+      jobPostingBody: `Position: Marketing Coordinator
+Schedule: Full-time, hybrid
+
+BrandCo is looking for a Marketing Coordinator to support integrated campaigns for a growing consumer brand. This role works across marketing, creative, social media, sales, and external partners to keep campaigns organized, on schedule, and aligned with brand standards.
+
+Responsibilities include maintaining campaign calendars, coordinating project timelines and approvals, preparing marketing materials, tracking deliverables, and helping organize promotional events. The coordinator will schedule and publish social content, monitor engagement, maintain campaign files and reporting dashboards, and help turn performance data into clear updates for the team.
+
+The successful candidate is a strong written communicator with excellent organization and follow-through. Experience coordinating multiple workstreams, managing deadlines, and collaborating with different stakeholders is important. Familiarity with social-media platforms, spreadsheet reporting, presentation tools, and content-management workflows is preferred.`,
       stage: 'Interview',
     },
     {
       title: 'Patient Educator',
       company: 'Riverside Clinic',
-      jobPostingBody:
-        'Develop and deliver patient education materials for chronic disease management programs. Bilingual Spanish a plus.',
+      jobPostingBody: `Position: Patient Educator
+Schedule: Full-time, weekday outpatient clinic
+
+Riverside Clinic is seeking a Patient Educator to strengthen its chronic-disease management programs. The Patient Educator will help patients and caregivers understand diagnoses, medications, treatment plans, lifestyle recommendations, and the resources available to support long-term health.
+
+This role develops clear, accessible education materials; delivers one-on-one and small-group teaching sessions; and works with nurses, providers, care coordinators, and social-service partners to identify barriers to care. Responsibilities also include documenting education provided, reinforcing discharge and follow-up instructions, collecting patient feedback, and updating materials to reflect current clinical guidance and clinic needs.
+
+The ideal candidate communicates with empathy, adapts information for different levels of health literacy, and is comfortable building trust with diverse patient populations. Clinical experience, knowledge of chronic disease management, and strong written and presentation skills are valuable. Bilingual Spanish communication skills are a plus.`,
       stage: 'Interested',
     },
     {
       title: 'Charge Nurse — ICU',
       company: 'Mercy Health',
-      jobPostingBody:
-        'Lead the night shift ICU team of 12 nurses, coordinate admissions and discharges, and serve as a clinical resource for bedside staff.',
+      jobPostingBody: `Position: Charge Nurse — Intensive Care Unit
+Schedule: Full-time nights
+
+Mercy Health is hiring an experienced Charge Nurse to lead a 12-nurse Intensive Care Unit team during the night shift. The Charge Nurse combines direct clinical expertise with operational leadership to ensure safe staffing, timely patient flow, clear communication, and consistent support for bedside nurses caring for critically ill patients.
+
+Primary responsibilities include coordinating admissions, transfers, discharges, and bed placement; assigning staff based on acuity and skill mix; monitoring unit workload; and serving as a clinical resource when patients deteriorate or complex decisions are needed. The Charge Nurse will facilitate shift huddles and handoffs, collaborate with physicians and ancillary departments, address urgent staffing or workflow issues, and support compliance with safety, infection-prevention, and quality standards.
+
+Candidates should have substantial critical-care nursing experience, strong assessment and escalation skills, and the confidence to guide a team in a high-acuity environment. The role requires sound judgment, respectful communication, and the ability to balance patient-care priorities with unit operations throughout the shift.`,
       stage: 'Offer',
     },
     {
       title: 'Pediatric Nurse — Outpatient Clinic',
       company: 'Sunshine Pediatrics',
-      jobPostingBody:
-        'Provide primary care nursing for pediatric patients in a busy outpatient setting. Administer vaccines, perform triage, and educate families on chronic conditions. Day shift, no weekends.',
+      jobPostingBody: `Position: Pediatric Nurse — Outpatient Clinic
+Schedule: Full-time days; no weekends
+
+Sunshine Pediatrics is seeking a Pediatric Nurse to provide family-centered care in a busy outpatient setting. The nurse will support well-child visits, same-day appointments, chronic-condition follow-up, preventive care, and ongoing communication with parents and caregivers.
+
+Responsibilities include obtaining histories and vital signs, performing telephone and in-person triage, administering vaccines and other ordered treatments, assisting providers during examinations and procedures, and documenting care in the electronic health record. The nurse will educate families about medications, growth and development, nutrition, immunization schedules, symptom monitoring, and home-care instructions. The role also helps coordinate referrals, follow-up appointments, and communication with schools or specialty providers when appropriate.
+
+The ideal candidate enjoys working with children and families, communicates clearly and patiently, and can balance scheduled visits with urgent triage needs. Pediatric, primary-care, vaccine-administration, and patient-education experience are highly relevant.`,
       stage: 'Rejected',
       outcomeNote:
         'Rejected after final round, position filled by an internal candidate with more pediatric-specific experience.',
@@ -301,7 +358,11 @@ async function main() {
   //   - a tailored resume
   //   - a tailored cover letter
   const marketingJob = await prisma.job.findFirst({
-    where: { user_id: alice.id, title: 'Marketing Coordinator', company: 'BrandCo' },
+    where: {
+      user_id: alice.id,
+      title: 'Marketing Coordinator',
+      company: 'BrandCo',
+    },
   });
 
   if (marketingJob) {
@@ -365,7 +426,11 @@ Alice Anderson
       },
     });
     const resumeVersion = await prisma.documentVersion.create({
-      data: { document_id: resumeDoc.id, version_number: 1, content: resumeContent },
+      data: {
+        document_id: resumeDoc.id,
+        version_number: 1,
+        content: resumeContent,
+      },
     });
 
     const coverDoc = await prisma.document.upsert({
@@ -379,7 +444,11 @@ Alice Anderson
       },
     });
     const coverVersion = await prisma.documentVersion.create({
-      data: { document_id: coverDoc.id, version_number: 1, content: coverLetterContent },
+      data: {
+        document_id: coverDoc.id,
+        version_number: 1,
+        content: coverLetterContent,
+      },
     });
 
     await prisma.jobDocumentLink.upsert({
@@ -408,7 +477,11 @@ Alice Anderson
   // timeline already has anchor rows for the C14/C15 demos. Deterministic IDs
   // make this idempotent across re-seeds.
   const marketingJobForActivity = await prisma.job.findFirst({
-    where: { user_id: alice.id, title: 'Marketing Coordinator', company: 'BrandCo' },
+    where: {
+      user_id: alice.id,
+      title: 'Marketing Coordinator',
+      company: 'BrandCo',
+    },
   });
 
   if (marketingJobForActivity) {
@@ -461,10 +534,14 @@ Alice Anderson
         user_id: alice.id,
         title: STALE_TITLE,
         company: STALE_COMPANY,
-        jobPostingBody:
-          'Deliver in-home nursing care to homebound patients: wound care, ' +
-          'medication management, and family education. Applied two weeks ago, ' +
-          'no response yet.',
+        jobPostingBody: `Position: Home Health Nurse
+Schedule: Full-time field-based role
+
+CareFirst Home Health is seeking a Registered Nurse to deliver skilled, compassionate care to homebound patients in their residences. The Home Health Nurse manages an assigned caseload and works independently in the field while maintaining close communication with physicians, therapists, care coordinators, patients, and family caregivers.
+
+The nurse completes comprehensive assessments; develops and updates individualized plans of care; provides wound care, medication management, disease monitoring, and patient education; and recognizes changes that require escalation. The role includes documenting each visit in the electronic health record, coordinating services with the interdisciplinary team, reinforcing safety and self-management guidance, and helping patients and families understand medications, warning signs, and follow-up instructions.
+
+Successful candidates are comfortable working autonomously, organizing travel and visit schedules, building rapport in patients’ homes, and applying sound clinical judgment. Experience with home health, care coordination, chronic disease management, wound care, and family education is especially valuable.`,
         stage: 'Applied',
         updatedAt: staleDate,
       },
@@ -475,10 +552,18 @@ Alice Anderson
 
   console.log('Seed complete:');
   console.log('  alice@demo.test / Password123');
-  console.log('    - Profile: 5/5 baseline fields + 1 Experience + 1 Education + 3 Skills + CareerPreferences');
-  console.log(`    - Jobs: ${aliceJobs.length + 1} (Interested, Applied, Interview, Offer, Rejected + 1 intentionally Stale)`);
-  console.log('    - Rejected job has 3 seeded StageTransitions and 3 JobActivity rows');
-  console.log('    - Marketing Coordinator has 1 pre-seeded Interview + 1 FollowUp + 2 AI drafts');
+  console.log(
+    '    - Profile: 5/5 baseline fields + 1 Experience + 1 Education + 3 Skills + CareerPreferences'
+  );
+  console.log(
+    `    - Jobs: ${aliceJobs.length + 1} (Interested, Applied, Interview, Offer, Rejected + 1 intentionally Stale)`
+  );
+  console.log(
+    '    - Rejected job has 3 seeded StageTransitions and 3 JobActivity rows'
+  );
+  console.log(
+    '    - Marketing Coordinator has 1 pre-seeded Interview + 1 FollowUp + 2 AI drafts'
+  );
   console.log('  bob@demo.test   / Password123 (verified, minimal profile)');
 }
 
