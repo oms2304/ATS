@@ -18,6 +18,7 @@ jest.mock('@/lib/api', () => ({
   renameDocument: jest.fn(),
   archiveDocument: jest.fn(),
   restoreDocument: jest.fn(),
+  getDocumentVersions: jest.fn().mockResolvedValue({ success: true, data: [] }),
 }));
 
 // Helper: find the card element for a given title, regardless of sort order in the grid.
@@ -404,3 +405,4 @@ describe('DocumentsPage - S3-008 Document Archive and Restore', () => {
     expect(await screen.findByText('No archived documents.')).toBeInTheDocument();
   });
 });
+
