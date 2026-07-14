@@ -53,13 +53,24 @@ export default function DashboardPage() {
 
   // Refetch jobs whenever the archived view is toggled.
   useEffect(() => {
+    let cancelled = false
+
     async function fetchJobs() {
       setLoading(true)
-      const res = await apiFetch(`/api/jobs${showArchived ? '?archived=true' : ''}`)
-      if (res.success) setJobs(res.data)
-      setLoading(false)
+      try {
+        const res = await apiFetch(`/api/jobs${showArchived ? '?archived=true' : ''}`)
+        if (!cancelled && res.success) setJobs(res.data)
+      } catch {
+        if (!cancelled) setJobs([])
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
     }
-    fetchJobs()
+
+    void fetchJobs()
+    return () => {
+      cancelled = true
+    }
   }, [showArchived])
 
   // Metrics are independent of the archived toggle; refetched after every mutation.
@@ -77,7 +88,9 @@ export default function DashboardPage() {
     // false positive for "fetch-on-mount + refetch-on-mutation" patterns, which
     // are exactly what `fetchMetrics` implements.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchMetrics()
+    void fetchMetrics().catch(() => {
+      // Keep the dashboard usable when the API is temporarily unreachable.
+    })
   }, [fetchMetrics])
 
   const filteredJobs = useMemo(() => {
