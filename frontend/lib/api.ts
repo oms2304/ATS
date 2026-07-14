@@ -55,3 +55,26 @@ export const renameDocument = (id: string, title: string) =>
     method: 'PATCH',
     body: JSON.stringify({ title }),
   })
+export async function uploadDocumentFile(formData: FormData) {
+  const BASE = process.env.NEXT_PUBLIC_API_URL
+  const token =
+    (typeof window !== 'undefined' &&
+      (localStorage.getItem('token') || localStorage.getItem('auth_token'))) ||
+    ''
+  const res = await fetch(`${BASE}/api/documents/upload`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: formData,
+  })
+  const data = await res.json().catch(() => null)
+  if (!res.ok) {
+    const message =
+      (data && (data.error || data.message)) ||
+      `Request failed with status ${res.status}`
+    const err = new Error(message) as Error & { status?: number; data?: unknown }
+    err.status = res.status
+    err.data = data
+    throw err
+  }
+  return data
+}

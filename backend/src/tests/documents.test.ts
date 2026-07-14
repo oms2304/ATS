@@ -713,6 +713,45 @@ describe('getDocuments archive filtering (S3-008)', () => {
     const payload = (res.json as any).mock.calls[0][0];
     expect(payload.data[0]).toHaveProperty('archivedAt', null);
   });
+
+  // REGRESSION: fileUrl/fileName/mimeType/fileSize were previously missing
+  // from the getDocuments response mapper, so an uploaded (file-based)
+  // document's file reference was invisible to the frontend even though
+  // it was correctly stored and filtered on the backend.
+  it('regression: response includes file metadata for uploaded (file-based) documents', async () => {
+    const req = mockReq();
+    const res = mockRes();
+    vi.mocked(prisma.document.findMany).mockResolvedValue([
+      {
+        id: 'doc-1',
+        type: 'resume',
+        title: 'Uploaded Resume',
+        status: 'active',
+        tags: [],
+        archivedAt: null,
+        updatedAt: new Date(),
+        versions: [
+          {
+            content: null,
+            version_number: 1,
+            fileUrl: 'https://storage.example.com/resume.pdf',
+            fileName: 'resume.pdf',
+            mimeType: 'application/pdf',
+            fileSize: 20480,
+          },
+        ],
+        jobs: [],
+      },
+    ] as any);
+    await getDocuments(req, res);
+    const payload = (res.json as any).mock.calls[0][0];
+    expect(payload.data[0]).toMatchObject({
+      fileUrl: 'https://storage.example.com/resume.pdf',
+      fileName: 'resume.pdf',
+      mimeType: 'application/pdf',
+      fileSize: 20480,
+    });
+  });
 });
 
 describe('duplicateDocument (S3-007)', () => {
