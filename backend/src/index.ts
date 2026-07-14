@@ -2,6 +2,9 @@ import 'dotenv/config';
 /// <reference path="./types/express.d.ts" />
 import express from 'express';
 import cors from 'cors';
+import { requestId } from './middleware/requestId.middleware';
+import { notFoundHandler, errorHandler } from './middleware/error.middleware';
+import logger from './lib/logger';
 import authRoutes from './routes/auth.routes';
 import jobsRouter from './routes/jobs.routes';
 import profileRouter from './routes/profile.routes';
@@ -47,6 +50,7 @@ app.use(
   })
 )
 app.use(express.json());
+app.use(requestId);
 
 
 app.use('/api/auth', authRoutes);
@@ -79,7 +83,11 @@ app.get('/healthz', (req, res) => {
   });
 });
 
+// Unmatched routes -> consistent 404, then the centralized error handler.
+// These must be registered after all routes; errorHandler must be last.
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  logger.info('server_started', { port: PORT });
 });
