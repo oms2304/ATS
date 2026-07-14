@@ -240,7 +240,7 @@ export default function DocumentsPage() {
                 setVersions([])
                 setVersionsLoading(true)
                 getDocumentVersions(d.id)
-                  .then((res: any) => setVersions(res?.data ?? []))
+                  .then((res: { data?: DocVersion[] }) => setVersions(res?.data ?? []))
                   .catch(() => setVersions([]))
                   .finally(() => setVersionsLoading(false))
               }}
@@ -303,3 +303,4 @@ export default function DocumentsPage() {
     </div>
   )
 }
+
