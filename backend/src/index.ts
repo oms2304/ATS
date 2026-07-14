@@ -69,6 +69,17 @@ app.get('/', (req, res) => {
   res.json({ success: true, message: 'ATS for Job Seekers API is running' });
 });
 
+// Liveness/health probe for deploy health checks (Render, CI smoke tests).
+// Public, no auth, no DB dependency so it reflects process health only.
+app.get('/healthz', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+  });
+});
+
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
