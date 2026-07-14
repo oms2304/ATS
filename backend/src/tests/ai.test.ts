@@ -98,7 +98,12 @@ import {
   generateCompanyResearch,
 } from '../controllers/ai.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
-import { AI_MODEL, COVER_LETTER_MODEL, RESUME_MODEL } from '../lib/openai';
+import {
+  AI_MODEL,
+  COVER_LETTER_MODEL,
+  getOpenAIClient,
+  RESUME_MODEL,
+} from '../lib/openai';
 
 const mockRes = () => {
   const res = {} as Response;
@@ -157,6 +162,7 @@ beforeEach(() => {
 
 describe('shared AI client configuration', () => {
   it('uses one bounded client and one model for every AI feature', () => {
+    getOpenAIClient();
     expect(openaiOptions).toMatchObject({ timeout: 45_000, maxRetries: 1 });
     expect(RESUME_MODEL).toBe(AI_MODEL);
     expect(COVER_LETTER_MODEL).toBe(AI_MODEL);

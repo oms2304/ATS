@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
-import { AI_MODEL, isAiConfigured, openai } from '../lib/openai';
+import { AI_MODEL, getOpenAIClient, isAiConfigured } from '../lib/openai';
 import logger from '../lib/logger';
 
 type RequestWithId = Request & { id?: string };
@@ -134,7 +134,7 @@ export async function generateResume(req: Request, res: Response) {
     const profileText = buildProfileText(profileData);
     if (!ensureAiConfigured(req, res)) return;
 
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAIClient().chat.completions.create({
       model: AI_MODEL,
       messages: [
         {
@@ -197,7 +197,7 @@ export async function generateCoverLetter(req: Request, res: Response) {
     const profileText = buildProfileText(profileData);
     if (!ensureAiConfigured(req, res)) return;
 
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAIClient().chat.completions.create({
       model: AI_MODEL,
       messages: [
         {
@@ -258,7 +258,7 @@ export async function rewriteDraft(req: Request, res: Response) {
 
     if (!ensureAiConfigured(req, res)) return;
 
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAIClient().chat.completions.create({
       model: AI_MODEL,
       messages: [
         {
@@ -312,7 +312,7 @@ export async function generateCompanyResearch(req: Request, res: Response) {
     const { context } = req.body as { context?: string };
     if (!ensureAiConfigured(req, res)) return;
 
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAIClient().chat.completions.create({
       model: AI_MODEL,
       messages: [
         {
