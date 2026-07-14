@@ -1,101 +1,146 @@
-import { Request, Response } from 'express'
-import { prisma } from '../lib/prisma'
-import OpenAI from 'openai'
+import { Request, Response } from 'express';
+import { prisma } from '../lib/prisma';
+import { AI_MODEL, isAiConfigured, openai } from '../lib/openai';
+import logger from '../lib/logger';
 
-const apiKey = process.env.OPENAI_API_KEY
-const isOpenRouter = !!apiKey && apiKey.startsWith('sk-or-')
+type RequestWithId = Request & { id?: string };
 
-const openai = new OpenAI({
-  apiKey,
-  baseURL: isOpenRouter ? 'https://openrouter.ai/api/v1' : undefined,
-})
-
-const RESUME_MODEL =
-  process.env.AI_MODEL ?? (isOpenRouter ? 'openai/gpt-4o' : 'gpt-4o')
-
-async function getFullProfile(userId: string) {
-  const [profile, experiences, educations, skills, preferences] = await Promise.all([
-    prisma.profile.findUnique({ where: { userId } }),
-    prisma.experience.findMany({ where: { userId }, orderBy: { order: 'asc' } }),
-    prisma.education.findMany({ where: { userId }, orderBy: { order: 'asc' } }),
-    prisma.skill.findMany({ where: { userId }, orderBy: { order: 'asc' } }),
-    prisma.careerPreferences.findUnique({ where: { userId } }),
-  ])
-
-  return { profile, experiences, educations, skills, preferences }
+function ensureAiConfigured(req: Request, res: Response) {
+  if (isAiConfigured()) return true;
+  res.status(503).json({
+    success: false,
+    error: 'AI provider is not configured',
+    requestId: (req as RequestWithId).id,
+  });
+  return false;
 }
 
-function buildProfileText(data: Awaited<ReturnType<typeof getFullProfile>>): string {
-  const { profile, experiences, educations, skills, preferences } = data
-  const lines: string[] = []
+function handleProviderError(
+  req: Request,
+  res: Response,
+  operation: string,
+  error: unknown
+) {
+  logger.error('ai_provider_failed', {
+    operation,
+    requestId: (req as RequestWithId).id,
+    errorName: error instanceof Error ? error.name : typeof error,
+    providerStatus:
+      typeof (error as { status?: unknown })?.status === 'number'
+        ? (error as { status: number }).status
+        : undefined,
+  });
+  return res.status(502).json({
+    success: false,
+    error: 'AI provider unavailable',
+    requestId: (req as RequestWithId).id,
+  });
+}
+
+async function getFullProfile(userId: string) {
+  const [profile, experiences, educations, skills, preferences] =
+    await Promise.all([
+      prisma.profile.findUnique({ where: { userId } }),
+      prisma.experience.findMany({
+        where: { userId },
+        orderBy: { order: 'asc' },
+      }),
+      prisma.education.findMany({
+        where: { userId },
+        orderBy: { order: 'asc' },
+      }),
+      prisma.skill.findMany({ where: { userId }, orderBy: { order: 'asc' } }),
+      prisma.careerPreferences.findUnique({ where: { userId } }),
+    ]);
+
+  return { profile, experiences, educations, skills, preferences };
+}
+
+function buildProfileText(
+  data: Awaited<ReturnType<typeof getFullProfile>>
+): string {
+  const { profile, experiences, educations, skills, preferences } = data;
+  const lines: string[] = [];
 
   if (profile) {
-    lines.push(`Name: ${profile.firstName} ${profile.lastName}`)
-    if (profile.location) lines.push(`Location: ${profile.location}`)
-    if (profile.linkedIn) lines.push(`LinkedIn: ${profile.linkedIn}`)
-    if (profile.summary) lines.push(`\nSummary:\n${profile.summary}`)
+    lines.push(`Name: ${profile.firstName} ${profile.lastName}`);
+    if (profile.location) lines.push(`Location: ${profile.location}`);
+    if (profile.linkedIn) lines.push(`LinkedIn: ${profile.linkedIn}`);
+    if (profile.summary) lines.push(`\nSummary:\n${profile.summary}`);
   }
 
   if (experiences.length > 0) {
-    lines.push('\nWork Experience:')
+    lines.push('\nWork Experience:');
     for (const exp of experiences) {
-      const end = exp.isCurrent ? 'Present' : exp.endDate ? new Date(exp.endDate).getFullYear() : ''
-      lines.push(`- ${exp.title} at ${exp.company} (${new Date(exp.startDate).getFullYear()} - ${end})`)
-      if (exp.description) lines.push(`  ${exp.description}`)
+      const end = exp.isCurrent
+        ? 'Present'
+        : exp.endDate
+          ? new Date(exp.endDate).getFullYear()
+          : '';
+      lines.push(
+        `- ${exp.title} at ${exp.company} (${new Date(exp.startDate).getFullYear()} - ${end})`
+      );
+      if (exp.description) lines.push(`  ${exp.description}`);
     }
   }
 
   if (educations.length > 0) {
-    lines.push('\nEducation:')
+    lines.push('\nEducation:');
     for (const edu of educations) {
-      lines.push(`- ${edu.degree}${edu.fieldOfStudy ? ` in ${edu.fieldOfStudy}` : ''} from ${edu.school}`)
+      lines.push(
+        `- ${edu.degree}${edu.fieldOfStudy ? ` in ${edu.fieldOfStudy}` : ''} from ${edu.school}`
+      );
     }
   }
 
   if (skills.length > 0) {
-    lines.push('\nSkills:')
-    lines.push(skills.map(s => s.name).join(', '))
+    lines.push('\nSkills:');
+    lines.push(skills.map((s) => s.name).join(', '));
   }
 
   if (preferences) {
     if (preferences.targetRoles.length > 0) {
-      lines.push(`\nTarget Roles: ${preferences.targetRoles.join(', ')}`)
+      lines.push(`\nTarget Roles: ${preferences.targetRoles.join(', ')}`);
     }
     if (preferences.workMode) {
-      lines.push(`Work Mode Preference: ${preferences.workMode}`)
+      lines.push(`Work Mode Preference: ${preferences.workMode}`);
     }
   }
 
-  return lines.join('\n')
+  return lines.join('\n');
 }
 
 export async function generateResume(req: Request, res: Response) {
   try {
-    const { jobId } = req.body
+    const { jobId } = req.body;
 
     if (!jobId) {
-      return res.status(400).json({ success: false, error: 'jobId is required' })
+      return res
+        .status(400)
+        .json({ success: false, error: 'jobId is required' });
     }
 
-    const job = await prisma.job.findUnique({ where: { id: jobId } })
+    const job = await prisma.job.findUnique({ where: { id: jobId } });
 
     if (!job) {
-      return res.status(404).json({ success: false, error: 'Job not found' })
+      return res.status(404).json({ success: false, error: 'Job not found' });
     }
 
     if (job.user_id !== req.user!.userId) {
-      return res.status(403).json({ success: false, error: 'Access denied' })
+      return res.status(403).json({ success: false, error: 'Access denied' });
     }
 
-    const profileData = await getFullProfile(req.user!.userId)
-    const profileText = buildProfileText(profileData)
+    const profileData = await getFullProfile(req.user!.userId);
+    const profileText = buildProfileText(profileData);
+    if (!ensureAiConfigured(req, res)) return;
 
     const completion = await openai.chat.completions.create({
-      model: RESUME_MODEL,
+      model: AI_MODEL,
       messages: [
         {
           role: 'system',
-          content: 'You are a professional resume writer. Write clear, concise, and tailored resumes. Use action verbs. Focus on achievements. Format with clear sections.',
+          content:
+            'You are a professional resume writer. Write clear, concise, and tailored resumes. Use action verbs. Focus on achievements. Format with clear sections.',
         },
         {
           role: 'user',
@@ -112,49 +157,53 @@ Write a complete resume with these sections: Summary, Work Experience, Education
       ],
       max_tokens: 1500,
       temperature: 0.7,
-    })
+    });
 
-    const draft = completion.choices[0]?.message?.content
+    const draft = completion.choices[0]?.message?.content;
 
     if (!draft) {
-      return res.status(500).json({ success: false, error: 'AI did not return a response' })
+      return res
+        .status(500)
+        .json({ success: false, error: 'AI did not return a response' });
     }
 
-    return res.json({ success: true, data: { draft } })
+    return res.json({ success: true, data: { draft } });
   } catch (error) {
-    console.error('generateResume error:', error)
-    return res.status(500).json({ success: false, error: 'Failed to generate resume' })
+    return handleProviderError(req, res, 'generateResume', error);
   }
 }
 
 export async function generateCoverLetter(req: Request, res: Response) {
   try {
-    const { jobId } = req.body
+    const { jobId } = req.body;
 
     if (!jobId) {
-      return res.status(400).json({ success: false, error: 'jobId is required' })
+      return res
+        .status(400)
+        .json({ success: false, error: 'jobId is required' });
     }
 
-    const job = await prisma.job.findUnique({ where: { id: jobId } })
+    const job = await prisma.job.findUnique({ where: { id: jobId } });
 
     if (!job) {
-      return res.status(404).json({ success: false, error: 'Job not found' })
+      return res.status(404).json({ success: false, error: 'Job not found' });
     }
 
     if (job.user_id !== req.user!.userId) {
-      return res.status(403).json({ success: false, error: 'Access denied' })
+      return res.status(403).json({ success: false, error: 'Access denied' });
     }
 
-    const profileData = await getFullProfile(req.user!.userId)
-    const profileText = buildProfileText(profileData)
+    const profileData = await getFullProfile(req.user!.userId);
+    const profileText = buildProfileText(profileData);
+    if (!ensureAiConfigured(req, res)) return;
 
     const completion = await openai.chat.completions.create({
-      model: RESUME_MODEL,
+      model: AI_MODEL,
       messages: [
         {
           role: 'system',
           content:
-            'You are a professional cover letter writer. Write concise, tailored cover letters (3 short paragraphs) that connect the candidate\'s experience to the job, sound authentic, and avoid clichés.',
+            "You are a professional cover letter writer. Write concise, tailored cover letters (3 short paragraphs) that connect the candidate's experience to the job, sound authentic, and avoid clichés.",
         },
         {
           role: 'user',
@@ -171,31 +220,32 @@ Write a cover letter addressed generically (e.g. "Dear Hiring Team,"). Do not in
       ],
       max_tokens: 700,
       temperature: 0.7,
-    })
+    });
 
-    const draft = completion.choices[0]?.message?.content
+    const draft = completion.choices[0]?.message?.content;
 
     if (!draft) {
-      return res.status(500).json({ success: false, error: 'AI did not return a response' })
+      return res
+        .status(500)
+        .json({ success: false, error: 'AI did not return a response' });
     }
 
-    return res.json({ success: true, data: { draft } })
+    return res.json({ success: true, data: { draft } });
   } catch (error) {
-    console.error('generateCoverLetter error:', error)
-    return res.status(500).json({ success: false, error: 'Failed to generate cover letter' })
+    return handleProviderError(req, res, 'generateCoverLetter', error);
   }
 }
 
 export async function rewriteDraft(req: Request, res: Response) {
   try {
-    const { content, instruction } = req.body
+    const { content, instruction } = req.body;
 
     if (!content || !content.trim()) {
       return res.status(400).json({
         success: false,
         error: 'Validation failed',
         fields: { content: ['Content is required'] },
-      })
+      });
     }
 
     if (!instruction || !instruction.trim()) {
@@ -203,15 +253,18 @@ export async function rewriteDraft(req: Request, res: Response) {
         success: false,
         error: 'Validation failed',
         fields: { instruction: ['Instruction is required'] },
-      })
+      });
     }
 
+    if (!ensureAiConfigured(req, res)) return;
+
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: AI_MODEL,
       messages: [
         {
           role: 'system',
-          content: 'You are a professional writing assistant. Rewrite and improve documents based on user instructions. Keep the same general content and intent but improve based on the instruction.',
+          content:
+            'You are a professional writing assistant. Rewrite and improve documents based on user instructions. Keep the same general content and intent but improve based on the instruction.',
         },
         {
           role: 'user',
@@ -226,37 +279,41 @@ Rewrite the draft following the instruction above. Return only the rewritten con
       ],
       max_tokens: 1500,
       temperature: 0.7,
-    })
+    });
 
-    const draft = completion.choices[0]?.message?.content
+    const draft = completion.choices[0]?.message?.content;
 
     if (!draft) {
-      return res.status(500).json({ success: false, error: 'AI did not return a response' })
+      return res
+        .status(500)
+        .json({ success: false, error: 'AI did not return a response' });
     }
 
-    return res.json({ success: true, data: { draft } })
+    return res.json({ success: true, data: { draft } });
   } catch (error) {
-    console.error('rewriteDraft error:', error)
-    return res.status(500).json({ success: false, error: 'Failed to rewrite draft' })
+    return handleProviderError(req, res, 'rewriteDraft', error);
   }
 }
 
 export async function generateCompanyResearch(req: Request, res: Response) {
   try {
-    const userId = req.user?.userId
-    if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' })
+    const userId = req.user?.userId;
+    if (!userId)
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
 
-    const jobId = req.params.jobId as string
-    const job = await prisma.job.findUnique({ where: { id: jobId } })
-    if (!job) return res.status(404).json({ success: false, error: 'Job not found' })
+    const jobId = req.params.jobId as string;
+    const job = await prisma.job.findUnique({ where: { id: jobId } });
+    if (!job)
+      return res.status(404).json({ success: false, error: 'Job not found' });
     if (job.user_id !== userId) {
-      return res.status(403).json({ success: false, error: 'Access denied' })
+      return res.status(403).json({ success: false, error: 'Access denied' });
     }
 
-    const { context } = req.body as { context?: string }
+    const { context } = req.body as { context?: string };
+    if (!ensureAiConfigured(req, res)) return;
 
     const completion = await openai.chat.completions.create({
-      model: RESUME_MODEL,
+      model: AI_MODEL,
       messages: [
         {
           role: 'system',
@@ -276,16 +333,17 @@ Write structured research notes covering: what the company likely does, what thi
       ],
       max_tokens: 700,
       temperature: 0.4,
-    })
+    });
 
-    const draft = completion.choices[0]?.message?.content
+    const draft = completion.choices[0]?.message?.content;
     if (!draft) {
-      return res.status(500).json({ success: false, error: 'AI did not return a response' })
+      return res
+        .status(500)
+        .json({ success: false, error: 'AI did not return a response' });
     }
 
-    return res.json({ success: true, data: { draft } })
+    return res.json({ success: true, data: { draft } });
   } catch (error) {
-    console.error('generateCompanyResearch error:', error)
-    return res.status(500).json({ success: false, error: 'Failed to generate company research' })
+    return handleProviderError(req, res, 'generateCompanyResearch', error);
   }
 }

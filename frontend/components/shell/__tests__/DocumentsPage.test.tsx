@@ -404,3 +404,100 @@ describe('DocumentsPage - S3-008 Document Archive and Restore', () => {
     expect(await screen.findByText('No archived documents.')).toBeInTheDocument();
   });
 });
+
+describe('DocumentsPage - status and tag filters', () => {
+  const scopedDocs = [
+    {
+      id: 'doc-1',
+      type: 'resume',
+      title: 'Nursing Resume',
+      content: 'content A',
+      versionNumber: 1,
+      updatedAt: '2024-01-01T00:00:00Z',
+      status: 'active',
+      tags: ['nursing', 'urgent'],
+      archivedAt: null,
+      job: null,
+    },
+    {
+      id: 'doc-2',
+      type: 'cover_letter',
+      title: 'Hospital Cover Letter',
+      content: 'content B',
+      versionNumber: 1,
+      updatedAt: '2024-01-02T00:00:00Z',
+      status: 'active',
+      tags: ['hospital'],
+      archivedAt: null,
+      job: null,
+    },
+  ];
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it.each([
+    ['all', 'archived=all'],
+    ['archived', 'archived=true'],
+    ['active', 'archived=false'],
+  ])('refetches the %s scope from the server', async (scope, query) => {
+    (api.apiFetch as jest.Mock).mockResolvedValue({
+      success: true,
+      data: scopedDocs,
+    });
+    render(<DocumentsPage />);
+    await screen.findByText('Nursing Resume');
+
+    fireEvent.change(screen.getByLabelText('Filter by document status'), {
+      target: { value: scope },
+    });
+
+    await waitFor(() =>
+      expect(api.apiFetch).toHaveBeenLastCalledWith(`/api/documents?${query}`)
+    );
+  });
+
+  it('offers the tags returned for the current scope and narrows the cards', async () => {
+    (api.apiFetch as jest.Mock).mockResolvedValue({
+      success: true,
+      data: scopedDocs,
+    });
+    render(<DocumentsPage />);
+    await screen.findByText('Nursing Resume');
+
+    const tagFilter = screen.getByLabelText('Filter by document tag');
+    expect(
+      within(tagFilter).getByRole('option', { name: 'nursing' })
+    ).toBeInTheDocument();
+    expect(
+      within(tagFilter).getByRole('option', { name: 'hospital' })
+    ).toBeInTheDocument();
+
+    fireEvent.change(tagFilter, { target: { value: 'hospital' } });
+
+    expect(screen.getByText('Hospital Cover Letter')).toBeInTheDocument();
+    expect(screen.queryByText('Nursing Resume')).not.toBeInTheDocument();
+  });
+
+  it('distinguishes an empty library from a filter that matches nothing', async () => {
+    (api.apiFetch as jest.Mock).mockResolvedValue({
+      success: true,
+      data: scopedDocs,
+    });
+    render(<DocumentsPage />);
+    await screen.findByText('Nursing Resume');
+
+    fireEvent.change(screen.getByLabelText('Filter by document tag'), {
+      target: { value: 'nursing' },
+    });
+    fireEvent.change(screen.getByTestId('type-filter'), {
+      target: { value: 'cover_letter' },
+    });
+
+    expect(
+      screen.queryByText(/No saved documents yet/i)
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(/No documents match/i)).toBeInTheDocument();
+  });
+});

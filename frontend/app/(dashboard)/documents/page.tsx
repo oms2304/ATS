@@ -1,156 +1,232 @@
-'use client'
+'use client';
 
-import { useEffect, useMemo, useState } from 'react'
-import { apiFetch, duplicateDocument, renameDocument, archiveDocument, restoreDocument } from '@/lib/api'
-import { DocumentCard } from '@/components/ui/document-card'
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  apiFetch,
+  archiveDocument,
+  downloadDocument,
+  duplicateDocument,
+  renameDocument,
+  restoreDocument,
+} from '@/lib/api';
+import { HistoryDialog } from '@/components/documents/HistoryDialog';
+import { MetadataDialog } from '@/components/documents/MetadataDialog';
+import { UploadDocumentDialog } from '@/components/documents/UploadDocumentDialog';
+import { DocumentItem } from '@/components/documents/types';
+import { DocumentCard } from '@/components/ui/document-card';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog'
+} from '@/components/ui/dialog';
 
-type DocItem = {
-  id: string
-  type: string
-  title: string
-  content: string | null
-  versionNumber: number
-  updatedAt: string
-  status?: string
-  tags?: string[]
-  archivedAt?: string | null
-  job: { id: string; title: string; company: string } | null
-}
-
-type TypeFilter = 'All' | 'resume' | 'cover_letter'
-type SortOption = 'updatedDesc' | 'updatedAsc' | 'titleAsc'
+type TypeFilter = 'All' | 'resume' | 'cover_letter';
+type SortOption = 'updatedDesc' | 'updatedAsc' | 'titleAsc';
+type StatusScope = 'active' | 'archived' | 'all';
 
 function typeLabel(type: string) {
-  return type === 'cover_letter' ? 'Cover Letter' : 'Resume'
+  return type === 'cover_letter' ? 'Cover Letter' : 'Resume';
 }
 
 function formatDateTime(value: string) {
-  if (!value) return ''
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleString(undefined, {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
-  })
+  });
+}
+
+function actionMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+async function fetchDocs(scope: StatusScope): Promise<DocumentItem[]> {
+  const archived =
+    scope === 'archived' ? 'true' : scope === 'all' ? 'all' : 'false';
+  const response = await apiFetch(`/api/documents?archived=${archived}`);
+  return response.success && Array.isArray(response.data) ? response.data : [];
 }
 
 export default function DocumentsPage() {
-  const [docs, setDocs] = useState<DocItem[]>([])
-  const [loading, setLoading] = useState(true)
-  const [activeDoc, setActiveDoc] = useState<DocItem | null>(null)
-  const [actionError, setActionError] = useState<string | null>(null)
+  const [docs, setDocs] = useState<DocumentItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [statusScope, setStatusScope] = useState<StatusScope>('active');
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('All');
+  const [tagFilter, setTagFilter] = useState('All');
+  const [sortBy, setSortBy] = useState<SortOption>('updatedDesc');
+  const [activeDoc, setActiveDoc] = useState<DocumentItem | null>(null);
+  const [metadataDoc, setMetadataDoc] = useState<DocumentItem | null>(null);
+  const [historyDoc, setHistoryDoc] = useState<DocumentItem | null>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  // S3-008: toggles between the active library and the archived view.
-  // The backend excludes archived documents from the default list, same
-  // as jobs, so we refetch with ?archived=true when this is on. This
-  // toggle is also the sole way to view archived/active state — there is
-  // no separate "status" filter, since a document's real archived state
-  // lives on archivedAt (set by this toggle's fetch), not the status field.
-  const [showArchived, setShowArchived] = useState(false)
-
-  // S3-006: filter and sort state for the document library
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>('All')
-  const [sortBy, setSortBy] = useState<SortOption>('updatedDesc')
+  // Callers that trigger a refetch from an event handler raise `loading`
+  // themselves; the effect below relies on its initial value instead.
+  const loadDocs = useCallback(
+    async (scope: StatusScope = statusScope) => {
+      try {
+        setDocs(await fetchDocs(scope));
+      } catch (error) {
+        setDocs([]);
+        setActionError(
+          actionMessage(error, 'Could not load your document library.')
+        );
+      } finally {
+        setLoading(false);
+      }
+    },
+    [statusScope]
+  );
 
   useEffect(() => {
-    async function load() {
-      setLoading(true)
+    let cancelled = false;
+    async function run() {
       try {
-        const res = await apiFetch(`/api/documents${showArchived ? '?archived=true' : ''}`)
-        if (res.success && Array.isArray(res.data)) setDocs(res.data)
-      } catch {
-        // leave the list empty so the page still renders
+        const items = await fetchDocs(statusScope);
+        if (!cancelled) setDocs(items);
+      } catch (error) {
+        if (cancelled) return;
+        setDocs([]);
+        setActionError(
+          actionMessage(error, 'Could not load your document library.')
+        );
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false);
       }
     }
-    load()
-  }, [showArchived])
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [statusScope]);
 
-  // S3-007: duplicate a document. Prepends the new copy to the list so the
-  // user sees it immediately without a full refetch.
-  async function handleDuplicate(doc: DocItem) {
-    setActionError(null)
+  async function handleDuplicate(doc: DocumentItem) {
+    setActionError(null);
     try {
-      const res = await duplicateDocument(doc.id)
-      if (res.success && res.data) {
-        setDocs((prev) => [res.data, ...prev])
+      const response = await duplicateDocument(doc.id);
+      if (response.success && response.data) {
+        setDocs((current) => [response.data, ...current]);
       }
-    } catch {
-      setActionError('Could not duplicate document. Please try again.')
+    } catch (error) {
+      const detail = error instanceof Error ? ` ${error.message}` : '';
+      setActionError(
+        `Could not duplicate document. Please try again.${detail}`
+      );
     }
   }
 
-  // S3-007: rename a document. Updates the title in place on success.
-  async function handleRename(doc: DocItem, newTitle: string) {
-    setActionError(null)
+  async function handleRename(doc: DocumentItem, newTitle: string) {
+    setActionError(null);
     try {
-      const res = await renameDocument(doc.id, newTitle)
-      if (res.success) {
-        setDocs((prev) =>
-          prev.map((d) => (d.id === doc.id ? { ...d, title: newTitle } : d))
-        )
+      const response = await renameDocument(doc.id, newTitle);
+      if (response.success) {
+        setDocs((current) =>
+          current.map((item) =>
+            item.id === doc.id ? { ...item, title: newTitle } : item
+          )
+        );
       }
-    } catch {
-      setActionError('Could not rename document. Please try again.')
+    } catch (error) {
+      const detail = error instanceof Error ? ` ${error.message}` : '';
+      setActionError(`Could not rename document. Please try again.${detail}`);
     }
   }
 
-  // S3-008: archive a document. Since the current view only shows one
-  // "side" (active or archived) at a time, a successfully archived
-  // document is removed from the active view immediately.
-  async function handleArchive(doc: DocItem) {
-    setActionError(null)
+  async function handleArchive(doc: DocumentItem) {
+    setActionError(null);
     try {
-      const res = await archiveDocument(doc.id)
-      if (res.success) {
-        setDocs((prev) => prev.filter((d) => d.id !== doc.id))
+      const response = await archiveDocument(doc.id);
+      if (response.success) {
+        if (statusScope === 'all') {
+          setDocs((current) =>
+            current.map((item) =>
+              item.id === doc.id
+                ? {
+                    ...item,
+                    status: 'archived',
+                    archivedAt:
+                      response.data?.archivedAt ?? new Date().toISOString(),
+                  }
+                : item
+            )
+          );
+        } else {
+          setDocs((current) => current.filter((item) => item.id !== doc.id));
+        }
       }
-    } catch {
-      setActionError('Could not archive document. Please try again.')
+    } catch (error) {
+      const detail = error instanceof Error ? ` ${error.message}` : '';
+      setActionError(`Could not archive document. Please try again.${detail}`);
     }
   }
 
-  // S3-008: restore an archived document back to active.
-  async function handleRestore(doc: DocItem) {
-    setActionError(null)
+  async function handleRestore(doc: DocumentItem) {
+    setActionError(null);
     try {
-      const res = await restoreDocument(doc.id)
-      if (res.success) {
-        setDocs((prev) => prev.filter((d) => d.id !== doc.id))
+      const response = await restoreDocument(doc.id);
+      if (response.success) {
+        if (statusScope === 'all') {
+          setDocs((current) =>
+            current.map((item) =>
+              item.id === doc.id
+                ? { ...item, status: 'active', archivedAt: null }
+                : item
+            )
+          );
+        } else {
+          setDocs((current) => current.filter((item) => item.id !== doc.id));
+        }
       }
-    } catch {
-      setActionError('Could not restore document. Please try again.')
+    } catch (error) {
+      const detail = error instanceof Error ? ` ${error.message}` : '';
+      setActionError(`Could not restore document. Please try again.${detail}`);
     }
   }
 
-  // S3-006: derive the filtered/sorted list shown in the grid
+  async function handleDownload(doc: DocumentItem) {
+    setActionError(null);
+    try {
+      await downloadDocument(doc.id, doc.fileName || `${doc.title}.txt`);
+    } catch (error) {
+      setActionError(
+        actionMessage(error, 'Could not download document. Please try again.')
+      );
+    }
+  }
+
+  const availableTags = useMemo(
+    () =>
+      Array.from(new Set(docs.flatMap((document) => document.tags ?? []))).sort(
+        (a, b) => a.localeCompare(b)
+      ),
+    [docs]
+  );
+
   const visibleDocs = useMemo(() => {
-    let result = [...docs]
-
-    if (typeFilter !== 'All') {
-      result = result.filter((doc) => doc.type === typeFilter)
-    }
+    const result = docs.filter(
+      (document) =>
+        (typeFilter === 'All' || document.type === typeFilter) &&
+        (tagFilter === 'All' || document.tags?.includes(tagFilter))
+    );
 
     result.sort((a, b) => {
-      if (sortBy === 'titleAsc') return a.title.localeCompare(b.title)
-      const aTime = new Date(a.updatedAt).getTime()
-      const bTime = new Date(b.updatedAt).getTime()
-      return sortBy === 'updatedAsc' ? aTime - bTime : bTime - aTime
-    })
+      if (sortBy === 'titleAsc') return a.title.localeCompare(b.title);
+      const aTime = new Date(a.updatedAt).getTime();
+      const bTime = new Date(b.updatedAt).getTime();
+      return sortBy === 'updatedAsc' ? aTime - bTime : bTime - aTime;
+    });
 
-    return result
-  }, [docs, typeFilter, sortBy])
+    return result;
+  }, [docs, sortBy, tagFilter, typeFilter]);
+
+  const showArchived = statusScope === 'archived';
 
   return (
     <div className="max-w-5xl mx-auto py-8 px-4 flex flex-col gap-6">
@@ -158,24 +234,44 @@ export default function DocumentsPage() {
         <div>
           <h1 className="text-2xl font-semibold text-white mb-1">Documents</h1>
           <p className="text-sm text-[#8b949e]">
-            Resumes and cover letters you&apos;ve saved from your job drafts.
+            Upload files or manage resumes and cover letters saved from job
+            drafts.
           </p>
         </div>
-        <button
-          onClick={() => setShowArchived((v) => !v)}
-          data-testid="toggle-archived-documents"
-          className={`text-sm px-4 py-2 rounded border transition-colors ${
-            showArchived
-              ? 'bg-[#21262d] border-[#444c56] text-white'
-              : 'bg-[#0d1117] border-[#30363d] text-[#8b949e] hover:text-white hover:border-[#444c56]'
-          }`}
-        >
-          {showArchived ? 'Show active' : 'Show archived'}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setUploadOpen(true)}
+            className="rounded bg-[#2f81f4] px-4 py-2 text-sm font-medium text-white hover:bg-[#3f91ff]"
+          >
+            Upload document
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setLoading(true);
+              setStatusScope((current) =>
+                current === 'archived' ? 'active' : 'archived'
+              );
+            }}
+            data-testid="toggle-archived-documents"
+            className={`text-sm px-4 py-2 rounded border transition-colors ${
+              showArchived
+                ? 'bg-[#21262d] border-[#444c56] text-white'
+                : 'bg-[#0d1117] border-[#30363d] text-[#8b949e] hover:text-white hover:border-[#444c56]'
+            }`}
+          >
+            {showArchived ? 'Show active' : 'Show archived'}
+          </button>
+        </div>
       </div>
 
       {actionError && (
-        <p className="text-sm text-[#f85149]" data-testid="action-error">
+        <p
+          className="text-sm text-[#f85149]"
+          data-testid="action-error"
+          role="alert"
+        >
           {actionError}
         </p>
       )}
@@ -183,23 +279,50 @@ export default function DocumentsPage() {
       {!loading && docs.length > 0 && (
         <div className="flex flex-wrap gap-3">
           <select
+            value={statusScope}
+            onChange={(event) => {
+              setLoading(true);
+              setStatusScope(event.target.value as StatusScope);
+            }}
+            aria-label="Filter by document status"
+            className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none"
+          >
+            <option value="active">Active</option>
+            <option value="archived">Archived</option>
+            <option value="all">All statuses</option>
+          </select>
+          <select
             value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}
+            onChange={(event) =>
+              setTypeFilter(event.target.value as TypeFilter)
+            }
             data-testid="type-filter"
             aria-label="Filter by document type"
-            className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all appearance-none"
+            className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none"
           >
             <option value="All">All types</option>
             <option value="resume">Resume</option>
             <option value="cover_letter">Cover Letter</option>
           </select>
-
+          <select
+            value={tagFilter}
+            onChange={(event) => setTagFilter(event.target.value)}
+            aria-label="Filter by document tag"
+            className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none"
+          >
+            <option value="All">All tags</option>
+            {availableTags.map((tag) => (
+              <option key={tag} value={tag}>
+                {tag}
+              </option>
+            ))}
+          </select>
           <select
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as SortOption)}
+            onChange={(event) => setSortBy(event.target.value as SortOption)}
             data-testid="sort-select"
             aria-label="Sort documents"
-            className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none transition-all appearance-none"
+            className="bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none"
           >
             <option value="updatedDesc">Last Updated (Newest)</option>
             <option value="updatedAsc">Last Updated (Oldest)</option>
@@ -214,7 +337,7 @@ export default function DocumentsPage() {
         <p className="text-sm text-[#8b949e]">
           {showArchived
             ? 'No archived documents.'
-            : 'No saved documents yet. Open a job, generate a resume or cover letter, and click Save.'}
+            : 'No saved documents yet. Upload one here or save a generated job document.'}
         </p>
       ) : visibleDocs.length === 0 ? (
         <p className="text-sm text-[#8b949e]" data-testid="no-match-message">
@@ -227,6 +350,9 @@ export default function DocumentsPage() {
               key={doc.id}
               doc={doc}
               onView={setActiveDoc}
+              onDownload={handleDownload}
+              onHistory={setHistoryDoc}
+              onEdit={setMetadataDoc}
               onDuplicate={handleDuplicate}
               onRename={handleRename}
               onArchive={handleArchive}
@@ -236,15 +362,41 @@ export default function DocumentsPage() {
         </div>
       )}
 
-      <Dialog open={!!activeDoc} onOpenChange={(open) => !open && setActiveDoc(null)}>
+      <UploadDocumentDialog
+        open={uploadOpen}
+        onOpenChange={setUploadOpen}
+        onUploaded={async () => {
+          setLoading(true);
+          setStatusScope('active');
+          await loadDocs('active');
+        }}
+      />
+      <MetadataDialog
+        document={metadataDoc}
+        open={!!metadataDoc}
+        onOpenChange={(open) => !open && setMetadataDoc(null)}
+        onSaved={async () => {
+          setLoading(true);
+          await loadDocs();
+        }}
+      />
+      <HistoryDialog
+        document={historyDoc}
+        open={!!historyDoc}
+        onOpenChange={(open) => !open && setHistoryDoc(null)}
+      />
+      <Dialog
+        open={!!activeDoc}
+        onOpenChange={(open) => !open && setActiveDoc(null)}
+      >
         <DialogContent className="sm:max-w-2xl bg-[#161b22] text-white border border-[#30363d]">
           {activeDoc && (
             <>
               <DialogHeader>
                 <DialogTitle>{activeDoc.title}</DialogTitle>
                 <DialogDescription className="text-[#8b949e]">
-                  {typeLabel(activeDoc.type)} · v{activeDoc.versionNumber} · Updated{' '}
-                  {formatDateTime(activeDoc.updatedAt)}
+                  {typeLabel(activeDoc.type)} · v{activeDoc.versionNumber} ·
+                  Updated {formatDateTime(activeDoc.updatedAt)}
                   {activeDoc.job && (
                     <>
                       {' · '}
@@ -261,5 +413,5 @@ export default function DocumentsPage() {
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }

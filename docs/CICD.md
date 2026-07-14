@@ -22,8 +22,8 @@ PR opened ──► CI (GitHub Actions) ──► review + merge to main
 
 `.github/workflows/ci.yml` runs on every pull request to `main` (and on push to `main`). Two jobs must pass:
 
-- **backend** — `npm install` → `prisma generate` → `lint` → `build` → `test`
-- **frontend** — `npm install` → `lint` → `build` → `test`
+- **backend** — `npm ci` → dependency report → `prisma generate` → `lint` → `build` → `test`
+- **frontend** — `npm ci` → dependency report → `lint` → `build` → `test`
 
 A PR should not be merged unless both are green. This is enforced by branch protection (see "Remaining setup").
 
@@ -38,8 +38,8 @@ When a PR merges to `main`, both hosts deploy automatically — no manual step:
 
 Two independent layers confirm the release is healthy:
 
-- **Render health probe.** The backend exposes `GET /healthz` (public, no auth, no DB dependency) returning `200 {status:"ok", uptime, timestamp}`. Render's **Health Check Path** is set to `/healthz`; Render polls it and will not keep an unhealthy instance serving.
-- **Post-Deploy Health Check workflow** (`.github/workflows/deploy-healthcheck.yml`). Runs on push to `main`, waits for the rollout, then curls the production backend `/healthz` and the frontend `/login`, retrying to absorb build time and free-tier cold starts. It fails the commit's checks if production doesn't come up — a clear, visible signal that a deploy is broken.
+- **Render health probe.** `GET /healthz` proves process liveness. `GET /readyz` additionally executes a bounded database query and returns 503 when the API cannot serve real traffic.
+- **Post-Deploy Health Check workflow** (`.github/workflows/deploy-healthcheck.yml`). Runs on push to `main`, waits for the rollout, then curls the production backend `/readyz` and the frontend `/login`, retrying to absorb build time and free-tier cold starts. It fails the commit's checks if production isn't ready — a clear, visible signal that a deploy is broken.
 
 ---
 
@@ -47,7 +47,7 @@ Two independent layers confirm the release is healthy:
 
 | Piece | Location |
 |---|---|
-| Health endpoint | `backend/src/index.ts` → `GET /healthz` |
+| Health endpoints | `backend/src/index.ts` → `GET /healthz`, `GET /readyz`, `GET /version` |
 | CI (test gate) | `.github/workflows/ci.yml` |
 | Post-deploy health check | `.github/workflows/deploy-healthcheck.yml` |
 | Backend host | Render service `ATS` (auto-deploy on commit) |
