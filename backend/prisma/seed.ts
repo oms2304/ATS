@@ -425,8 +425,11 @@ Alice Anderson
         title: 'Resume — Marketing Coordinator (BrandCo)',
       },
     });
-    const resumeVersion = await prisma.documentVersion.create({
-      data: {
+    const resumeVersion = await prisma.documentVersion.upsert({
+      where: { id: `seed-resume-ver-${marketingJob.id}` },
+      update: { content: resumeContent },
+      create: {
+        id: `seed-resume-ver-${marketingJob.id}`,
         document_id: resumeDoc.id,
         version_number: 1,
         content: resumeContent,
@@ -443,8 +446,11 @@ Alice Anderson
         title: 'Cover Letter — Marketing Coordinator (BrandCo)',
       },
     });
-    const coverVersion = await prisma.documentVersion.create({
-      data: {
+    const coverVersion = await prisma.documentVersion.upsert({
+      where: { id: `seed-cover-ver-${marketingJob.id}` },
+      update: { content: coverLetterContent },
+      create: {
+        id: `seed-cover-ver-${marketingJob.id}`,
         document_id: coverDoc.id,
         version_number: 1,
         content: coverLetterContent,
