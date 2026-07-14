@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { apiFetch, duplicateDocument, renameDocument, archiveDocument, restoreDocument } from '@/lib/api'
+import { apiFetch, duplicateDocument, renameDocument, archiveDocument, restoreDocument, getDocumentVersions } from '@/lib/api'
 import { DocumentCard } from '@/components/ui/document-card'
 import {
   Dialog,
@@ -22,6 +22,13 @@ type DocItem = {
   tags?: string[]
   archivedAt?: string | null
   job: { id: string; title: string; company: string } | null
+}
+type DocVersion = {
+  id: string
+  version_number: number
+  label: string | null
+  content: string | null
+  createdAt: string
 }
 
 type TypeFilter = 'All' | 'resume' | 'cover_letter'
@@ -49,6 +56,8 @@ export default function DocumentsPage() {
   const [loading, setLoading] = useState(true)
   const [activeDoc, setActiveDoc] = useState<DocItem | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [versions, setVersions] = useState<DocVersion[]>([])
+  const [versionsLoading, setVersionsLoading] = useState(false)
 
   // S3-008: toggles between the active library and the archived view.
   // The backend excludes archived documents from the default list, same
@@ -226,7 +235,15 @@ export default function DocumentsPage() {
             <DocumentCard
               key={doc.id}
               doc={doc}
-              onView={setActiveDoc}
+              onView={(d) => {
+                setActiveDoc(d)
+                setVersions([])
+                setVersionsLoading(true)
+                getDocumentVersions(d.id)
+                  .then((res: any) => setVersions(res?.data ?? []))
+                  .catch(() => setVersions([]))
+                  .finally(() => setVersionsLoading(false))
+              }}
               onDuplicate={handleDuplicate}
               onRename={handleRename}
               onArchive={handleArchive}
@@ -237,7 +254,7 @@ export default function DocumentsPage() {
       )}
 
       <Dialog open={!!activeDoc} onOpenChange={(open) => !open && setActiveDoc(null)}>
-        <DialogContent className="sm:max-w-2xl bg-[#161b22] text-white border border-[#30363d]">
+        <DialogContent className="sm:max-w-2xl bg-[#161b22] text-white border border-[#30363d] max-h-[85vh] overflow-y-auto">
           {activeDoc && (
             <>
               <DialogHeader>
@@ -256,6 +273,29 @@ export default function DocumentsPage() {
               <pre className="whitespace-pre-wrap font-sans text-sm text-[#c9d1d9] bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 max-h-[28rem] overflow-y-auto">
                 {activeDoc.content}
               </pre>
+              <div className="mt-4 border-t border-[#30363d] pt-3">
+                <p className="text-sm font-medium text-white mb-2">Version History</p>
+                {versionsLoading ? (
+                  <p className="text-xs text-[#8b949e]">Loading versions...</p>
+                ) : versions.length === 0 ? (
+                  <p className="text-xs text-[#8b949e]">No version history available.</p>
+                ) : (
+                  <ul className="space-y-2 max-h-40 overflow-y-auto" data-testid="version-history-list">
+                    {versions.map((v) => (
+                      <li
+                        key={v.id}
+                        className="flex items-center justify-between text-xs text-[#c9d1d9] bg-[#0d1117] border border-[#30363d] rounded px-3 py-2"
+                      >
+                        <span>
+                          v{v.version_number}
+                          {v.label ? ` — ${v.label}` : ''}
+                        </span>
+                        <span className="text-[#8b949e]">{formatDateTime(v.createdAt)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </>
           )}
         </DialogContent>

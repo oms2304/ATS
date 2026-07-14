@@ -1,10 +1,16 @@
 import 'dotenv/config';
 import { randomUUID } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
+import WebSocket from 'ws';
 
 const supabase = createClient(
   process.env.SUPABASE_URL as string,
-  process.env.SUPABASE_SERVICE_ROLE_KEY as string
+  process.env.SUPABASE_SERVICE_ROLE_KEY as string,
+  {
+    realtime: {
+      transport: WebSocket as any,
+    },
+  }
 );
 
 const BUCKET = 'documents';
@@ -31,14 +37,10 @@ export async function uploadFile(
   const { error } = await supabase.storage
     .from(BUCKET)
     .upload(path, buffer, { contentType: mimeType, upsert: false });
-
   if (error) throw new Error(`Storage upload failed: ${error.message}`);
-
   const { data, error: signError } = await supabase.storage
     .from(BUCKET)
     .createSignedUrl(path, 60 * 60 * 24 * 7); // 7 day expiry
-
   if (signError || !data) throw new Error(`Failed to generate file URL: ${signError?.message}`);
-
   return data.signedUrl;
 }

@@ -48,6 +48,8 @@ export const restoreDocument = (id: string) =>
 
 export const duplicateDocument = (id: string) =>
   apiFetch(`/api/documents/${id}/duplicate`, { method: 'POST' })
+export const getDocumentVersions = (id: string) =>
+  apiFetch(`/api/documents/${id}/versions`)
 export const renameDocument = (id: string, title: string) =>
   apiFetch(`/api/documents/${id}`, {
     method: 'PATCH',
