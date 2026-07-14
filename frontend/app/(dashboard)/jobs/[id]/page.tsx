@@ -190,6 +190,18 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     const isResume = target === 'resume'
     const content = isResume ? resumeDraft : coverLetterDraft
     if (!content.trim()) return
+
+    // A job keeps at most one resume and one cover letter (S3-BR-010). Saving a
+    // second one replaces the existing document, so confirm before overwriting.
+    const docType = isResume ? 'resume' : 'cover_letter'
+    const label = isResume ? 'resume' : 'cover letter'
+    if (savedDocs.some((d) => d.type === docType)) {
+      const confirmed = window.confirm(
+        `You already have a saved ${label} for this job. Saving will replace it with this new version. Continue?`
+      )
+      if (!confirmed) return
+    }
+
     setSavingDoc(target)
     setDocError('')
     setDocSavedMessage('')
