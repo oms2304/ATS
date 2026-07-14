@@ -20,7 +20,10 @@ ts="$(date -u +%Y%m%d_%H%M%S)"
 out="ats_backup_${ts}.dump"
 
 echo "Dumping production database to ${out} ..."
-pg_dump "$DIRECT_URL" --format=custom --no-owner --no-privileges --file "$out"
+PG_DUMP="${PG_DUMP:-$(command -v pg_dump)}"
+"$PG_DUMP" --version
+"$PG_DUMP" "$DIRECT_URL" --format=custom --no-owner --no-privileges --file "$out"
+test -s "$out"
 
 echo "Done. Wrote ${out} ($(du -h "$out" | cut -f1))."
 echo "Store it off-site (do NOT commit it to the repo)."

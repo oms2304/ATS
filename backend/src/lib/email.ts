@@ -1,14 +1,25 @@
-import { Resend } from 'resend'
+import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+let resend: Resend | null = null;
 
-const FROM = 'ATS for Job Seekers <onboarding@jacobmoawad.fun>'
+function getResendClient() {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) throw new Error('Email is not configured: RESEND_API_KEY');
+  resend ??= new Resend(apiKey);
+  return resend;
+}
+
+function sender() {
+  return (
+    process.env.EMAIL_FROM || 'ATS for Job Seekers <onboarding@resend.dev>'
+  );
+}
 
 export async function sendVerificationEmail(email: string, token: string) {
-  const url = `${process.env.FRONTEND_URL}/verify-email?token=${token}`
+  const url = `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
 
-  await resend.emails.send({
-    from: FROM,
+  await getResendClient().emails.send({
+    from: sender(),
     to: email,
     subject: 'Confirm your email to get started',
     html: `
@@ -61,15 +72,15 @@ export async function sendVerificationEmail(email: string, token: string) {
   </table>
 </body>
 </html>
-    `
-  })
+    `,
+  });
 }
 
 export async function sendPasswordResetEmail(email: string, token: string) {
-  const url = `${process.env.FRONTEND_URL}/reset-password?token=${token}`
+  const url = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
 
-  await resend.emails.send({
-    from: FROM,
+  await getResendClient().emails.send({
+    from: sender(),
     to: email,
     subject: 'Reset your ATS password',
     html: `
@@ -122,6 +133,6 @@ export async function sendPasswordResetEmail(email: string, token: string) {
   </table>
 </body>
 </html>
-    `
-  })
+    `,
+  });
 }

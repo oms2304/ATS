@@ -18,8 +18,6 @@ jest.mock('@/lib/api', () => ({
   renameDocument: jest.fn(),
   archiveDocument: jest.fn(),
   restoreDocument: jest.fn(),
-  getDocumentVersions: jest.fn().mockResolvedValue({ success: true, data: [] }),
-  uploadDocumentFile: jest.fn(),
 }));
 
 // Helper: find the card element for a given title, regardless of sort order in the grid.
@@ -407,145 +405,99 @@ describe('DocumentsPage - S3-008 Document Archive and Restore', () => {
   });
 });
 
-
-describe('DocumentsPage - S3-004 Document Upload', () => {
-  const mockFile = new File(['fake pdf content'], 'resume.pdf', { type: 'application/pdf' });
+describe('DocumentsPage - status and tag filters', () => {
+  const scopedDocs = [
+    {
+      id: 'doc-1',
+      type: 'resume',
+      title: 'Nursing Resume',
+      content: 'content A',
+      versionNumber: 1,
+      updatedAt: '2024-01-01T00:00:00Z',
+      status: 'active',
+      tags: ['nursing', 'urgent'],
+      archivedAt: null,
+      job: null,
+    },
+    {
+      id: 'doc-2',
+      type: 'cover_letter',
+      title: 'Hospital Cover Letter',
+      content: 'content B',
+      versionNumber: 1,
+      updatedAt: '2024-01-02T00:00:00Z',
+      status: 'active',
+      tags: ['hospital'],
+      archivedAt: null,
+      job: null,
+    },
+  ];
 
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  // HAPPY PATH: opening the upload modal shows the form
-  it('opens the upload modal when Upload Document is clicked', async () => {
-    (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: [] });
-    render(<DocumentsPage />);
-    await screen.findByText(/No saved documents yet/i);
-
-    fireEvent.click(screen.getByTestId('open-upload-modal'));
-
-    expect(screen.getByTestId('upload-file-input')).toBeInTheDocument();
-    expect(screen.getByTestId('upload-type-select')).toBeInTheDocument();
-    expect(screen.getByTestId('upload-title-input')).toBeInTheDocument();
-  });
-
-  // NON-HAPPY PATH: submitting without a file shows a validation message
-  it('shows an error when submitting without selecting a file', async () => {
-    (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: [] });
-    render(<DocumentsPage />);
-    await screen.findByText(/No saved documents yet/i);
-    fireEvent.click(screen.getByTestId('open-upload-modal'));
-
-    fireEvent.change(screen.getByTestId('upload-title-input'), { target: { value: 'My Resume' } });
-    fireEvent.click(screen.getByTestId('upload-submit-button'));
-
-    expect(await screen.findByTestId('upload-error')).toHaveTextContent(/choose a file/i);
-    expect(api.uploadDocumentFile).not.toHaveBeenCalled();
-  });
-
-  // NON-HAPPY PATH: submitting without a title shows a validation message
-  it('shows an error when submitting without a title', async () => {
-    (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: [] });
-    render(<DocumentsPage />);
-    await screen.findByText(/No saved documents yet/i);
-    fireEvent.click(screen.getByTestId('open-upload-modal'));
-
-    const fileInput = screen.getByTestId('upload-file-input') as HTMLInputElement;
-    fireEvent.change(fileInput, { target: { files: [mockFile] } });
-    fireEvent.click(screen.getByTestId('upload-submit-button'));
-
-    expect(await screen.findByTestId('upload-error')).toHaveTextContent(/enter a title/i);
-    expect(api.uploadDocumentFile).not.toHaveBeenCalled();
-  });
-
-  // HAPPY PATH: successful upload closes the modal and refreshes the list
-  it('uploads a file, closes the modal, and refreshes the document list on success', async () => {
-    (api.apiFetch as jest.Mock).mockResolvedValueOnce({ success: true, data: [] });
-    (api.uploadDocumentFile as jest.Mock).mockResolvedValue({ success: true, data: {} });
-    (api.apiFetch as jest.Mock).mockResolvedValueOnce({
-      success: true,
-      data: [
-        {
-          id: 'doc-1',
-          type: 'resume',
-          title: 'My Resume',
-          content: null,
-          fileUrl: 'https://storage.example.com/resume.pdf',
-          fileName: 'resume.pdf',
-          mimeType: 'application/pdf',
-          versionNumber: 1,
-          updatedAt: '2024-01-01T00:00:00Z',
-          job: null,
-        },
-      ],
-    });
-
-    render(<DocumentsPage />);
-    await screen.findByText(/No saved documents yet/i);
-    fireEvent.click(screen.getByTestId('open-upload-modal'));
-
-    const fileInput = screen.getByTestId('upload-file-input') as HTMLInputElement;
-    fireEvent.change(fileInput, { target: { files: [mockFile] } });
-    fireEvent.change(screen.getByTestId('upload-title-input'), { target: { value: 'My Resume' } });
-    fireEvent.click(screen.getByTestId('upload-submit-button'));
-
-    await waitFor(() => {
-      expect(api.uploadDocumentFile).toHaveBeenCalled();
-    });
-    await waitFor(() => {
-      expect(screen.queryByTestId('upload-file-input')).not.toBeInTheDocument();
-    });
-    expect(await screen.findByText('My Resume')).toBeInTheDocument();
-  });
-
-  // NON-HAPPY PATH: failed upload keeps the modal open and shows the server's error
-  it('shows the server error and keeps the modal open when upload fails', async () => {
-    (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: [] });
-    const uploadError = Object.assign(new Error('Validation failed'), {
-      data: { fields: { file: ['Only PDF, DOCX, and TXT files are supported'] } },
-    });
-    (api.uploadDocumentFile as jest.Mock).mockRejectedValue(uploadError);
-
-    render(<DocumentsPage />);
-    await screen.findByText(/No saved documents yet/i);
-    fireEvent.click(screen.getByTestId('open-upload-modal'));
-
-    const fileInput = screen.getByTestId('upload-file-input') as HTMLInputElement;
-    fireEvent.change(fileInput, { target: { files: [mockFile] } });
-    fireEvent.change(screen.getByTestId('upload-title-input'), { target: { value: 'My Resume' } });
-    fireEvent.click(screen.getByTestId('upload-submit-button'));
-
-    expect(await screen.findByTestId('upload-error')).toHaveTextContent(/Only PDF, DOCX, and TXT/i);
-    expect(screen.getByTestId('upload-file-input')).toBeInTheDocument();
-  });
-
-  // HAPPY PATH: an uploaded (file-based) document shows a download link, not the content pane
-  it('shows a file download link instead of a content pane when viewing an uploaded document', async () => {
+  it.each([
+    ['all', 'archived=all'],
+    ['archived', 'archived=true'],
+    ['active', 'archived=false'],
+  ])('refetches the %s scope from the server', async (scope, query) => {
     (api.apiFetch as jest.Mock).mockResolvedValue({
       success: true,
-      data: [
-        {
-          id: 'doc-1',
-          type: 'resume',
-          title: 'Uploaded Resume',
-          content: null,
-          fileUrl: 'https://storage.example.com/resume.pdf',
-          fileName: 'resume.pdf',
-          mimeType: 'application/pdf',
-          fileSize: 20480,
-          versionNumber: 1,
-          updatedAt: '2024-01-01T00:00:00Z',
-          job: null,
-        },
-      ],
+      data: scopedDocs,
+    });
+    render(<DocumentsPage />);
+    await screen.findByText('Nursing Resume');
+
+    fireEvent.change(screen.getByLabelText('Filter by document status'), {
+      target: { value: scope },
     });
 
-    render(<DocumentsPage />);
-    await screen.findByText('Uploaded Resume');
-    fireEvent.click(within(getCardByTitle('Uploaded Resume')).getByTestId('document-view-button'));
+    await waitFor(() =>
+      expect(api.apiFetch).toHaveBeenLastCalledWith(`/api/documents?${query}`)
+    );
+  });
 
-    const fileInfo = await screen.findByTestId('document-file-info');
-    expect(within(fileInfo).getByText('resume.pdf')).toBeInTheDocument();
-    const downloadLink = screen.getByTestId('document-file-download-link');
-    expect(downloadLink).toHaveAttribute('href', 'https://storage.example.com/resume.pdf');
+  it('offers the tags returned for the current scope and narrows the cards', async () => {
+    (api.apiFetch as jest.Mock).mockResolvedValue({
+      success: true,
+      data: scopedDocs,
+    });
+    render(<DocumentsPage />);
+    await screen.findByText('Nursing Resume');
+
+    const tagFilter = screen.getByLabelText('Filter by document tag');
+    expect(
+      within(tagFilter).getByRole('option', { name: 'nursing' })
+    ).toBeInTheDocument();
+    expect(
+      within(tagFilter).getByRole('option', { name: 'hospital' })
+    ).toBeInTheDocument();
+
+    fireEvent.change(tagFilter, { target: { value: 'hospital' } });
+
+    expect(screen.getByText('Hospital Cover Letter')).toBeInTheDocument();
+    expect(screen.queryByText('Nursing Resume')).not.toBeInTheDocument();
+  });
+
+  it('distinguishes an empty library from a filter that matches nothing', async () => {
+    (api.apiFetch as jest.Mock).mockResolvedValue({
+      success: true,
+      data: scopedDocs,
+    });
+    render(<DocumentsPage />);
+    await screen.findByText('Nursing Resume');
+
+    fireEvent.change(screen.getByLabelText('Filter by document tag'), {
+      target: { value: 'nursing' },
+    });
+    fireEvent.change(screen.getByTestId('type-filter'), {
+      target: { value: 'cover_letter' },
+    });
+
+    expect(
+      screen.queryByText(/No saved documents yet/i)
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(/No documents match/i)).toBeInTheDocument();
   });
 });

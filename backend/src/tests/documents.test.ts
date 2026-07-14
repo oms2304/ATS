@@ -11,11 +11,14 @@ import {
   linkDocumentToJob,
   unlinkDocumentFromJob,
   uploadDocument,
+  downloadDocument,
+  downloadDocumentVersion,
 } from '../controllers/documents.controller';
 import { checkOwnership } from '../middleware/ownership.middleware';
 
 vi.mock('../lib/prisma', () => ({
   default: {
+    $transaction: vi.fn(),
     job: { findUnique: vi.fn() },
     document: {
       create: vi.fn(),
@@ -23,6 +26,7 @@ vi.mock('../lib/prisma', () => ({
       findMany: vi.fn(),
       findUnique: vi.fn(),
       findFirst: vi.fn(),
+      delete: vi.fn(),
     },
     documentVersion: {
       create: vi.fn(),
@@ -43,16 +47,36 @@ vi.mock('../lib/prisma', () => ({
 
 vi.mock('../lib/storage', () => ({
   ensureBucketExists: vi.fn().mockResolvedValue(undefined),
-  uploadFile: vi.fn().mockResolvedValue('https://fake-storage.test/user-123/uuid.pdf'),
+  uploadFile: vi.fn().mockResolvedValue({
+    path: 'user-123/uuid.pdf',
+    signedUrl: 'https://fake-storage.test/user-123/uuid.pdf',
+  }),
+  parseOwnedObjectPath: vi.fn().mockReturnValue('user-123/uuid.pdf'),
+  downloadObject: vi.fn().mockResolvedValue(Buffer.from('fake-pdf-bytes')),
+  copyObject: vi.fn().mockResolvedValue({
+    path: 'user-123/copied-uuid.pdf',
+    signedUrl: 'https://fake-storage.test/user-123/copied-uuid.pdf',
+  }),
+  deleteObject: vi.fn().mockResolvedValue(undefined),
+  StorageServiceError: class StorageServiceError extends Error {},
 }));
 
 import prisma from '../lib/prisma';
-import { ensureBucketExists, uploadFile } from '../lib/storage';
+import {
+  ensureBucketExists,
+  uploadFile,
+  parseOwnedObjectPath,
+  downloadObject,
+  copyObject,
+  deleteObject,
+} from '../lib/storage';
 
 const mockRes = () => {
   const res = {} as Response;
   res.status = vi.fn().mockReturnValue(res);
   res.json = vi.fn().mockReturnValue(res);
+  res.send = vi.fn().mockReturnValue(res);
+  res.setHeader = vi.fn().mockReturnValue(res);
   return res;
 };
 
@@ -74,17 +98,35 @@ const validBody = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(prisma.$transaction).mockImplementation(async (callback: any) =>
+    callback(prisma)
+  );
 });
 
 describe('createDocument (S2-024)', () => {
   it('saves a new draft as a document linked to the job (happy path)', async () => {
     const req = mockReq({ body: validBody });
     const res = mockRes();
-    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123' } as any);
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({
+      id: 'job-1',
+      user_id: 'user-123',
+    } as any);
     vi.mocked(prisma.jobDocumentLink.findUnique).mockResolvedValue(null);
-    vi.mocked(prisma.document.create).mockResolvedValue({ id: 'doc-1', user_id: 'user-123', type: 'resume', title: 'My Resume' } as any);
-    vi.mocked(prisma.documentVersion.create).mockResolvedValue({ id: 'ver-1', document_id: 'doc-1', version_number: 1, content: validBody.content } as any);
-    vi.mocked(prisma.jobDocumentLink.create).mockResolvedValue({ id: 'link-1' } as any);
+    vi.mocked(prisma.document.create).mockResolvedValue({
+      id: 'doc-1',
+      user_id: 'user-123',
+      type: 'resume',
+      title: 'My Resume',
+    } as any);
+    vi.mocked(prisma.documentVersion.create).mockResolvedValue({
+      id: 'ver-1',
+      document_id: 'doc-1',
+      version_number: 1,
+      content: validBody.content,
+    } as any);
+    vi.mocked(prisma.jobDocumentLink.create).mockResolvedValue({
+      id: 'link-1',
+    } as any);
 
     await createDocument(req, res);
 
@@ -105,17 +147,38 @@ describe('createDocument (S2-024)', () => {
   it('adds a new version and repoints the link when re-saving the same type', async () => {
     const req = mockReq({ body: validBody });
     const res = mockRes();
-    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123' } as any);
-    vi.mocked(prisma.jobDocumentLink.findUnique).mockResolvedValue({ id: 'link-1', document_id: 'doc-1', type: 'resume' } as any);
-    vi.mocked(prisma.documentVersion.findFirst).mockResolvedValue({ version_number: 1 } as any);
-    vi.mocked(prisma.documentVersion.create).mockResolvedValue({ id: 'ver-2', document_id: 'doc-1', version_number: 2 } as any);
-    vi.mocked(prisma.document.update).mockResolvedValue({ id: 'doc-1', title: 'My Resume' } as any);
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({
+      id: 'job-1',
+      user_id: 'user-123',
+    } as any);
+    vi.mocked(prisma.jobDocumentLink.findUnique).mockResolvedValue({
+      id: 'link-1',
+      document_id: 'doc-1',
+      type: 'resume',
+    } as any);
+    vi.mocked(prisma.documentVersion.findFirst).mockResolvedValue({
+      version_number: 1,
+    } as any);
+    vi.mocked(prisma.documentVersion.create).mockResolvedValue({
+      id: 'ver-2',
+      document_id: 'doc-1',
+      version_number: 2,
+    } as any);
+    vi.mocked(prisma.document.update).mockResolvedValue({
+      id: 'doc-1',
+      title: 'My Resume',
+    } as any);
 
     await createDocument(req, res);
 
     expect(res.status).toHaveBeenCalledWith(200);
     expect(prisma.documentVersion.create).toHaveBeenCalledWith({
-      data: { document_id: 'doc-1', version_number: 2, content: validBody.content },
+      data: {
+        document_id: 'doc-1',
+        version_number: 2,
+        label: 'Saved revision',
+        content: validBody.content,
+      },
     });
     expect(prisma.jobDocumentLink.update).toHaveBeenCalledWith({
       where: { id: 'link-1' },
@@ -127,7 +190,10 @@ describe('createDocument (S2-024)', () => {
   it('returns 403 and saves nothing when the job belongs to another user (S2-BR-021)', async () => {
     const req = mockReq({ body: validBody });
     const res = mockRes();
-    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'someone-else' } as any);
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({
+      id: 'job-1',
+      user_id: 'someone-else',
+    } as any);
 
     await createDocument(req, res);
 
@@ -148,7 +214,9 @@ describe('createDocument (S2-024)', () => {
   });
 
   it('returns 400 with a field error when content is missing', async () => {
-    const req = mockReq({ body: { jobId: 'job-1', type: 'resume', title: 'My Resume' } });
+    const req = mockReq({
+      body: { jobId: 'job-1', type: 'resume', title: 'My Resume' },
+    });
     const res = mockRes();
 
     await createDocument(req, res);
@@ -176,13 +244,19 @@ describe('getDocuments (S2-024)', () => {
   it('returns documents linked to a job the user owns (persisted state in view)', async () => {
     const req = mockReq({ query: { jobId: 'job-1' } });
     const res = mockRes();
-    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123' } as any);
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({
+      id: 'job-1',
+      user_id: 'user-123',
+    } as any);
     vi.mocked(prisma.jobDocumentLink.findMany).mockResolvedValue([
       {
         job_id: 'job-1',
         type: 'resume',
         document: { id: 'doc-1', title: 'My Resume', updatedAt: new Date() },
-        document_version: { content: 'Generated resume text', version_number: 2 },
+        document_version: {
+          content: 'Generated resume text',
+          version_number: 2,
+        },
       },
     ] as any);
 
@@ -195,10 +269,13 @@ describe('getDocuments (S2-024)', () => {
     expect(payload.data[0].type).toBe('resume');
   });
 
-  it('returns 403 when requesting documents for another user\'s job (S2-BR-021)', async () => {
+  it("returns 403 when requesting documents for another user's job (S2-BR-021)", async () => {
     const req = mockReq({ query: { jobId: 'job-1' } });
     const res = mockRes();
-    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'someone-else' } as any);
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({
+      id: 'job-1',
+      user_id: 'someone-else',
+    } as any);
 
     await getDocuments(req, res);
 
@@ -206,7 +283,7 @@ describe('getDocuments (S2-024)', () => {
     expect(prisma.jobDocumentLink.findMany).not.toHaveBeenCalled();
   });
 
-  it('lists all of the user\'s documents with content and linked job when no jobId is given', async () => {
+  it("lists all of the user's documents with content and linked job when no jobId is given", async () => {
     const req = mockReq();
     const res = mockRes();
     vi.mocked(prisma.document.findMany).mockResolvedValue([
@@ -229,7 +306,11 @@ describe('getDocuments (S2-024)', () => {
     );
     const payload = (res.json as any).mock.calls[0][0];
     expect(payload.data[0].content).toBe('Dear Hiring Team');
-    expect(payload.data[0].job).toEqual({ id: 'job-1', title: 'Engineer', company: 'Acme' });
+    expect(payload.data[0].job).toEqual({
+      id: 'job-1',
+      title: 'Engineer',
+      company: 'Acme',
+    });
   });
 });
 
@@ -240,7 +321,10 @@ describe('updateDocumentMeta (S3-002)', () => {
       body: { title: 'New Title' },
     });
     const res = mockRes();
-    vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: 'doc-1', user_id: 'user-123' } as any);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      id: 'doc-1',
+      user_id: 'user-123',
+    } as any);
     vi.mocked(prisma.document.update).mockResolvedValue({
       id: 'doc-1',
       user_id: 'user-123',
@@ -268,7 +352,10 @@ describe('updateDocumentMeta (S3-002)', () => {
       body: { status: 'archived' },
     });
     const res = mockRes();
-    vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: 'doc-1', user_id: 'user-123' } as any);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      id: 'doc-1',
+      user_id: 'user-123',
+    } as any);
     vi.mocked(prisma.document.update).mockResolvedValue({
       id: 'doc-1',
       user_id: 'user-123',
@@ -283,7 +370,7 @@ describe('updateDocumentMeta (S3-002)', () => {
     expect(res.status).toHaveBeenCalledWith(200);
     expect(prisma.document.update).toHaveBeenCalledWith({
       where: { id: 'doc-1' },
-      data: { status: 'archived' },
+      data: { status: 'archived', archivedAt: expect.any(Date) },
     });
     const payload = (res.json as any).mock.calls[0][0];
     expect(payload.data.status).toBe('archived');
@@ -295,7 +382,10 @@ describe('updateDocumentMeta (S3-002)', () => {
       body: { tags: ['frontend', '2026'] },
     });
     const res = mockRes();
-    vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: 'doc-1', user_id: 'user-123' } as any);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      id: 'doc-1',
+      user_id: 'user-123',
+    } as any);
     vi.mocked(prisma.document.update).mockResolvedValue({
       id: 'doc-1',
       user_id: 'user-123',
@@ -352,7 +442,10 @@ describe('updateDocumentMeta (S3-002)', () => {
       body: { title: 'New Title' },
     });
     const res = mockRes();
-    vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: 'doc-1', user_id: 'someone-else' } as any);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      id: 'doc-1',
+      user_id: 'someone-else',
+    } as any);
 
     await updateDocumentMeta(req, res);
 
@@ -393,11 +486,32 @@ describe('getDocumentVersions (S3-003)', () => {
   it('returns versions ordered newest first (happy path)', async () => {
     const req = mockReq({ params: { id: 'doc-1' } });
     const res = mockRes();
-    vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: 'doc-1', user_id: 'user-123' } as any);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      id: 'doc-1',
+      user_id: 'user-123',
+    } as any);
     vi.mocked(prisma.documentVersion.findMany).mockResolvedValue([
-      { id: 'ver-3', document_id: 'doc-1', version_number: 3, label: 'Final', content: 'v3 content' },
-      { id: 'ver-2', document_id: 'doc-1', version_number: 2, label: null, content: 'v2 content' },
-      { id: 'ver-1', document_id: 'doc-1', version_number: 1, label: 'Initial', content: 'v1 content' },
+      {
+        id: 'ver-3',
+        document_id: 'doc-1',
+        version_number: 3,
+        label: 'Final',
+        content: 'v3 content',
+      },
+      {
+        id: 'ver-2',
+        document_id: 'doc-1',
+        version_number: 2,
+        label: null,
+        content: 'v2 content',
+      },
+      {
+        id: 'ver-1',
+        document_id: 'doc-1',
+        version_number: 1,
+        label: 'Initial',
+        content: 'v1 content',
+      },
     ] as any);
 
     await getDocumentVersions(req, res);
@@ -417,7 +531,10 @@ describe('getDocumentVersions (S3-003)', () => {
   it('returns 403 when the document belongs to another user', async () => {
     const req = mockReq({ params: { id: 'doc-1' } });
     const res = mockRes();
-    vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: 'doc-1', user_id: 'someone-else' } as any);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      id: 'doc-1',
+      user_id: 'someone-else',
+    } as any);
 
     await getDocumentVersions(req, res);
 
@@ -451,7 +568,10 @@ describe('S2-024 regression — createDocument defaults (S3-002)', () => {
   it('newly created documents still default to status: "active" and empty tags: []', async () => {
     const req = mockReq({ body: validBody });
     const res = mockRes();
-    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123' } as any);
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({
+      id: 'job-1',
+      user_id: 'user-123',
+    } as any);
     vi.mocked(prisma.jobDocumentLink.findUnique).mockResolvedValue(null);
     vi.mocked(prisma.document.create).mockResolvedValue({
       id: 'doc-1',
@@ -467,7 +587,9 @@ describe('S2-024 regression — createDocument defaults (S3-002)', () => {
       version_number: 1,
       content: validBody.content,
     } as any);
-    vi.mocked(prisma.jobDocumentLink.create).mockResolvedValue({ id: 'link-1' } as any);
+    vi.mocked(prisma.jobDocumentLink.create).mockResolvedValue({
+      id: 'link-1',
+    } as any);
 
     await createDocument(req, res);
 
@@ -484,7 +606,11 @@ describe('archiveDocument (S3-008)', () => {
     const req = mockReq({ params: { id: 'doc-1' } });
     const res = mockRes();
     const existing = { id: 'doc-1', user_id: 'user-123', archivedAt: null };
-    const archived = { id: 'doc-1', user_id: 'user-123', archivedAt: new Date() };
+    const archived = {
+      id: 'doc-1',
+      user_id: 'user-123',
+      archivedAt: new Date(),
+    };
     vi.mocked(prisma.document.findFirst).mockResolvedValue(existing as any);
     vi.mocked(prisma.document.update).mockResolvedValue(archived as any);
 
@@ -492,7 +618,7 @@ describe('archiveDocument (S3-008)', () => {
 
     expect(prisma.document.update).toHaveBeenCalledWith({
       where: { id: 'doc-1' },
-      data: { archivedAt: expect.any(Date) },
+      data: { archivedAt: expect.any(Date), status: 'archived' },
     });
     expect(res.json).toHaveBeenCalledWith({ success: true, data: archived });
   });
@@ -557,7 +683,11 @@ describe('restoreDocument (S3-008)', () => {
   it('restores an archived document: clears archivedAt and returns 200', async () => {
     const req = mockReq({ params: { id: 'doc-1' } });
     const res = mockRes();
-    const existing = { id: 'doc-1', user_id: 'user-123', archivedAt: new Date() };
+    const existing = {
+      id: 'doc-1',
+      user_id: 'user-123',
+      archivedAt: new Date(),
+    };
     const restored = { id: 'doc-1', user_id: 'user-123', archivedAt: null };
     vi.mocked(prisma.document.findFirst).mockResolvedValue(existing as any);
     vi.mocked(prisma.document.update).mockResolvedValue(restored as any);
@@ -566,7 +696,7 @@ describe('restoreDocument (S3-008)', () => {
 
     expect(prisma.document.update).toHaveBeenCalledWith({
       where: { id: 'doc-1' },
-      data: { archivedAt: null },
+      data: { archivedAt: null, status: 'active' },
     });
     expect(res.json).toHaveBeenCalledWith({ success: true, data: restored });
   });
@@ -621,7 +751,10 @@ describe('document ownership (S3-008)', () => {
     await checkOwnership('document')(req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(403);
-    expect(res.json).toHaveBeenCalledWith({ success: false, error: 'Access denied' });
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      error: 'Access denied',
+    });
     expect(next).not.toHaveBeenCalled();
   });
 });
@@ -687,7 +820,11 @@ describe('getDocuments archive filtering (S3-008)', () => {
     );
     const payload = (res.json as any).mock.calls[0][0];
     expect(payload.data[0].content).toBe('Dear Hiring Team');
-    expect(payload.data[0].job).toEqual({ id: 'job-1', title: 'Engineer', company: 'Acme' });
+    expect(payload.data[0].job).toEqual({
+      id: 'job-1',
+      title: 'Engineer',
+      company: 'Acme',
+    });
   });
 
   // REGRESSION: archivedAt was previously missing from the getDocuments
@@ -713,45 +850,6 @@ describe('getDocuments archive filtering (S3-008)', () => {
     const payload = (res.json as any).mock.calls[0][0];
     expect(payload.data[0]).toHaveProperty('archivedAt', null);
   });
-
-  // REGRESSION: fileUrl/fileName/mimeType/fileSize were previously missing
-  // from the getDocuments response mapper, so an uploaded (file-based)
-  // document's file reference was invisible to the frontend even though
-  // it was correctly stored and filtered on the backend.
-  it('regression: response includes file metadata for uploaded (file-based) documents', async () => {
-    const req = mockReq();
-    const res = mockRes();
-    vi.mocked(prisma.document.findMany).mockResolvedValue([
-      {
-        id: 'doc-1',
-        type: 'resume',
-        title: 'Uploaded Resume',
-        status: 'active',
-        tags: [],
-        archivedAt: null,
-        updatedAt: new Date(),
-        versions: [
-          {
-            content: null,
-            version_number: 1,
-            fileUrl: 'https://storage.example.com/resume.pdf',
-            fileName: 'resume.pdf',
-            mimeType: 'application/pdf',
-            fileSize: 20480,
-          },
-        ],
-        jobs: [],
-      },
-    ] as any);
-    await getDocuments(req, res);
-    const payload = (res.json as any).mock.calls[0][0];
-    expect(payload.data[0]).toMatchObject({
-      fileUrl: 'https://storage.example.com/resume.pdf',
-      fileName: 'resume.pdf',
-      mimeType: 'application/pdf',
-      fileSize: 20480,
-    });
-  });
 });
 
 describe('duplicateDocument (S3-007)', () => {
@@ -770,17 +868,27 @@ describe('duplicateDocument (S3-007)', () => {
       id: 'ver-1',
       document_id: 'doc-1',
       version_number: 2,
+      label: 'Final',
       content: 'Latest resume text',
       fileUrl: null,
       fileName: null,
       mimeType: null,
       fileSize: null,
     };
-    const newDoc = { id: 'doc-2', user_id: 'user-123', type: 'resume', title: 'My Resume (Copy)', status: 'active', tags: ['urgent'] };
+    const newDoc = {
+      id: 'doc-2',
+      user_id: 'user-123',
+      type: 'resume',
+      title: 'My Resume (Copy)',
+      status: 'active',
+      tags: ['urgent'],
+      archivedAt: null,
+    };
     const newVersion = {
       id: 'ver-2',
       document_id: 'doc-2',
       version_number: 1,
+      label: 'Final',
       content: 'Latest resume text',
       fileUrl: null,
       fileName: null,
@@ -789,9 +897,13 @@ describe('duplicateDocument (S3-007)', () => {
     };
 
     vi.mocked(prisma.document.findFirst).mockResolvedValue(source as any);
-    vi.mocked(prisma.documentVersion.findFirst).mockResolvedValue(latestVersion as any);
+    vi.mocked(prisma.documentVersion.findFirst).mockResolvedValue(
+      latestVersion as any
+    );
     vi.mocked(prisma.document.create).mockResolvedValue(newDoc as any);
-    vi.mocked(prisma.documentVersion.create).mockResolvedValue(newVersion as any);
+    vi.mocked(prisma.documentVersion.create).mockResolvedValue(
+      newVersion as any
+    );
 
     await duplicateDocument(req, res);
 
@@ -802,12 +914,14 @@ describe('duplicateDocument (S3-007)', () => {
         title: 'My Resume (Copy)',
         status: 'active',
         tags: ['urgent'],
+        archivedAt: null,
       },
     });
     expect(prisma.documentVersion.create).toHaveBeenCalledWith({
       data: {
         document_id: 'doc-2',
         version_number: 1,
+        label: 'Final',
         content: 'Latest resume text',
         fileUrl: null,
         fileName: null,
@@ -821,124 +935,37 @@ describe('duplicateDocument (S3-007)', () => {
       data: {
         ...newDoc,
         content: 'Latest resume text',
-        fileUrl: null,
+        versionId: 'ver-2',
+        versionNumber: 1,
+        label: 'Final',
         fileName: null,
         mimeType: null,
         fileSize: null,
-        versionNumber: 1,
+        hasFile: false,
+        job: null,
       },
     });
   });
 
-  it('duplicates a document with no existing version using null content', async () => {
+  it('returns 400 when a document has no version to duplicate', async () => {
     const req = mockReq({ params: { id: 'doc-1' } });
     const res = mockRes();
-    const source = { id: 'doc-1', user_id: 'user-123', type: 'resume', title: 'Empty Doc', status: 'active', tags: [] };
-    const newDoc = { id: 'doc-2', user_id: 'user-123', type: 'resume', title: 'Empty Doc (Copy)', status: 'active', tags: [] };
-    const newVersion = {
-      id: 'ver-2',
-      document_id: 'doc-2',
-      version_number: 1,
-      content: null,
-      fileUrl: null,
-      fileName: null,
-      mimeType: null,
-      fileSize: null,
+    const source = {
+      id: 'doc-1',
+      user_id: 'user-123',
+      type: 'resume',
+      title: 'Empty Doc',
+      status: 'active',
+      tags: [],
     };
-
     vi.mocked(prisma.document.findFirst).mockResolvedValue(source as any);
     vi.mocked(prisma.documentVersion.findFirst).mockResolvedValue(null);
-    vi.mocked(prisma.document.create).mockResolvedValue(newDoc as any);
-    vi.mocked(prisma.documentVersion.create).mockResolvedValue(newVersion as any);
 
     await duplicateDocument(req, res);
 
-    expect(prisma.documentVersion.create).toHaveBeenCalledWith({
-      data: {
-        document_id: 'doc-2',
-        version_number: 1,
-        content: null,
-        fileUrl: null,
-        fileName: null,
-        mimeType: null,
-        fileSize: null,
-      },
-    });
-    expect(res.status).toHaveBeenCalledWith(201);
-    expect(res.json).toHaveBeenCalledWith({
-      success: true,
-      data: {
-        ...newDoc,
-        content: null,
-        fileUrl: null,
-        fileName: null,
-        mimeType: null,
-        fileSize: null,
-        versionNumber: 1,
-      },
-    });
-  });
-
-  // S3-004/S3-007 integration: duplicating a file-based (uploaded) document
-  // must copy the file metadata, not just content — this was previously
-  // silently dropped, losing the file reference on the duplicate.
-  it('copies file metadata (fileUrl, fileName, mimeType, fileSize) when duplicating an uploaded document', async () => {
-    const req = mockReq({ params: { id: 'doc-1' } });
-    const res = mockRes();
-    const source = { id: 'doc-1', user_id: 'user-123', type: 'resume', title: 'My Resume.pdf', status: 'active', tags: [] };
-    const latestVersion = {
-      id: 'ver-1',
-      document_id: 'doc-1',
-      version_number: 1,
-      content: null,
-      fileUrl: 'https://storage.example.com/user-123/resume.pdf',
-      fileName: 'resume.pdf',
-      mimeType: 'application/pdf',
-      fileSize: 204800,
-    };
-    const newDoc = { id: 'doc-2', user_id: 'user-123', type: 'resume', title: 'My Resume.pdf (Copy)', status: 'active', tags: [] };
-    const newVersion = {
-      id: 'ver-2',
-      document_id: 'doc-2',
-      version_number: 1,
-      content: null,
-      fileUrl: 'https://storage.example.com/user-123/resume.pdf',
-      fileName: 'resume.pdf',
-      mimeType: 'application/pdf',
-      fileSize: 204800,
-    };
-
-    vi.mocked(prisma.document.findFirst).mockResolvedValue(source as any);
-    vi.mocked(prisma.documentVersion.findFirst).mockResolvedValue(latestVersion as any);
-    vi.mocked(prisma.document.create).mockResolvedValue(newDoc as any);
-    vi.mocked(prisma.documentVersion.create).mockResolvedValue(newVersion as any);
-
-    await duplicateDocument(req, res);
-
-    expect(prisma.documentVersion.create).toHaveBeenCalledWith({
-      data: {
-        document_id: 'doc-2',
-        version_number: 1,
-        content: null,
-        fileUrl: 'https://storage.example.com/user-123/resume.pdf',
-        fileName: 'resume.pdf',
-        mimeType: 'application/pdf',
-        fileSize: 204800,
-      },
-    });
-    expect(res.status).toHaveBeenCalledWith(201);
-    expect(res.json).toHaveBeenCalledWith({
-      success: true,
-      data: {
-        ...newDoc,
-        content: null,
-        fileUrl: 'https://storage.example.com/user-123/resume.pdf',
-        fileName: 'resume.pdf',
-        mimeType: 'application/pdf',
-        fileSize: 204800,
-        versionNumber: 1,
-      },
-    });
+    expect(prisma.document.create).not.toHaveBeenCalled();
+    expect(prisma.documentVersion.create).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
   });
 
   // NON-HAPPY PATH: document not found
@@ -988,17 +1015,36 @@ describe('linkDocumentToJob (S3-009, S3-BR-010, S3-BR-012)', () => {
       body: { documentId: 'doc-1', type: 'resume' },
     });
     const res = mockRes();
-    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123' } as any);
-    vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: 'doc-1', user_id: 'user-123' } as any);
-    vi.mocked(prisma.documentVersion.findFirst).mockResolvedValue({ id: 'ver-1', version_number: 1 } as any);
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({
+      id: 'job-1',
+      user_id: 'user-123',
+    } as any);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      id: 'doc-1',
+      user_id: 'user-123',
+    } as any);
+    vi.mocked(prisma.documentVersion.findFirst).mockResolvedValue({
+      id: 'ver-1',
+      version_number: 1,
+    } as any);
     vi.mocked(prisma.jobDocumentLink.findUnique).mockResolvedValue(null);
-    vi.mocked(prisma.jobDocumentLink.create).mockResolvedValue({ id: 'link-1', job_id: 'job-1', document_id: 'doc-1', type: 'resume' } as any);
+    vi.mocked(prisma.jobDocumentLink.create).mockResolvedValue({
+      id: 'link-1',
+      job_id: 'job-1',
+      document_id: 'doc-1',
+      type: 'resume',
+    } as any);
 
     await linkDocumentToJob(req, res);
 
     expect(res.status).toHaveBeenCalledWith(200);
     expect(prisma.jobDocumentLink.create).toHaveBeenCalledWith({
-      data: { job_id: 'job-1', document_id: 'doc-1', document_version_id: 'ver-1', type: 'resume' },
+      data: {
+        job_id: 'job-1',
+        document_id: 'doc-1',
+        document_version_id: 'ver-1',
+        type: 'resume',
+      },
     });
   });
 
@@ -1008,13 +1054,29 @@ describe('linkDocumentToJob (S3-009, S3-BR-010, S3-BR-012)', () => {
       body: { documentId: 'doc-2', type: 'resume', confirmedReplace: true },
     });
     const res = mockRes();
-    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123' } as any);
-    vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: 'doc-2', user_id: 'user-123' } as any);
-    vi.mocked(prisma.documentVersion.findFirst).mockResolvedValue({ id: 'ver-2', version_number: 1 } as any);
-    vi.mocked(prisma.jobDocumentLink.findUnique).mockResolvedValue({
-      id: 'link-1', document_id: 'doc-1', type: 'resume', document: { id: 'doc-1', title: 'Old Resume' },
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({
+      id: 'job-1',
+      user_id: 'user-123',
     } as any);
-    vi.mocked(prisma.jobDocumentLink.update).mockResolvedValue({ id: 'link-1', document_id: 'doc-2', type: 'resume' } as any);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      id: 'doc-2',
+      user_id: 'user-123',
+    } as any);
+    vi.mocked(prisma.documentVersion.findFirst).mockResolvedValue({
+      id: 'ver-2',
+      version_number: 1,
+    } as any);
+    vi.mocked(prisma.jobDocumentLink.findUnique).mockResolvedValue({
+      id: 'link-1',
+      document_id: 'doc-1',
+      type: 'resume',
+      document: { id: 'doc-1', title: 'Old Resume' },
+    } as any);
+    vi.mocked(prisma.jobDocumentLink.update).mockResolvedValue({
+      id: 'link-1',
+      document_id: 'doc-2',
+      type: 'resume',
+    } as any);
 
     await linkDocumentToJob(req, res);
 
@@ -1031,11 +1093,23 @@ describe('linkDocumentToJob (S3-009, S3-BR-010, S3-BR-012)', () => {
       body: { documentId: 'doc-2', type: 'resume' },
     });
     const res = mockRes();
-    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123' } as any);
-    vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: 'doc-2', user_id: 'user-123' } as any);
-    vi.mocked(prisma.documentVersion.findFirst).mockResolvedValue({ id: 'ver-2', version_number: 1 } as any);
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({
+      id: 'job-1',
+      user_id: 'user-123',
+    } as any);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      id: 'doc-2',
+      user_id: 'user-123',
+    } as any);
+    vi.mocked(prisma.documentVersion.findFirst).mockResolvedValue({
+      id: 'ver-2',
+      version_number: 1,
+    } as any);
     vi.mocked(prisma.jobDocumentLink.findUnique).mockResolvedValue({
-      id: 'link-1', document_id: 'doc-1', type: 'resume', document: { id: 'doc-1', title: 'Old Resume' },
+      id: 'link-1',
+      document_id: 'doc-1',
+      type: 'resume',
+      document: { id: 'doc-1', title: 'Old Resume' },
     } as any);
 
     await linkDocumentToJob(req, res);
@@ -1059,7 +1133,10 @@ describe('linkDocumentToJob (S3-009, S3-BR-010, S3-BR-012)', () => {
       body: { documentId: 'doc-1', type: 'resume' },
     });
     const res = mockRes();
-    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'someone-else' } as any);
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({
+      id: 'job-1',
+      user_id: 'someone-else',
+    } as any);
 
     await linkDocumentToJob(req, res);
 
@@ -1073,8 +1150,14 @@ describe('linkDocumentToJob (S3-009, S3-BR-010, S3-BR-012)', () => {
       body: { documentId: 'doc-1', type: 'resume' },
     });
     const res = mockRes();
-    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123' } as any);
-    vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: 'doc-1', user_id: 'someone-else' } as any);
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({
+      id: 'job-1',
+      user_id: 'user-123',
+    } as any);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      id: 'doc-1',
+      user_id: 'someone-else',
+    } as any);
 
     await linkDocumentToJob(req, res);
 
@@ -1101,7 +1184,10 @@ describe('linkDocumentToJob (S3-009, S3-BR-010, S3-BR-012)', () => {
       body: { documentId: 'doc-999', type: 'resume' },
     });
     const res = mockRes();
-    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123' } as any);
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({
+      id: 'job-1',
+      user_id: 'user-123',
+    } as any);
     vi.mocked(prisma.document.findUnique).mockResolvedValue(null);
 
     await linkDocumentToJob(req, res);
@@ -1115,7 +1201,10 @@ describe('linkDocumentToJob (S3-009, S3-BR-010, S3-BR-012)', () => {
       body: { documentId: 'doc-1', type: 'not_a_real_type' },
     });
     const res = mockRes();
-    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123' } as any);
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({
+      id: 'job-1',
+      user_id: 'user-123',
+    } as any);
 
     await linkDocumentToJob(req, res);
 
@@ -1123,7 +1212,11 @@ describe('linkDocumentToJob (S3-009, S3-BR-010, S3-BR-012)', () => {
   });
 
   it('returns 401 when unauthenticated', async () => {
-    const req = mockReq({ user: undefined, params: { jobId: 'job-1' }, body: {} });
+    const req = mockReq({
+      user: undefined,
+      params: { jobId: 'job-1' },
+      body: {},
+    });
     const res = mockRes();
 
     await linkDocumentToJob(req, res);
@@ -1137,14 +1230,30 @@ describe('linkDocumentToJob (S3-009, S3-BR-010, S3-BR-012)', () => {
       body: { documentId: 'doc-1', type: 'resume' },
     });
     const res = mockRes();
-    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123' } as any);
-    vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: 'doc-1', user_id: 'user-123' } as any);
-    vi.mocked(prisma.documentVersion.findFirst).mockResolvedValue({ id: 'ver-2', version_number: 2 } as any);
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({
+      id: 'job-1',
+      user_id: 'user-123',
+    } as any);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      id: 'doc-1',
+      user_id: 'user-123',
+    } as any);
+    vi.mocked(prisma.documentVersion.findFirst).mockResolvedValue({
+      id: 'ver-2',
+      version_number: 2,
+    } as any);
     vi.mocked(prisma.jobDocumentLink.findUnique).mockResolvedValue({
-      id: 'link-1', document_id: 'doc-1', type: 'resume', document: { id: 'doc-1', title: 'My Resume' },
+      id: 'link-1',
+      document_id: 'doc-1',
+      type: 'resume',
+      document: { id: 'doc-1', title: 'My Resume' },
     } as any);
     vi.mocked(prisma.jobDocumentLink.update).mockResolvedValue({
-      id: 'link-1', job_id: 'job-1', document_id: 'doc-1', document_version_id: 'ver-2', type: 'resume',
+      id: 'link-1',
+      job_id: 'job-1',
+      document_id: 'doc-1',
+      document_version_id: 'ver-2',
+      type: 'resume',
     } as any);
 
     await linkDocumentToJob(req, res);
@@ -1163,8 +1272,14 @@ describe('linkDocumentToJob (S3-009, S3-BR-010, S3-BR-012)', () => {
       body: { documentId: 'doc-1', type: 'resume' },
     });
     const res = mockRes();
-    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123' } as any);
-    vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: 'doc-1', user_id: 'user-123' } as any);
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({
+      id: 'job-1',
+      user_id: 'user-123',
+    } as any);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      id: 'doc-1',
+      user_id: 'user-123',
+    } as any);
     vi.mocked(prisma.documentVersion.findFirst).mockResolvedValue(null);
 
     await linkDocumentToJob(req, res);
@@ -1193,20 +1308,34 @@ describe('unlinkDocumentFromJob (S3-009, S3-BR-012)', () => {
     const req = mockReq({ params: { jobId: 'job-1', type: 'resume' } });
     const res = mockRes();
     (res as any).send = vi.fn().mockReturnValue(res);
-    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123' } as any);
-    vi.mocked(prisma.jobDocumentLink.findUnique).mockResolvedValue({ id: 'link-1', job_id: 'job-1', type: 'resume' } as any);
-    vi.mocked(prisma.jobDocumentLink.delete).mockResolvedValue({ id: 'link-1' } as any);
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({
+      id: 'job-1',
+      user_id: 'user-123',
+    } as any);
+    vi.mocked(prisma.jobDocumentLink.findUnique).mockResolvedValue({
+      id: 'link-1',
+      job_id: 'job-1',
+      type: 'resume',
+    } as any);
+    vi.mocked(prisma.jobDocumentLink.delete).mockResolvedValue({
+      id: 'link-1',
+    } as any);
 
     await unlinkDocumentFromJob(req, res);
 
     expect(res.status).toHaveBeenCalledWith(204);
-    expect(prisma.jobDocumentLink.delete).toHaveBeenCalledWith({ where: { id: 'link-1' } });
+    expect(prisma.jobDocumentLink.delete).toHaveBeenCalledWith({
+      where: { id: 'link-1' },
+    });
   });
 
   it('returns 404 when no document is linked for that type', async () => {
     const req = mockReq({ params: { jobId: 'job-1', type: 'resume' } });
     const res = mockRes();
-    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'user-123' } as any);
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({
+      id: 'job-1',
+      user_id: 'user-123',
+    } as any);
     vi.mocked(prisma.jobDocumentLink.findUnique).mockResolvedValue(null);
 
     await unlinkDocumentFromJob(req, res);
@@ -1218,7 +1347,10 @@ describe('unlinkDocumentFromJob (S3-009, S3-BR-012)', () => {
   it('returns 403 when the job belongs to another user (S3-BR-012)', async () => {
     const req = mockReq({ params: { jobId: 'job-1', type: 'resume' } });
     const res = mockRes();
-    vi.mocked(prisma.job.findUnique).mockResolvedValue({ id: 'job-1', user_id: 'someone-else' } as any);
+    vi.mocked(prisma.job.findUnique).mockResolvedValue({
+      id: 'job-1',
+      user_id: 'someone-else',
+    } as any);
 
     await unlinkDocumentFromJob(req, res);
 
@@ -1237,7 +1369,10 @@ describe('unlinkDocumentFromJob (S3-009, S3-BR-012)', () => {
   });
 
   it('returns 401 when unauthenticated', async () => {
-    const req = mockReq({ user: undefined, params: { jobId: 'job-1', type: 'resume' } });
+    const req = mockReq({
+      user: undefined,
+      params: { jobId: 'job-1', type: 'resume' },
+    });
     const res = mockRes();
 
     await unlinkDocumentFromJob(req, res);
@@ -1256,7 +1391,10 @@ describe('uploadDocument (S3-004)', () => {
   });
 
   afterEach(() => {
-    vi.mocked(uploadFile).mockResolvedValue('https://fake-storage.test/user-123/uuid.pdf');
+    vi.mocked(uploadFile).mockResolvedValue({
+      path: 'user-123/uuid.pdf',
+      signedUrl: 'https://fake-storage.test/user-123/uuid.pdf',
+    });
     vi.mocked(ensureBucketExists).mockResolvedValue(undefined as any);
   });
 
@@ -1298,6 +1436,7 @@ describe('uploadDocument (S3-004)', () => {
       data: {
         document_id: 'doc-1',
         version_number: 1,
+        label: 'Uploaded file',
         fileUrl: 'https://fake-storage.test/user-123/uuid.pdf',
         fileName: 'resume.pdf',
         mimeType: 'application/pdf',
@@ -1308,7 +1447,9 @@ describe('uploadDocument (S3-004)', () => {
     const payload = (res.json as any).mock.calls[0][0];
     expect(payload.success).toBe(true);
     expect(payload.data.id).toBe('doc-1');
-    expect(payload.data.version.fileUrl).toBe('https://fake-storage.test/user-123/uuid.pdf');
+    expect(payload.data.version.fileUrl).toBe(
+      'https://fake-storage.test/user-123/uuid.pdf'
+    );
   });
 
   it('trims the title before persisting', async () => {
@@ -1318,7 +1459,9 @@ describe('uploadDocument (S3-004)', () => {
     });
     const res = mockRes();
     vi.mocked(prisma.document.create).mockResolvedValue({ id: 'doc-1' } as any);
-    vi.mocked(prisma.documentVersion.create).mockResolvedValue({ id: 'ver-1' } as any);
+    vi.mocked(prisma.documentVersion.create).mockResolvedValue({
+      id: 'ver-1',
+    } as any);
 
     await uploadDocument(req, res);
 
@@ -1394,7 +1537,10 @@ describe('uploadDocument (S3-004)', () => {
   });
 
   it('returns 400 with a field error on title when title is blank/whitespace only', async () => {
-    const req = mockReq({ body: { type: 'resume', title: '   ' }, file: makeFile() });
+    const req = mockReq({
+      body: { type: 'resume', title: '   ' },
+      file: makeFile(),
+    });
     const res = mockRes();
 
     await uploadDocument(req, res);
@@ -1414,12 +1560,17 @@ describe('uploadDocument (S3-004)', () => {
       file: makeFile(),
     });
     const res = mockRes();
-    vi.mocked(uploadFile).mockRejectedValueOnce(new Error('Storage upload failed: boom'));
+    vi.mocked(uploadFile).mockRejectedValueOnce(
+      new Error('Storage upload failed: boom')
+    );
 
     await uploadDocument(req, res);
 
     expect(res.status).toHaveBeenCalledWith(500);
-    expect(res.json).toHaveBeenCalledWith({ success: false, error: 'Failed to upload document' });
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      error: 'Failed to upload document',
+    });
     expect(prisma.document.create).not.toHaveBeenCalled();
     expect(prisma.documentVersion.create).not.toHaveBeenCalled();
   });
@@ -1442,7 +1593,8 @@ describe('uploadDocument (S3-004)', () => {
 
 describe('upload error handler (S3-004)', () => {
   it('returns 400 with the spec message for UNSUPPORTED_FORMAT', async () => {
-    const { uploadErrorHandler } = await import('../middleware/upload.middleware');
+    const { uploadErrorHandler } =
+      await import('../middleware/upload.middleware');
     const err: any = new Error('UNSUPPORTED_FORMAT');
     const res = mockRes();
     const next = vi.fn() as unknown as NextFunction;
@@ -1457,7 +1609,8 @@ describe('upload error handler (S3-004)', () => {
   });
 
   it('returns 400 for FILE_TOO_LARGE', async () => {
-    const { uploadErrorHandler } = await import('../middleware/upload.middleware');
+    const { uploadErrorHandler } =
+      await import('../middleware/upload.middleware');
     const err: any = new Error('FILE_TOO_LARGE');
     const res = mockRes();
     const next = vi.fn() as unknown as NextFunction;
@@ -1472,11 +1625,231 @@ describe('upload error handler (S3-004)', () => {
   });
 
   it('forwards other errors via next(err)', async () => {
-    const { uploadErrorHandler } = await import('../middleware/upload.middleware');
+    const { uploadErrorHandler } =
+      await import('../middleware/upload.middleware');
     const err: any = new Error('Something else broke');
     const res = mockRes();
     const next = vi.fn() as unknown as NextFunction;
     await uploadErrorHandler(err, mockReq(), res, next);
     expect(next).toHaveBeenCalledWith(err);
+  });
+});
+
+describe('document binary download and storage safety', () => {
+  it('streams the latest uploaded version with stored metadata', async () => {
+    const req = mockReq({ params: { id: 'doc-1' } });
+    const res = mockRes();
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      id: 'doc-1',
+      title: 'Clinical Resume',
+    } as any);
+    vi.mocked(prisma.documentVersion.findFirst).mockResolvedValue({
+      id: 'ver-2',
+      document_id: 'doc-1',
+      version_number: 2,
+      fileUrl: 'https://storage.test/signed',
+      fileName: 'resume.pdf',
+      mimeType: 'application/pdf',
+      fileSize: 14,
+      content: null,
+    } as any);
+    vi.mocked(downloadObject).mockResolvedValue(Buffer.from('pdf-test-bytes'));
+
+    await downloadDocument(req, res);
+
+    expect(parseOwnedObjectPath).toHaveBeenCalledWith(
+      'https://storage.test/signed',
+      'user-123'
+    );
+    expect(downloadObject).toHaveBeenCalledWith('user-123/uuid.pdf');
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'Content-Type',
+      'application/pdf'
+    );
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'Cache-Control',
+      'private, no-store'
+    );
+    expect(res.send).toHaveBeenCalledWith(Buffer.from('pdf-test-bytes'));
+  });
+
+  it('downloads generated content as UTF-8 text', async () => {
+    const req = mockReq({ params: { id: 'doc-1' } });
+    const res = mockRes();
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      id: 'doc-1',
+      title: 'Generated Resume',
+    } as any);
+    vi.mocked(prisma.documentVersion.findFirst).mockResolvedValue({
+      id: 'ver-1',
+      document_id: 'doc-1',
+      version_number: 1,
+      fileUrl: null,
+      fileName: null,
+      mimeType: null,
+      fileSize: null,
+      content: 'generated text',
+    } as any);
+
+    await downloadDocument(req, res);
+
+    expect(downloadObject).not.toHaveBeenCalled();
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'Content-Type',
+      'text/plain; charset=utf-8'
+    );
+    expect(res.send).toHaveBeenCalledWith(Buffer.from('generated text'));
+  });
+
+  it('returns 404 when a requested version belongs to another document', async () => {
+    const req = mockReq({
+      params: { id: 'doc-1', versionId: 'ver-other' },
+    });
+    const res = mockRes();
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      id: 'doc-1',
+      title: 'Resume',
+    } as any);
+    vi.mocked(prisma.documentVersion.findFirst).mockResolvedValue(null);
+
+    await downloadDocumentVersion(req, res);
+
+    expect(prisma.documentVersion.findFirst).toHaveBeenCalledWith({
+      where: { id: 'ver-other', document_id: 'doc-1' },
+    });
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(downloadObject).not.toHaveBeenCalled();
+  });
+
+  it('copies binary bytes to an independent storage object when duplicating', async () => {
+    const req = mockReq({ params: { id: 'doc-1' } });
+    const res = mockRes();
+    vi.mocked(prisma.document.findFirst).mockResolvedValue({
+      id: 'doc-1',
+      user_id: 'user-123',
+      type: 'resume',
+      title: 'Uploaded Resume',
+      tags: ['demo'],
+    } as any);
+    vi.mocked(prisma.documentVersion.findFirst).mockResolvedValue({
+      id: 'ver-1',
+      document_id: 'doc-1',
+      version_number: 1,
+      label: 'Uploaded file',
+      content: null,
+      fileUrl: 'https://storage.test/signed',
+      fileName: 'resume.pdf',
+      mimeType: 'application/pdf',
+      fileSize: 1024,
+    } as any);
+    vi.mocked(prisma.document.create).mockResolvedValue({
+      id: 'doc-copy',
+      title: 'Uploaded Resume (Copy)',
+    } as any);
+    vi.mocked(prisma.documentVersion.create).mockResolvedValue({
+      id: 'ver-copy',
+      version_number: 1,
+      label: 'Uploaded file',
+      content: null,
+      fileUrl: 'https://fake-storage.test/user-123/copied-uuid.pdf',
+      fileName: 'resume.pdf',
+      mimeType: 'application/pdf',
+      fileSize: 1024,
+    } as any);
+
+    await duplicateDocument(req, res);
+
+    expect(copyObject).toHaveBeenCalledWith('user-123', 'user-123/uuid.pdf');
+    expect(prisma.documentVersion.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        fileUrl: 'https://fake-storage.test/user-123/copied-uuid.pdf',
+        fileName: 'resume.pdf',
+        mimeType: 'application/pdf',
+        fileSize: 1024,
+      }),
+    });
+    expect(res.status).toHaveBeenCalledWith(201);
+  });
+
+  it('removes copied storage when the duplicate transaction fails', async () => {
+    const req = mockReq({ params: { id: 'doc-1' } });
+    const res = mockRes();
+    vi.mocked(prisma.document.findFirst).mockResolvedValue({
+      id: 'doc-1',
+      user_id: 'user-123',
+      type: 'resume',
+      title: 'Uploaded Resume',
+      tags: [],
+    } as any);
+    vi.mocked(prisma.documentVersion.findFirst).mockResolvedValue({
+      id: 'ver-1',
+      fileUrl: 'https://storage.test/signed',
+      content: null,
+    } as any);
+    vi.mocked(prisma.$transaction).mockRejectedValueOnce(
+      new Error('database unavailable')
+    );
+
+    await duplicateDocument(req, res);
+
+    expect(deleteObject).toHaveBeenCalledWith('user-123/copied-uuid.pdf');
+    expect(res.status).toHaveBeenCalledWith(500);
+  });
+
+  it('removes an uploaded object when its database transaction fails', async () => {
+    const req = mockReq({
+      body: { type: 'resume', title: 'Resume' },
+      file: {
+        originalname: 'resume.pdf',
+        mimetype: 'application/pdf',
+        size: 20,
+        buffer: Buffer.from('pdf'),
+      },
+    });
+    const res = mockRes();
+    vi.mocked(prisma.$transaction).mockRejectedValueOnce(
+      new Error('database unavailable')
+    );
+
+    await uploadDocument(req, res);
+
+    expect(deleteObject).toHaveBeenCalledWith('user-123/uuid.pdf');
+    expect(res.status).toHaveBeenCalledWith(500);
+  });
+});
+
+describe('document filtering and normalized metadata', () => {
+  it('supports archived=all without an archivedAt predicate', async () => {
+    const req = mockReq({ query: { archived: 'all' } });
+    const res = mockRes();
+    vi.mocked(prisma.document.findMany).mockResolvedValue([]);
+
+    await getDocuments(req, res);
+
+    expect(prisma.document.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { user_id: 'user-123' } })
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  it('trims and deduplicates tags case-insensitively', async () => {
+    const req = mockReq({
+      params: { id: 'doc-1' },
+      body: { tags: [' Demo ', 'demo', 'Nursing'] },
+    });
+    const res = mockRes();
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      id: 'doc-1',
+      user_id: 'user-123',
+      archivedAt: null,
+    } as any);
+    vi.mocked(prisma.document.update).mockResolvedValue({ id: 'doc-1' } as any);
+
+    await updateDocumentMeta(req, res);
+
+    expect(prisma.document.update).toHaveBeenCalledWith({
+      where: { id: 'doc-1' },
+      data: { tags: ['Demo', 'Nursing'] },
+    });
   });
 });

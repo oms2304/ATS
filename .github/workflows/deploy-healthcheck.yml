@@ -18,16 +18,18 @@ env:
 jobs:
   health-check:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Give Render/Vercel time to start building
         run: sleep 60
 
-      - name: Wait for backend /healthz to return 200
+      - name: Wait for backend /readyz to return 200
         run: |
           # Retries cover build time (~2-4 min) plus free-tier cold start (~50s).
           for i in $(seq 1 24); do
-            code=$(curl -s -m 20 -o /dev/null -w '%{http_code}' "$BACKEND_URL/healthz" || true)
-            echo "attempt $i: backend $BACKEND_URL/healthz -> $code"
+            code=$(curl -s -m 20 -o /dev/null -w '%{http_code}' "$BACKEND_URL/readyz" || true)
+            echo "attempt $i: backend $BACKEND_URL/readyz -> $code"
             if [ "$code" = "200" ]; then
               echo "Backend healthy."
               exit 0
