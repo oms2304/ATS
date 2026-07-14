@@ -727,9 +727,27 @@ describe('duplicateDocument (S3-007)', () => {
       status: 'active',
       tags: ['urgent'],
     };
-    const latestVersion = { id: 'ver-1', document_id: 'doc-1', version_number: 2, content: 'Latest resume text' };
+    const latestVersion = {
+      id: 'ver-1',
+      document_id: 'doc-1',
+      version_number: 2,
+      content: 'Latest resume text',
+      fileUrl: null,
+      fileName: null,
+      mimeType: null,
+      fileSize: null,
+    };
     const newDoc = { id: 'doc-2', user_id: 'user-123', type: 'resume', title: 'My Resume (Copy)', status: 'active', tags: ['urgent'] };
-    const newVersion = { id: 'ver-2', document_id: 'doc-2', version_number: 1, content: 'Latest resume text' };
+    const newVersion = {
+      id: 'ver-2',
+      document_id: 'doc-2',
+      version_number: 1,
+      content: 'Latest resume text',
+      fileUrl: null,
+      fileName: null,
+      mimeType: null,
+      fileSize: null,
+    };
 
     vi.mocked(prisma.document.findFirst).mockResolvedValue(source as any);
     vi.mocked(prisma.documentVersion.findFirst).mockResolvedValue(latestVersion as any);
@@ -752,12 +770,24 @@ describe('duplicateDocument (S3-007)', () => {
         document_id: 'doc-2',
         version_number: 1,
         content: 'Latest resume text',
+        fileUrl: null,
+        fileName: null,
+        mimeType: null,
+        fileSize: null,
       },
     });
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith({
       success: true,
-      data: { ...newDoc, content: 'Latest resume text', versionNumber: 1 },
+      data: {
+        ...newDoc,
+        content: 'Latest resume text',
+        fileUrl: null,
+        fileName: null,
+        mimeType: null,
+        fileSize: null,
+        versionNumber: 1,
+      },
     });
   });
 
@@ -766,7 +796,16 @@ describe('duplicateDocument (S3-007)', () => {
     const res = mockRes();
     const source = { id: 'doc-1', user_id: 'user-123', type: 'resume', title: 'Empty Doc', status: 'active', tags: [] };
     const newDoc = { id: 'doc-2', user_id: 'user-123', type: 'resume', title: 'Empty Doc (Copy)', status: 'active', tags: [] };
-    const newVersion = { id: 'ver-2', document_id: 'doc-2', version_number: 1, content: null };
+    const newVersion = {
+      id: 'ver-2',
+      document_id: 'doc-2',
+      version_number: 1,
+      content: null,
+      fileUrl: null,
+      fileName: null,
+      mimeType: null,
+      fileSize: null,
+    };
 
     vi.mocked(prisma.document.findFirst).mockResolvedValue(source as any);
     vi.mocked(prisma.documentVersion.findFirst).mockResolvedValue(null);
@@ -780,12 +819,86 @@ describe('duplicateDocument (S3-007)', () => {
         document_id: 'doc-2',
         version_number: 1,
         content: null,
+        fileUrl: null,
+        fileName: null,
+        mimeType: null,
+        fileSize: null,
       },
     });
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith({
       success: true,
-      data: { ...newDoc, content: null, versionNumber: 1 },
+      data: {
+        ...newDoc,
+        content: null,
+        fileUrl: null,
+        fileName: null,
+        mimeType: null,
+        fileSize: null,
+        versionNumber: 1,
+      },
+    });
+  });
+
+  // S3-004/S3-007 integration: duplicating a file-based (uploaded) document
+  // must copy the file metadata, not just content — this was previously
+  // silently dropped, losing the file reference on the duplicate.
+  it('copies file metadata (fileUrl, fileName, mimeType, fileSize) when duplicating an uploaded document', async () => {
+    const req = mockReq({ params: { id: 'doc-1' } });
+    const res = mockRes();
+    const source = { id: 'doc-1', user_id: 'user-123', type: 'resume', title: 'My Resume.pdf', status: 'active', tags: [] };
+    const latestVersion = {
+      id: 'ver-1',
+      document_id: 'doc-1',
+      version_number: 1,
+      content: null,
+      fileUrl: 'https://storage.example.com/user-123/resume.pdf',
+      fileName: 'resume.pdf',
+      mimeType: 'application/pdf',
+      fileSize: 204800,
+    };
+    const newDoc = { id: 'doc-2', user_id: 'user-123', type: 'resume', title: 'My Resume.pdf (Copy)', status: 'active', tags: [] };
+    const newVersion = {
+      id: 'ver-2',
+      document_id: 'doc-2',
+      version_number: 1,
+      content: null,
+      fileUrl: 'https://storage.example.com/user-123/resume.pdf',
+      fileName: 'resume.pdf',
+      mimeType: 'application/pdf',
+      fileSize: 204800,
+    };
+
+    vi.mocked(prisma.document.findFirst).mockResolvedValue(source as any);
+    vi.mocked(prisma.documentVersion.findFirst).mockResolvedValue(latestVersion as any);
+    vi.mocked(prisma.document.create).mockResolvedValue(newDoc as any);
+    vi.mocked(prisma.documentVersion.create).mockResolvedValue(newVersion as any);
+
+    await duplicateDocument(req, res);
+
+    expect(prisma.documentVersion.create).toHaveBeenCalledWith({
+      data: {
+        document_id: 'doc-2',
+        version_number: 1,
+        content: null,
+        fileUrl: 'https://storage.example.com/user-123/resume.pdf',
+        fileName: 'resume.pdf',
+        mimeType: 'application/pdf',
+        fileSize: 204800,
+      },
+    });
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      data: {
+        ...newDoc,
+        content: null,
+        fileUrl: 'https://storage.example.com/user-123/resume.pdf',
+        fileName: 'resume.pdf',
+        mimeType: 'application/pdf',
+        fileSize: 204800,
+        versionNumber: 1,
+      },
     });
   });
 

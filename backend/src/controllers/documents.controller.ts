@@ -367,15 +367,35 @@ export async function duplicateDocument(req: Request, res: Response) {
       },
     });
 
+    // Copy whichever fields the source version actually used — a version
+    // is either text-based (AI-generated drafts, using `content`) or
+    // file-based (S3-004 uploads, using fileUrl/fileName/mimeType/fileSize).
+    // The duplicate references the same underlying stored file rather than
+    // physically re-uploading it; only the metadata/version record is copied.
     const version = await prisma.documentVersion.create({
       data: {
         document_id: duplicate.id,
         version_number: 1,
         content: latestVersion?.content ?? null,
+        fileUrl: latestVersion?.fileUrl ?? null,
+        fileName: latestVersion?.fileName ?? null,
+        mimeType: latestVersion?.mimeType ?? null,
+        fileSize: latestVersion?.fileSize ?? null,
       },
     });
 
-    return res.status(201).json({ success: true, data: { ...duplicate, content: version.content, versionNumber: version.version_number } });
+    return res.status(201).json({
+      success: true,
+      data: {
+        ...duplicate,
+        content: version.content,
+        fileUrl: version.fileUrl,
+        fileName: version.fileName,
+        mimeType: version.mimeType,
+        fileSize: version.fileSize,
+        versionNumber: version.version_number,
+      },
+    });
   } catch {
     return res.status(500).json({ success: false, error: 'Failed to duplicate document' });
   }
