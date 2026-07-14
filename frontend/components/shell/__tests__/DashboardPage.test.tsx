@@ -68,6 +68,14 @@ describe('DashboardPage - S2-001 Job Search', () => {
     expect(await screen.findByPlaceholderText('Search jobs...')).toBeInTheDocument();
   });
 
+  it('settles into the empty state when the API is unreachable', async () => {
+    (api.apiFetch as jest.Mock).mockRejectedValue(new TypeError('Failed to fetch'));
+    renderWithAuth();
+
+    expect(await screen.findByText('No jobs yet')).toBeInTheDocument();
+    expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+  });
+
   // HAPPY PATH: search by title
   it('filters jobs by title', async () => {
     (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: mockJobs });
