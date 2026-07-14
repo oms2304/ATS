@@ -1,8 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch, duplicateDocument, renameDocument, archiveDocument, restoreDocument, getDocumentVersions, uploadDocumentFile } from '@/lib/api'
 import { DocumentCard } from '@/components/ui/document-card'
+import { UploadCloud, FileText, X, AlertCircle } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -79,6 +80,7 @@ export default function DocumentsPage() {
   // S3-004: upload modal state
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [uploadFileObj, setUploadFileObj] = useState<File | null>(null)
+  const uploadFileInputRef = useRef<HTMLInputElement>(null)
   const [uploadType, setUploadType] = useState<UploadType>('resume')
   const [uploadTitle, setUploadTitle] = useState('')
   const [uploadError, setUploadError] = useState<string | null>(null)
@@ -122,6 +124,7 @@ export default function DocumentsPage() {
     setUploadType('resume')
     setUploadTitle('')
     setUploadError(null)
+    if (uploadFileInputRef.current) uploadFileInputRef.current.value = ''
   }
 
   async function handleUploadSubmit() {
@@ -423,39 +426,110 @@ export default function DocumentsPage() {
           setShowUploadModal(open)
         }}
       >
-        <DialogContent className="sm:max-w-md bg-[#161b22] text-white border border-[#30363d]">
+        <DialogContent className="sm:max-w-lg bg-[#161b22] text-white border border-[#30363d]">
           <DialogHeader>
-            <DialogTitle>Upload Document</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <UploadCloud size={18} className="text-[#2f81f4]" />
+              Upload Document
+            </DialogTitle>
             <DialogDescription className="text-[#8b949e]">
-              PDF, DOCX, or TXT — up to 5MB.
+              Add an existing resume or cover letter to your library.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex flex-col gap-3">
-            <div>
-              <label className="block text-xs text-[#8b949e] mb-1" htmlFor="upload-file-input">
-                File
-              </label>
-              <input
-                id="upload-file-input"
-                type="file"
-                accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
-                onChange={(e) => setUploadFileObj(e.target.files?.[0] ?? null)}
-                data-testid="upload-file-input"
-                className="w-full text-sm text-[#c9d1d9] file:mr-3 file:py-1.5 file:px-3 file:rounded file:border file:border-[#30363d] file:bg-[#0d1117] file:text-[#8b949e] file:text-xs"
-              />
-            </div>
+          <div className="flex flex-col gap-4">
+            <input
+              ref={uploadFileInputRef}
+              id="upload-file-input"
+              type="file"
+              accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+              onChange={(e) => setUploadFileObj(e.target.files?.[0] ?? null)}
+              data-testid="upload-file-input"
+              className="sr-only"
+            />
+
+            {uploadFileObj ? (
+              <div className="flex items-center gap-3 bg-[#0d1117] border border-[#2f81f4] rounded-lg px-4 py-4">
+                <div className="shrink-0 w-10 h-10 rounded-full bg-[#1f3d6e] flex items-center justify-center">
+                  <FileText size={18} className="text-[#58a6ff]" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-white truncate" data-testid="upload-selected-filename">
+                    {uploadFileObj.name}
+                  </p>
+                  <p className="text-xs text-[#8b949e]">
+                    {(uploadFileObj.size / 1024).toFixed(0)} KB
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUploadFileObj(null)
+                    if (uploadFileInputRef.current) uploadFileInputRef.current.value = ''
+                  }}
+                  aria-label="Remove selected file"
+                  className="shrink-0 w-7 h-7 rounded flex items-center justify-center text-[#8b949e] hover:text-white hover:bg-[#21262d] transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => uploadFileInputRef.current?.click()}
+                className="w-full flex flex-col items-center justify-center gap-2 border-2 border-dashed border-[#30363d] rounded-lg px-4 py-8 text-[#8b949e] hover:text-white hover:border-[#2f81f4] hover:bg-[#0d1117] transition-colors"
+              >
+                <UploadCloud size={28} />
+                <span className="text-sm font-medium">Click to choose a file</span>
+                <div className="flex gap-1.5 mt-1">
+                  {['PDF', 'DOCX', 'TXT'].map((ext) => (
+                    <span
+                      key={ext}
+                      className="text-[10px] px-2 py-0.5 rounded-full bg-[#21262d] text-[#8b949e]"
+                    >
+                      {ext}
+                    </span>
+                  ))}
+                </div>
+                <span className="text-xs text-[#8b949e]">Up to 5MB</span>
+              </button>
+            )}
 
             <div>
-              <label className="block text-xs text-[#8b949e] mb-1" htmlFor="upload-type-select">
-                Type
-              </label>
+              <label className="block text-xs text-[#8b949e] mb-2">Type</label>
+              <div className="grid grid-cols-2 gap-2" role="group" aria-label="Document type">
+                <button
+                  type="button"
+                  onClick={() => setUploadType('resume')}
+                  data-testid="upload-type-resume"
+                  className={`text-sm px-3 py-2 rounded border transition-colors ${
+                    uploadType === 'resume'
+                      ? 'bg-[#1f3d6e] border-[#2f81f4] text-white'
+                      : 'bg-[#0d1117] border-[#30363d] text-[#8b949e] hover:text-white hover:border-[#444c56]'
+                  }`}
+                >
+                  Resume
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUploadType('cover_letter')}
+                  data-testid="upload-type-cover-letter"
+                  className={`text-sm px-3 py-2 rounded border transition-colors ${
+                    uploadType === 'cover_letter'
+                      ? 'bg-[#2d1f6e] border-[#bc8cff] text-white'
+                      : 'bg-[#0d1117] border-[#30363d] text-[#8b949e] hover:text-white hover:border-[#444c56]'
+                  }`}
+                >
+                  Cover Letter
+                </button>
+              </div>
               <select
-                id="upload-type-select"
+                aria-hidden="true"
+                tabIndex={-1}
                 value={uploadType}
                 onChange={(e) => setUploadType(e.target.value as UploadType)}
                 data-testid="upload-type-select"
-                className="w-full bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-sm text-white focus:border-[#2f81f4] focus:ring-1 focus:ring-[#2f81f4] outline-none appearance-none"
+                className="sr-only"
               >
                 <option value="resume">Resume</option>
                 <option value="cover_letter">Cover Letter</option>
@@ -478,12 +552,16 @@ export default function DocumentsPage() {
             </div>
 
             {uploadError && (
-              <p className="text-sm text-[#f85149]" data-testid="upload-error">
-                {uploadError}
-              </p>
+              <div
+                className="flex items-start gap-2 bg-[#3d1f1f] border border-[#f85149]/40 rounded px-3 py-2"
+                data-testid="upload-error"
+              >
+                <AlertCircle size={16} className="text-[#f85149] shrink-0 mt-0.5" />
+                <p className="text-sm text-[#f85149]">{uploadError}</p>
+              </div>
             )}
 
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex justify-end gap-2 pt-2 border-t border-[#30363d] mt-1">
               <button
                 onClick={() => {
                   resetUploadForm()
