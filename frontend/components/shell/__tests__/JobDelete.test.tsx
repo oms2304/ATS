@@ -102,4 +102,41 @@ describe('S2-015 - Job Delete Workflow', () => {
       expect(api.apiFetch).toHaveBeenCalledWith('/api/jobs/1', { method: 'DELETE' });
     });
   });
+
+  it('asks for confirmation before replacing an existing saved resume', async () => {
+    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(false);
+    (api.apiFetch as jest.Mock).mockImplementation((url: string, options?: { method?: string }) => {
+      if (url === '/api/jobs/1') return Promise.resolve({ success: true, data: mockJob });
+      if (url === '/api/documents?jobId=1') {
+        return Promise.resolve({
+          success: true,
+          data: [{
+            id: 'resume-1',
+            type: 'resume',
+            title: 'Resume',
+            content: 'Existing resume',
+            versionNumber: 1,
+            updatedAt: '2024-01-02T00:00:00Z',
+          }],
+        });
+      }
+      if (url === '/api/ai/generate-resume' && options?.method === 'POST') {
+        return Promise.resolve({ success: true, data: { draft: 'New resume draft' } });
+      }
+      return Promise.resolve({ success: true, data: [] });
+    });
+
+    renderJobDetail();
+    fireEvent.click(await screen.findByRole('button', { name: 'Generate Resume with AI' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Save Resume' }));
+
+    expect(confirmSpy).toHaveBeenCalledWith(
+      'You already have a saved resume for this job. Saving will replace it with this new version. Continue?'
+    );
+    expect(api.apiFetch).not.toHaveBeenCalledWith(
+      '/api/documents',
+      expect.objectContaining({ method: 'POST' })
+    );
+    confirmSpy.mockRestore();
+  });
 });

@@ -43,6 +43,21 @@ describe('document dialogs', () => {
     jest.clearAllMocks();
   });
 
+  it('keeps the upload footer on the same dark modal surface', () => {
+    render(
+      <UploadDocumentDialog
+        open
+        onOpenChange={jest.fn()}
+        onUploaded={jest.fn()}
+      />
+    );
+
+    expect(document.querySelector('[data-slot="dialog-footer"]')).toHaveClass(
+      'bg-transparent',
+      'border-[#30363d]'
+    );
+  });
+
   it('validates unsupported upload types before making an API request', async () => {
     render(
       <UploadDocumentDialog
