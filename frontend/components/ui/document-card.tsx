@@ -10,6 +10,7 @@ type DocumentItem = {
   updatedAt: string
   status?: string
   tags?: string[]
+  archivedAt?: string | null
   job: { id: string; title: string; company: string } | null
 }
 
@@ -39,6 +40,8 @@ interface DocumentCardProps {
   onView: (doc: DocumentItem) => void
   onDuplicate: (doc: DocumentItem) => void
   onRename: (doc: DocumentItem, newTitle: string) => void
+  onArchive: (doc: DocumentItem) => void
+  onRestore: (doc: DocumentItem) => void
 }
 
 // S3-001: Document Library card — mirrors JobCard visual language
@@ -48,9 +51,19 @@ interface DocumentCardProps {
 // visually distinguishable in the grid.
 // S3-007: adds inline rename (click Rename to reveal a text input) and a
 // Duplicate action that creates a copy via the parent's onDuplicate handler.
-export function DocumentCard({ doc, onView, onDuplicate, onRename }: DocumentCardProps) {
+// S3-008: adds Archive/Restore actions. Archived state is driven by
+// `archivedAt` (the real archive mechanism, set by the archive/restore
+// endpoints) rather than the separate `status` field — mirrors how
+// JobCard derives its "Archived" display from job.archivedAt instead of
+// job.stage, since the two are independent fields on the model.
+export function DocumentCard({ doc, onView, onDuplicate, onRename, onArchive, onRestore }: DocumentCardProps) {
   const badge = TYPE_BADGE[doc.type] ?? TYPE_BADGE.resume
-  const statusBadge = doc.status ? STATUS_BADGE[doc.status] ?? STATUS_BADGE.active : null
+  const isArchived = !!doc.archivedAt
+  const statusBadge = isArchived
+    ? STATUS_BADGE.archived
+    : doc.status
+    ? STATUS_BADGE[doc.status] ?? STATUS_BADGE.active
+    : null
   const [isRenaming, setIsRenaming] = useState(false)
   const [draftTitle, setDraftTitle] = useState(doc.title)
 
@@ -75,7 +88,9 @@ export function DocumentCard({ doc, onView, onDuplicate, onRename }: DocumentCar
   return (
     <div
       data-testid="document-card"
-      className="bg-[#161b22] border border-[#30363d] rounded-lg p-4 transition-colors hover:border-[#2f81f4]"
+      className={`bg-[#161b22] border rounded-lg p-4 transition-colors ${
+        isArchived ? 'border-[#30363d] opacity-60' : 'border-[#30363d] hover:border-[#2f81f4]'
+      }`}
     >
       <div className="flex justify-between items-start mb-2">
         <div className="flex items-center gap-1">
@@ -167,20 +182,41 @@ export function DocumentCard({ doc, onView, onDuplicate, onRename }: DocumentCar
       <div className="flex flex-wrap justify-end gap-2 pt-2 border-t border-[#30363d]">
         {!isRenaming && (
           <>
-            <button
-              onClick={startRename}
-              className="text-xs px-3 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors"
-              data-testid="document-rename-button"
-            >
-              Rename
-            </button>
-            <button
-              onClick={() => onDuplicate(doc)}
-              className="text-xs px-3 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors"
-              data-testid="document-duplicate-button"
-            >
-              Duplicate
-            </button>
+            {!isArchived && (
+              <button
+                onClick={startRename}
+                className="text-xs px-3 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors"
+                data-testid="document-rename-button"
+              >
+                Rename
+              </button>
+            )}
+            {!isArchived && (
+              <button
+                onClick={() => onDuplicate(doc)}
+                className="text-xs px-3 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors"
+                data-testid="document-duplicate-button"
+              >
+                Duplicate
+              </button>
+            )}
+            {isArchived ? (
+              <button
+                onClick={() => onRestore(doc)}
+                className="text-xs px-3 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors"
+                data-testid="document-restore-button"
+              >
+                Restore
+              </button>
+            ) : (
+              <button
+                onClick={() => onArchive(doc)}
+                className="text-xs px-3 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors"
+                data-testid="document-archive-button"
+              >
+                Archive
+              </button>
+            )}
             <button
               onClick={() => onView(doc)}
               className="text-xs px-3 py-1.5 border border-[#30363d] text-[#8b949e] rounded hover:text-white hover:border-[#444c56] transition-colors"

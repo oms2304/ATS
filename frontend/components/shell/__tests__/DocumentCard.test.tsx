@@ -21,7 +21,13 @@ const mockDoc = {
   job: null,
 };
 
-const noop = { onView: jest.fn(), onDuplicate: jest.fn(), onRename: jest.fn() };
+const noop = {
+  onView: jest.fn(),
+  onDuplicate: jest.fn(),
+  onRename: jest.fn(),
+  onArchive: jest.fn(),
+  onRestore: jest.fn(),
+};
 
 describe('DocumentCard', () => {
   // HAPPY PATH: renders baseline fields
@@ -43,7 +49,7 @@ describe('DocumentCard', () => {
   // HAPPY PATH: view button calls onView with the document
   it('calls onView with the document when View is clicked', () => {
     const mockOnView = jest.fn();
-    render(<DocumentCard doc={mockDoc} onView={mockOnView} onDuplicate={jest.fn()} onRename={jest.fn()} />);
+    render(<DocumentCard doc={mockDoc} {...noop} onView={mockOnView} />);
     fireEvent.click(screen.getByTestId('document-view-button'));
     expect(mockOnView).toHaveBeenCalledWith(mockDoc);
   });
@@ -87,28 +93,25 @@ describe('DocumentCard', () => {
     expect(screen.getByTestId('document-card')).toBeInTheDocument();
   });
 
-  // S3-006: Status badge
-  // HAPPY PATH: status badge renders when status is present
+  // S3-006: status badge
   it('renders active status badge when status is active', () => {
     const docWithStatus = { ...mockDoc, status: 'active' };
     render(<DocumentCard doc={docWithStatus} {...noop} />);
     expect(screen.getByTestId('document-status')).toHaveTextContent('Active');
   });
 
-  it('renders archived status badge when status is archived', () => {
-    const docWithStatus = { ...mockDoc, status: 'archived' };
-    render(<DocumentCard doc={docWithStatus} {...noop} />);
+  it('renders archived status badge when archivedAt is set, regardless of status field', () => {
+    const docArchived = { ...mockDoc, status: 'active', archivedAt: new Date().toISOString() };
+    render(<DocumentCard doc={docArchived} {...noop} />);
     expect(screen.getByTestId('document-status')).toHaveTextContent('Archived');
   });
 
-  // NON-HAPPY PATH: no status badge rendered when status is undefined
-  it('does not render a status badge when status is not provided', () => {
+  it('does not render a status badge when neither status nor archivedAt is provided', () => {
     render(<DocumentCard doc={mockDoc} {...noop} />);
     expect(screen.queryByTestId('document-status')).not.toBeInTheDocument();
   });
 
-  // S3-006: Tag chips
-  // HAPPY PATH: tag chips render when tags are present
+  // S3-006: tag chips
   it('renders tag chips when tags are present', () => {
     const docWithTags = { ...mockDoc, tags: ['urgent', 'referral'] };
     render(<DocumentCard doc={docWithTags} {...noop} />);
@@ -117,23 +120,20 @@ describe('DocumentCard', () => {
     expect(tagContainer).toHaveTextContent('referral');
   });
 
-  // NON-HAPPY PATH: no tag container rendered when tags is empty or undefined
   it('does not render tag chips when tags is empty or undefined', () => {
     render(<DocumentCard doc={mockDoc} {...noop} />);
     expect(screen.queryByTestId('document-tags')).not.toBeInTheDocument();
   });
 
   // S3-007: Duplicate
-  // HAPPY PATH: duplicate button calls onDuplicate with the document
   it('calls onDuplicate with the document when Duplicate is clicked', () => {
     const mockOnDuplicate = jest.fn();
-    render(<DocumentCard doc={mockDoc} onView={jest.fn()} onDuplicate={mockOnDuplicate} onRename={jest.fn()} />);
+    render(<DocumentCard doc={mockDoc} {...noop} onDuplicate={mockOnDuplicate} />);
     fireEvent.click(screen.getByTestId('document-duplicate-button'));
     expect(mockOnDuplicate).toHaveBeenCalledWith(mockDoc);
   });
 
   // S3-007: Rename
-  // HAPPY PATH: clicking Rename reveals an input pre-filled with the current title
   it('shows a rename input pre-filled with the current title when Rename is clicked', () => {
     render(<DocumentCard doc={mockDoc} {...noop} />);
     fireEvent.click(screen.getByTestId('document-rename-button'));
@@ -141,10 +141,9 @@ describe('DocumentCard', () => {
     expect(input.value).toBe('Alice Anderson Resume');
   });
 
-  // HAPPY PATH: submitting a changed title via Save calls onRename
   it('calls onRename with the new title when Save is clicked after editing', () => {
     const mockOnRename = jest.fn();
-    render(<DocumentCard doc={mockDoc} onView={jest.fn()} onDuplicate={jest.fn()} onRename={mockOnRename} />);
+    render(<DocumentCard doc={mockDoc} {...noop} onRename={mockOnRename} />);
     fireEvent.click(screen.getByTestId('document-rename-button'));
     fireEvent.change(screen.getByTestId('document-rename-input'), {
       target: { value: 'Updated Resume Title' },
@@ -153,10 +152,9 @@ describe('DocumentCard', () => {
     expect(mockOnRename).toHaveBeenCalledWith(mockDoc, 'Updated Resume Title');
   });
 
-  // HAPPY PATH: pressing Enter submits the rename
   it('submits rename when Enter is pressed in the input', () => {
     const mockOnRename = jest.fn();
-    render(<DocumentCard doc={mockDoc} onView={jest.fn()} onDuplicate={jest.fn()} onRename={mockOnRename} />);
+    render(<DocumentCard doc={mockDoc} {...noop} onRename={mockOnRename} />);
     fireEvent.click(screen.getByTestId('document-rename-button'));
     fireEvent.change(screen.getByTestId('document-rename-input'), {
       target: { value: 'Enter Saved Title' },
@@ -165,10 +163,9 @@ describe('DocumentCard', () => {
     expect(mockOnRename).toHaveBeenCalledWith(mockDoc, 'Enter Saved Title');
   });
 
-  // NON-HAPPY PATH: clicking Cancel discards the edit and does not call onRename
   it('discards the edit and does not call onRename when Cancel is clicked', () => {
     const mockOnRename = jest.fn();
-    render(<DocumentCard doc={mockDoc} onView={jest.fn()} onDuplicate={jest.fn()} onRename={mockOnRename} />);
+    render(<DocumentCard doc={mockDoc} {...noop} onRename={mockOnRename} />);
     fireEvent.click(screen.getByTestId('document-rename-button'));
     fireEvent.change(screen.getByTestId('document-rename-input'), {
       target: { value: 'Should Not Save' },
@@ -178,32 +175,76 @@ describe('DocumentCard', () => {
     expect(screen.getByTestId('document-title')).toHaveTextContent('Alice Anderson Resume');
   });
 
-  // NON-HAPPY PATH: pressing Escape cancels the edit without saving
   it('cancels rename when Escape is pressed', () => {
     const mockOnRename = jest.fn();
-    render(<DocumentCard doc={mockDoc} onView={jest.fn()} onDuplicate={jest.fn()} onRename={mockOnRename} />);
+    render(<DocumentCard doc={mockDoc} {...noop} onRename={mockOnRename} />);
     fireEvent.click(screen.getByTestId('document-rename-button'));
     fireEvent.keyDown(screen.getByTestId('document-rename-input'), { key: 'Escape' });
     expect(mockOnRename).not.toHaveBeenCalled();
     expect(screen.getByTestId('document-title')).toHaveTextContent('Alice Anderson Resume');
   });
 
-  // NON-HAPPY PATH: saving with an unchanged title does not call onRename
   it('does not call onRename when the title is unchanged', () => {
     const mockOnRename = jest.fn();
-    render(<DocumentCard doc={mockDoc} onView={jest.fn()} onDuplicate={jest.fn()} onRename={mockOnRename} />);
+    render(<DocumentCard doc={mockDoc} {...noop} onRename={mockOnRename} />);
     fireEvent.click(screen.getByTestId('document-rename-button'));
     fireEvent.click(screen.getByTestId('document-rename-save'));
     expect(mockOnRename).not.toHaveBeenCalled();
   });
 
-  // NON-HAPPY PATH: saving with an empty/whitespace title does not call onRename
   it('does not call onRename when the title is emptied out', () => {
     const mockOnRename = jest.fn();
-    render(<DocumentCard doc={mockDoc} onView={jest.fn()} onDuplicate={jest.fn()} onRename={mockOnRename} />);
+    render(<DocumentCard doc={mockDoc} {...noop} onRename={mockOnRename} />);
     fireEvent.click(screen.getByTestId('document-rename-button'));
     fireEvent.change(screen.getByTestId('document-rename-input'), { target: { value: '   ' } });
     fireEvent.click(screen.getByTestId('document-rename-save'));
     expect(mockOnRename).not.toHaveBeenCalled();
+  });
+
+  // S3-008: Archive / Restore
+  // HAPPY PATH: active document shows Archive button, calls onArchive when clicked
+  it('shows an Archive button for an active document and calls onArchive when clicked', () => {
+    const mockOnArchive = jest.fn();
+    render(<DocumentCard doc={mockDoc} {...noop} onArchive={mockOnArchive} />);
+    const archiveButton = screen.getByTestId('document-archive-button');
+    expect(archiveButton).toBeInTheDocument();
+    expect(screen.queryByTestId('document-restore-button')).not.toBeInTheDocument();
+    fireEvent.click(archiveButton);
+    expect(mockOnArchive).toHaveBeenCalledWith(mockDoc);
+  });
+
+  // HAPPY PATH: archived document shows Restore button, calls onRestore when clicked
+  it('shows a Restore button for an archived document and calls onRestore when clicked', () => {
+    const mockOnRestore = jest.fn();
+    const archivedDoc = { ...mockDoc, archivedAt: new Date().toISOString() };
+    render(<DocumentCard doc={archivedDoc} {...noop} onRestore={mockOnRestore} />);
+    const restoreButton = screen.getByTestId('document-restore-button');
+    expect(restoreButton).toBeInTheDocument();
+    expect(screen.queryByTestId('document-archive-button')).not.toBeInTheDocument();
+    fireEvent.click(restoreButton);
+    expect(mockOnRestore).toHaveBeenCalledWith(archivedDoc);
+  });
+
+  // NON-HAPPY PATH: archived documents do not show a Rename button
+  it('does not show a Rename button for an archived document', () => {
+    const archivedDoc = { ...mockDoc, archivedAt: new Date().toISOString() };
+    render(<DocumentCard doc={archivedDoc} {...noop} />);
+    expect(screen.queryByTestId('document-rename-button')).not.toBeInTheDocument();
+  });
+
+  // NON-HAPPY PATH: archived documents do not show a Duplicate button —
+  // must be restored first, since duplicating from an archived source is
+  // ambiguous (should the copy be active or archived?) and easy to misread.
+  it('does not show a Duplicate button for an archived document', () => {
+    const archivedDoc = { ...mockDoc, archivedAt: new Date().toISOString() };
+    render(<DocumentCard doc={archivedDoc} {...noop} />);
+    expect(screen.queryByTestId('document-duplicate-button')).not.toBeInTheDocument();
+  });
+
+  // NON-HAPPY PATH: archived documents still show the View button
+  it('still shows the View button for an archived document', () => {
+    const archivedDoc = { ...mockDoc, archivedAt: new Date().toISOString() };
+    render(<DocumentCard doc={archivedDoc} {...noop} />);
+    expect(screen.getByTestId('document-view-button')).toBeInTheDocument();
   });
 });

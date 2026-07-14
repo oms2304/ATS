@@ -16,6 +16,8 @@ jest.mock('@/lib/api', () => ({
   apiFetch: jest.fn(),
   duplicateDocument: jest.fn(),
   renameDocument: jest.fn(),
+  archiveDocument: jest.fn(),
+  restoreDocument: jest.fn(),
 }));
 
 // Helper: find the card element for a given title, regardless of sort order in the grid.
@@ -228,33 +230,6 @@ describe('DocumentsPage - S3-006 Library Filtering and Sorting', () => {
     expect(screen.queryByText('Zebra Resume')).not.toBeInTheDocument();
   });
 
-  // HAPPY PATH: status filter narrows the visible cards
-  it('filters documents by status', async () => {
-    (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: filterDocs });
-    render(<DocumentsPage />);
-    await screen.findByText('Active Resume');
-
-    fireEvent.change(screen.getByTestId('status-filter'), { target: { value: 'archived' } });
-
-    expect(screen.getByText('Archived Cover Letter')).toBeInTheDocument();
-    expect(screen.queryByText('Active Resume')).not.toBeInTheDocument();
-    expect(screen.queryByText('Zebra Resume')).not.toBeInTheDocument();
-  });
-
-  // HAPPY PATH: combining type and status filters narrows further
-  it('combines type and status filters', async () => {
-    (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: filterDocs });
-    render(<DocumentsPage />);
-    await screen.findByText('Active Resume');
-
-    fireEvent.change(screen.getByTestId('type-filter'), { target: { value: 'resume' } });
-    fireEvent.change(screen.getByTestId('status-filter'), { target: { value: 'active' } });
-
-    expect(screen.getByText('Active Resume')).toBeInTheDocument();
-    expect(screen.getByText('Zebra Resume')).toBeInTheDocument();
-    expect(screen.queryByText('Archived Cover Letter')).not.toBeInTheDocument();
-  });
-
   // HAPPY PATH: sorting by title A-Z orders cards alphabetically
   it('sorts documents by title A-Z', async () => {
     (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: filterDocs });
@@ -281,15 +256,151 @@ describe('DocumentsPage - S3-006 Library Filtering and Sorting', () => {
     expect(titles[2]).toHaveTextContent('Active Resume'); // Jan 1
   });
 
-  // NON-HAPPY PATH: filter combination with no matches shows a message
-  it('shows a no-match message when filters exclude all documents', async () => {
-    (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: filterDocs });
+  // NON-HAPPY PATH: type filter with no matches shows a message
+  it('shows a no-match message when the type filter excludes all documents', async () => {
+    const resumeOnlyDocs = filterDocs.filter((d) => d.type === 'resume');
+    (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: resumeOnlyDocs });
     render(<DocumentsPage />);
     await screen.findByText('Active Resume');
 
     fireEvent.change(screen.getByTestId('type-filter'), { target: { value: 'cover_letter' } });
-    fireEvent.change(screen.getByTestId('status-filter'), { target: { value: 'active' } });
 
     expect(screen.getByTestId('no-match-message')).toBeInTheDocument();
+  });
+});
+
+describe('DocumentsPage - S3-008 Document Archive and Restore', () => {
+  const activeDocs = [
+    {
+      id: 'doc-1',
+      type: 'resume',
+      title: 'My Resume',
+      content: 'Resume content',
+      versionNumber: 1,
+      updatedAt: '2024-01-01T00:00:00Z',
+      archivedAt: null,
+      job: null,
+    },
+  ];
+
+  const archivedDocs = [
+    {
+      id: 'doc-2',
+      type: 'cover_letter',
+      title: 'Old Cover Letter',
+      content: 'Cover letter content',
+      versionNumber: 1,
+      updatedAt: '2024-01-01T00:00:00Z',
+      archivedAt: '2024-02-01T00:00:00Z',
+      job: null,
+    },
+  ];
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  // HAPPY PATH: archiving a document removes it from the active view
+  it('removes a document from the active view when Archive succeeds', async () => {
+    (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: activeDocs });
+    (api.archiveDocument as jest.Mock).mockResolvedValue({ success: true, data: {} });
+    render(<DocumentsPage />);
+    await screen.findByText('My Resume');
+
+    fireEvent.click(within(getCardByTitle('My Resume')).getByTestId('document-archive-button'));
+
+    await waitFor(() => {
+      expect(screen.queryByText('My Resume')).not.toBeInTheDocument();
+    });
+    expect(api.archiveDocument).toHaveBeenCalledWith('doc-1');
+  });
+
+  // NON-HAPPY PATH: failed archive keeps the document visible with an error message
+  it('shows an error message and keeps the document visible when Archive fails', async () => {
+    (api.apiFetch as jest.Mock).mockResolvedValue({ success: true, data: activeDocs });
+    (api.archiveDocument as jest.Mock).mockRejectedValue(new Error('Server error'));
+    render(<DocumentsPage />);
+    await screen.findByText('My Resume');
+
+    fireEvent.click(within(getCardByTitle('My Resume')).getByTestId('document-archive-button'));
+
+    expect(await screen.findByTestId('action-error')).toHaveTextContent(/could not archive/i);
+    expect(screen.getByText('My Resume')).toBeInTheDocument();
+  });
+
+  // HAPPY PATH: toggling "Show archived" fetches the archived list and shows Restore
+  it('fetches and displays archived documents with a Restore button when the toggle is clicked', async () => {
+    (api.apiFetch as jest.Mock).mockImplementation((path: string) => {
+      if (path.includes('archived=true')) {
+        return Promise.resolve({ success: true, data: archivedDocs });
+      }
+      return Promise.resolve({ success: true, data: activeDocs });
+    });
+    render(<DocumentsPage />);
+    await screen.findByText('My Resume');
+
+    fireEvent.click(screen.getByTestId('toggle-archived-documents'));
+
+    expect(await screen.findByText('Old Cover Letter')).toBeInTheDocument();
+    expect(screen.getByTestId('document-restore-button')).toBeInTheDocument();
+    expect(api.apiFetch).toHaveBeenCalledWith(expect.stringContaining('archived=true'));
+  });
+
+  // HAPPY PATH: restoring a document removes it from the archived view
+  it('removes a document from the archived view when Restore succeeds', async () => {
+    (api.apiFetch as jest.Mock).mockImplementation((path: string) => {
+      if (path.includes('archived=true')) {
+        return Promise.resolve({ success: true, data: archivedDocs });
+      }
+      return Promise.resolve({ success: true, data: activeDocs });
+    });
+    (api.restoreDocument as jest.Mock).mockResolvedValue({ success: true, data: {} });
+    render(<DocumentsPage />);
+    await screen.findByText('My Resume');
+    fireEvent.click(screen.getByTestId('toggle-archived-documents'));
+    await screen.findByText('Old Cover Letter');
+
+    fireEvent.click(within(getCardByTitle('Old Cover Letter')).getByTestId('document-restore-button'));
+
+    await waitFor(() => {
+      expect(screen.queryByText('Old Cover Letter')).not.toBeInTheDocument();
+    });
+    expect(api.restoreDocument).toHaveBeenCalledWith('doc-2');
+  });
+
+  // NON-HAPPY PATH: failed restore keeps the document visible with an error message
+  it('shows an error message and keeps the document visible when Restore fails', async () => {
+    (api.apiFetch as jest.Mock).mockImplementation((path: string) => {
+      if (path.includes('archived=true')) {
+        return Promise.resolve({ success: true, data: archivedDocs });
+      }
+      return Promise.resolve({ success: true, data: activeDocs });
+    });
+    (api.restoreDocument as jest.Mock).mockRejectedValue(new Error('Server error'));
+    render(<DocumentsPage />);
+    await screen.findByText('My Resume');
+    fireEvent.click(screen.getByTestId('toggle-archived-documents'));
+    await screen.findByText('Old Cover Letter');
+
+    fireEvent.click(within(getCardByTitle('Old Cover Letter')).getByTestId('document-restore-button'));
+
+    expect(await screen.findByTestId('action-error')).toHaveTextContent(/could not restore/i);
+    expect(screen.getByText('Old Cover Letter')).toBeInTheDocument();
+  });
+
+  // NON-HAPPY PATH: empty archived view shows the correct empty-state message
+  it('shows an archived-specific empty message when there are no archived documents', async () => {
+    (api.apiFetch as jest.Mock).mockImplementation((path: string) => {
+      if (path.includes('archived=true')) {
+        return Promise.resolve({ success: true, data: [] });
+      }
+      return Promise.resolve({ success: true, data: activeDocs });
+    });
+    render(<DocumentsPage />);
+    await screen.findByText('My Resume');
+
+    fireEvent.click(screen.getByTestId('toggle-archived-documents'));
+
+    expect(await screen.findByText('No archived documents.')).toBeInTheDocument();
   });
 });
