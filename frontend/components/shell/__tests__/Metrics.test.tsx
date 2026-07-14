@@ -86,7 +86,7 @@ describe('S2-025 - Dashboard Metrics', () => {
     renderWithAuth();
     expect(await screen.findByTestId('metrics-section')).toBeInTheDocument();
     expect(await screen.findByText('Velocity (7d)')).toBeInTheDocument();
-    expect(await screen.findByText('Interview Rate (14d)')).toBeInTheDocument();
+    expect(await screen.findByText('Stage Conversion (14d)')).toBeInTheDocument();
   });
 
   it('displays correct velocity and stage conversion values', async () => {
