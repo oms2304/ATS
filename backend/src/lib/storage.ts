@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { randomUUID } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
+import WebSocket from 'ws';
 
 const BUCKET = 'documents';
 const SIGNED_URL_TTL_SECONDS = 60 * 60 * 24 * 7;
@@ -18,7 +19,11 @@ function getStorageClient() {
   if (!url || !key) {
     throw new StorageServiceError('Storage is not configured');
   }
-  return createClient(url, key);
+  // supabase-js reaches for a global WebSocket that older Node runtimes lack,
+  // so keep supplying the `ws` implementation explicitly.
+  return createClient(url, key, {
+    realtime: { transport: WebSocket as unknown as never },
+  });
 }
 
 async function createSignedUrl(path: string): Promise<string> {

@@ -265,7 +265,7 @@ export default function DashboardPage() {
         </div>
         <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-4 text-center">
           <p data-testid="metric-stage-conversion" className="text-2xl font-bold text-[#2f81f4]">{metrics.stageConversionRate}%</p>
-          <p className="text-xs text-[#8b949e] mt-1">Interview Rate (14d)</p>
+          <p className="text-xs text-[#8b949e] mt-1">Stage Conversion (14d)</p>
         </div>
       </div>
       )}

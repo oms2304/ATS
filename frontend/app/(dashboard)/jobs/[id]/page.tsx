@@ -222,6 +222,18 @@ export default function JobDetailPage({
     const isResume = target === 'resume';
     const content = isResume ? resumeDraft : coverLetterDraft;
     if (!content.trim()) return;
+
+    // Each job keeps one linked resume and one linked cover letter. Confirm
+    // before replacing an existing document of the same type.
+    const documentType = isResume ? 'resume' : 'cover_letter';
+    const documentLabel = isResume ? 'resume' : 'cover letter';
+    if (savedDocs.some((document) => document.type === documentType)) {
+      const confirmed = window.confirm(
+        `You already have a saved ${documentLabel} for this job. Saving will replace it with this new version. Continue?`
+      );
+      if (!confirmed) return;
+    }
+
     setSavingDoc(target);
     setDocError('');
     setDocSavedMessage('');
